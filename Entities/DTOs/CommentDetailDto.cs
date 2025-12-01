@@ -9,5 +9,6 @@ public class CommentDetailDto
 	public string Text { get; set; }
 	public string SenderUsername { get; set; }
 	public bool SenderIsExpert { get; set; }
-	public DateTime SendDate { get; set; }
+    public bool SenderIsOfficial { get; set; }
+    public DateTime SendDate { get; set; }
 }

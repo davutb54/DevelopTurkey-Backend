@@ -17,10 +17,10 @@ public class SolutionManager : ISolutionService
 		return new SuccessDataResult<Solution?>(_solutionDal.Get(solution => solution.Id == id));
 	}
 
-	public IDataResult<List<Solution>> GetAll()
+	public IDataResult<List<SolutionDetailDto>> GetAll()
 	{
-		return new SuccessDataResult<List<Solution>>(_solutionDal.GetAll());
-	}
+        return new SuccessDataResult<List<SolutionDetailDto>>(_solutionDal.GetSolutions());
+    }
 
 	public IDataResult<List<SolutionDetailDto>> GetByProblem(int problemId)
 	{

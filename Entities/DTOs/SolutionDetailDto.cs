@@ -11,7 +11,8 @@ public class SolutionDetailDto
 	public bool SenderIsExpert { get; set; } = false;
 	public string ProblemName { get; set; }
 	public bool IsHighlighted { get; set; }
-	public bool IsReported { get; set; }
+    public bool SenderIsOfficial { get; set; }
+    public bool IsReported { get; set; }
 	public bool IsDeleted { get; set; }
 	public DateTime SendDate { get; set; }
 

@@ -7,7 +7,7 @@ namespace Business.Abstract;
 public interface ISolutionService
 {
 	IDataResult<Solution?> GetById(int id);
-	IDataResult<List<Solution>> GetAll();
+	IDataResult<List<SolutionDetailDto>> GetAll();
 	IDataResult<List<SolutionDetailDto>> GetByProblem(int problemId);
 	IDataResult<List<SolutionDetailDto>> GetBySender(int senderId);
 	IDataResult<List<SolutionDetailDto>> GetIsHighlighted();

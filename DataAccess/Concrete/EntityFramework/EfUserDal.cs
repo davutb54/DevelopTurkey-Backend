@@ -29,7 +29,8 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
 						 IsReported = u.IsReported,
 						 IsDeleted = u.IsDeleted,
 						 IsBanned = u.IsBanned,
-						 IsEmailVerified = u.IsEmailVerified,
+                         IsOfficial = u.IsOfficial,
+                         IsEmailVerified = u.IsEmailVerified,
 						 RegisterDate = u.RegisterDate,
 						 DeleteDate = u.DeleteDate
 					 };
@@ -55,7 +56,8 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
 						 IsExpert = u.IsExpert,
 						 IsReported = u.IsReported,
 						 IsDeleted = u.IsDeleted,
-						 IsBanned = u.IsBanned,
+                         IsOfficial = u.IsOfficial,
+                         IsBanned = u.IsBanned,
 						 IsEmailVerified = u.IsEmailVerified,
 						 RegisterDate = u.RegisterDate,
 						 DeleteDate = u.DeleteDate

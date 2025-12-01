@@ -22,7 +22,8 @@ public class EfCommentDal : EfEntityRepositoryBase<Comment, DevelopTurkeyContext
 						 Text = comment.Text,
 						 SolutionId = comment.SolutionId,
 						 SenderIsExpert = user.IsExpert,
-						 SendDate = comment.SendDate
+                         SenderIsOfficial = user.IsOfficial,
+                         SendDate = comment.SendDate
 					 };
 		return filter == null ? result.ToList() : result.Where(filter).ToList();
 	}

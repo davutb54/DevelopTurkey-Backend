@@ -17,10 +17,10 @@ public class CommentManager : ICommentService
 		return new SuccessDataResult<Comment?>(_commentDal.Get(comment => comment.Id == id));
 	}
 
-	public IDataResult<List<Comment>> GetAll()
+	public IDataResult<List<CommentDetailDto>> GetAll()
 	{
-		return new SuccessDataResult<List<Comment>>(_commentDal.GetAll());
-	}
+        return new SuccessDataResult<List<CommentDetailDto>>(_commentDal.GetCommentDetails());
+    }
 
 	public IDataResult<List<CommentDetailDto>> GetByParentCommentId(int parentCommentId)
 	{

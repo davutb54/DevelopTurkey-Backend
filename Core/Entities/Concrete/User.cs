@@ -17,6 +17,7 @@ public class User : IEntity
 
     public bool IsAdmin { get; set; } = false;
     public bool IsExpert { get; set; } = false;
+    public bool IsOfficial { get; set; } = false;
 
     public bool IsReported { get; set; } = false;
     public bool IsDeleted { get; set; } = false;
