@@ -18,4 +18,5 @@ public class DevelopTurkeyContext : DbContext
 	public DbSet<Comment> Comments { get; set; }
 	public DbSet<Log> Logs { get; set; }
 	public DbSet<EmailVerification> EmailVerifications { get; set; }
+	public DbSet<SolutionVote> SolutionVotes { get; set; }
 }

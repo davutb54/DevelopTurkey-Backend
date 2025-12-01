@@ -53,6 +53,9 @@ builder.Services.AddSingleton<ICommentDal, EfCommentDal>();
 builder.Services.AddSingleton<ILogDal, EfLogDal>();
 builder.Services.AddSingleton<ITokenHelper, JwtHelper>();
 
+builder.Services.AddSingleton<ISolutionVoteService, SolutionVoteManager>();
+builder.Services.AddSingleton<ISolutionVoteDal, EfSolutionVoteDal>();
+
 var tokenOptions = builder.Configuration.GetSection("TokenOptions").Get<TokenOptions>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
