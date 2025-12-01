@@ -1,6 +1,6 @@
 ﻿using System.Linq.Expressions;
 using Core.DataAccess;
-using Entities.Concrete;
+using Core.Entities.Concrete;
 using Entities.DTOs.User;
 
 namespace DataAccess.Abstract;

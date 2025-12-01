@@ -1,6 +1,9 @@
 ﻿using Business.Abstract;
 using Business.Constants;
+using Core.Entities.Concrete;
 using Core.Utilities.Results;
+using Core.Utilities.Security.Hashing;
+using Core.Utilities.Security.JWT;
 using DataAccess.Abstract;
 using DataAccess.Concrete.EntityFramework;
 using Entities.Concrete;
@@ -11,213 +14,248 @@ namespace Business.Concrete;
 
 public class UserManager : IUserService
 {
-	private readonly IUserDal _userDal = new EfUserDal();
-	private readonly ILogDal _logDal = new EfLogDal();
-	public IDataResult<UserDetailDto?> GetById(int id)
-	{
-		var user = _userDal.GetUserDetail(u => u.Id == id);
+    private readonly IUserDal _userDal;
+    private readonly ILogDal _logDal;
+    private readonly ITokenHelper _tokenHelper;
 
-		if (user != null)
-		{
-			_logDal.Add(new Log
-			{
-				CreationDate = DateTime.Now,
-				Message = Messages.UserGetByIdOk + $" Id: {user.Id}",
-				Type = "user,getById,OK"
-			});
-			return new SuccessDataResult<UserDetailDto?>(user);
-		}
+    public UserManager(IUserDal userDal, ILogDal logDal, ITokenHelper tokenHelper)
+    {
+        _userDal = userDal;
+        _logDal = logDal;
+        _tokenHelper = tokenHelper;
+    }
 
-		_logDal.Add(new Log
-		{
-			CreationDate = DateTime.Now,
-			Message = Messages.UserNotFound,
-			Type = "user,getById,Error"
-		});
-		return new ErrorDataResult<UserDetailDto?>(user, Messages.UserGetByIdError);
-	}
+    public IDataResult<UserDetailDto?> GetById(int id)
+    {
+        var user = _userDal.GetUserDetail(u => u.Id == id);
 
-	public IDataResult<List<UserDetailDto>> GetAll()
-	{
-		_logDal.Add(new Log
-		{
-			CreationDate = DateTime.Now,
-			Message = Messages.UserGetAllOk,
-			Type = "user,getAll,OK"
-		});
-		return new SuccessDataResult<List<UserDetailDto>>(_userDal.GetUserDetails());
-	}
+        if (user != null)
+        {
+            _logDal.Add(new Log
+            {
+                CreationDate = DateTime.Now,
+                Message = Messages.UserGetByIdOk + $" Id: {user.Id}",
+                Type = "user,getById,OK"
+            });
+            return new SuccessDataResult<UserDetailDto?>(user, Messages.UserGetByIdOk);
+        }
 
-	public IResult Login(UserForLoginDto userForLoginDto)
-	{
-		var user = _userDal.Get(u => u.UserName == userForLoginDto.UserName);
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = Messages.UserNotFound,
+            Type = "user,getById,Error"
+        });
+        return new ErrorDataResult<UserDetailDto?>(user, Messages.UserGetByIdError);
+    }
 
-		if (user == null)
-		{
-			_logDal.Add(new Log
-			{
-				CreationDate = DateTime.Now,
-				Message = Messages.UserLoginError + " " + Messages.UserNotFound,
-				Type = "user,login,Error"
-			});
-			return new ErrorResult(Messages.UserNotFound);
-		}
+    public IDataResult<List<UserDetailDto>> GetAll()
+    {
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = Messages.UserGetAllOk,
+            Type = "user,getAll,OK"
+        });
+        return new SuccessDataResult<List<UserDetailDto>>(_userDal.GetUserDetails(), Messages.UserGetAllOk);
+    }
+    public IResult Login(UserForLoginDto userForLoginDto)
+    {
+        var user = _userDal.Get(u => u.UserName == userForLoginDto.UserName);
 
-		if (user.Password != userForLoginDto.Password)
-		{
-			_logDal.Add(new Log
-			{
-				CreationDate = DateTime.Now,
-				Message = Messages.UserLoginError + " " + Messages.UserPasswordError,
-				Type = "user,login,Error"
-			});
-			return new ErrorResult(Messages.UserPasswordError);
-		}
+        if (user == null)
+        {
+            _logDal.Add(new Log
+            {
+                CreationDate = DateTime.Now,
+                Message = Messages.UserLoginError + " " + Messages.UserNotFound,
+                Type = "user,login,Error"
+            });
+            return new ErrorResult(Messages.UserNotFound);
+        }
 
-		_logDal.Add(new Log
-		{
-			CreationDate = DateTime.Now,
-			Message = Messages.UserLoginOk + $" Id: {user.Id} Username: {user.UserName}",
-			Type = "user,login,OK"
-		});
-		return new SuccessDataResult<int>(user.Id,Messages.UserLoginOk);
-	}
+        if (!HashingHelper.VerifyPasswordHash(userForLoginDto.Password, user.PasswordHash, user.PasswordSalt))
+        {
+            _logDal.Add(new Log
+            {
+                CreationDate = DateTime.Now,
+                Message = Messages.UserLoginError + " " + Messages.UserPasswordError,
+                Type = "user,login,Error"
+            });
+            return new ErrorResult(Messages.UserPasswordError);
+        }
 
-	public IResult UpdatePassword(UserForPasswordUpdateDto userForPasswordUpdateDto)
-	{
-		var user = _userDal.Get(u => u.Id == userForPasswordUpdateDto.Id);
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = Messages.UserLoginOk + $" Id: {user.Id} Username: {user.UserName}",
+            Type = "user,login,OK"
+        });
+        return new SuccessResult(Messages.UserLoginOk);
+    }
 
-		if (user == null)
-		{
-			_logDal.Add(new Log
-			{
-				CreationDate = DateTime.Now,
-				Message = Messages.UserPasswordUpdateError + " " + Messages.UserNotFound,
-				Type = "user,updatePassword,Error"
-			});
-			return new ErrorResult(Messages.UserNotFound);
-		}
+    public IDataResult<AccessToken> CreateAccessToken(User user)
+    {
+        if (_tokenHelper == null) return new ErrorDataResult<AccessToken>(null, "Token servisi yapılandırılmadı.");
 
-		if (user.Password != userForPasswordUpdateDto.OldPassword)
-		{
-			_logDal.Add(new Log
-			{
-				CreationDate = DateTime.Now,
-				Message = Messages.UserPasswordUpdateError + $" Id: {user.Id} Username: {user.UserName} Hata Mesajı " + Messages.UserPasswordError,
-				Type = "user,updatePassword,Error"
-			});
-			return new ErrorResult(Messages.UserPasswordError);
-		}
+        var accessToken = _tokenHelper.CreateToken(user);
+        return new SuccessDataResult<AccessToken>(accessToken, "Token oluşturuldu");
+    }
 
-		user.Password = userForPasswordUpdateDto.NewPassword;
-		_userDal.Update(user);
+    public IResult Register(UserForRegisterDto userForRegisterDto)
+    {
+        byte[] passwordHash, passwordSalt;
+        HashingHelper.CreatePasswordHash(userForRegisterDto.Password, out passwordHash, out passwordSalt);
 
-		_logDal.Add(new Log
-		{
-			CreationDate = DateTime.Now,
-			Message = Messages.UserPasswordUpdateOk + $" Id: {user.Id} Username: {user.UserName}",
-			Type = "user,updatePassword,OK"
-		});
-		return new SuccessResult(Messages.UserPasswordUpdateOk);
-	}
+        User user = new User
+        {
+            UserName = userForRegisterDto.UserName,
+            Name = userForRegisterDto.Name,
+            Surname = userForRegisterDto.Surname,
+            Email = userForRegisterDto.Email,
+            CityCode = userForRegisterDto.CityCode,
+            Gender = userForRegisterDto.GenderCode,
+            PasswordHash = passwordHash,
+            PasswordSalt = passwordSalt,
+            EmailNotificationPermission = userForRegisterDto.EmailNotificationPermission,
+            RegisterDate = DateTime.Now,
+            IsAdmin = false,
+            IsExpert = false,
+            IsDeleted = false,
+            IsReported = false,
+            IsBanned = false,
+            IsEmailVerified = false
+        };
 
-	public IResult CheckUserExists(CheckExistsDto checkExistsDto)
-	{
-		var emailUser = _userDal.Get(u => u.Email == checkExistsDto.Email);
-		var usernameUser = _userDal.Get(u => u.UserName == checkExistsDto.Username);
+        _userDal.Add(user);
+        return new SuccessResult(Messages.UserRegisterOk);
+    }
 
-		if (emailUser != null)
-		{
-			return new SuccessResult(Messages.UserEmailIsFound);
-		}
+    public IResult UpdatePassword(UserForPasswordUpdateDto userForPasswordUpdateDto)
+    {
+        var user = _userDal.Get(u => u.Id == userForPasswordUpdateDto.Id);
 
-		if (usernameUser != null)
-		{
-			return new SuccessResult(Messages.UserUsernameIsFound);
-		}
+        if (user == null)
+        {
+            _logDal.Add(new Log
+            {
+                CreationDate = DateTime.Now,
+                Message = Messages.UserPasswordUpdateError + " " + Messages.UserNotFound,
+                Type = "user,updatePassword,Error"
+            });
+            return new ErrorResult(Messages.UserNotFound);
+        }
 
-		return new ErrorResult(Messages.UserEmailAndUsernameIsNotFound);
-	}
+        if (!HashingHelper.VerifyPasswordHash(userForPasswordUpdateDto.OldPassword, user.PasswordHash, user.PasswordSalt))
+        {
+            _logDal.Add(new Log
+            {
+                CreationDate = DateTime.Now,
+                Message = Messages.UserPasswordUpdateError + $" Id: {user.Id} Username: {user.UserName} Hata Mesajı " + Messages.UserPasswordError,
+                Type = "user,updatePassword,Error"
+            });
+            return new ErrorResult(Messages.UserPasswordError);
+        }
 
-	public IResult Register(UserForRegisterDto userForRegisterDto)
-	{
-		User user = new User
-		{
-			UserName = userForRegisterDto.UserName,
-			Name = userForRegisterDto.Name,
-			Surname = userForRegisterDto.Surname,
-			Email = userForRegisterDto.Email,
-			CityCode = userForRegisterDto.CityCode,
-			Gender = userForRegisterDto.GenderCode,
-			Password = userForRegisterDto.Password,
-			EmailNotificationPermission = userForRegisterDto.EmailNotificationPermission,
-			RegisterDate = DateTime.Now
-		};
+        byte[] newHash, newSalt;
+        HashingHelper.CreatePasswordHash(userForPasswordUpdateDto.NewPassword, out newHash, out newSalt);
 
-		_userDal.Add(user);
+        user.PasswordHash = newHash;
+        user.PasswordSalt = newSalt;
 
-		return new SuccessResult(Messages.UserRegisterOk);
-	}
+        _userDal.Update(user);
 
-	public IResult UpdateUserDetails(UserForUpdateDto userForUpdateDto)
-	{
-		var user = _userDal.Get(u => u.Id == userForUpdateDto.Id);
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = Messages.UserPasswordUpdateOk + $" Id: {user.Id} Username: {user.UserName}",
+            Type = "user,updatePassword,OK"
+        });
+        return new SuccessResult(Messages.UserPasswordUpdateOk);
+    }
 
-		if (user == null)
-		{
-			_logDal.Add(new Log
-			{
-				CreationDate = DateTime.Now,
-				Message = Messages.UserUpdateError + " " + Messages.UserNotFound,
-				Type = "user,update,Error"
-			});
-			return new ErrorResult(Messages.UserNotFound);
-		}
+    public IResult CheckUserExists(CheckExistsDto checkExistsDto)
+    {
+        var emailUser = _userDal.Get(u => u.Email == checkExistsDto.Email);
+        var usernameUser = _userDal.Get(u => u.UserName == checkExistsDto.Username);
 
-		user.Name = userForUpdateDto.Name;
-		user.Surname = userForUpdateDto.Surname;
-		user.Email = userForUpdateDto.Email;
-		user.CityCode = userForUpdateDto.CityCode;
-		user.Gender = userForUpdateDto.GenderCode;
+        if (emailUser != null)
+        {
+            return new SuccessResult(Messages.UserEmailIsFound);
+        }
 
-		_userDal.Update(user);
+        if (usernameUser != null)
+        {
+            return new SuccessResult(Messages.UserUsernameIsFound);
+        }
 
-		_logDal.Add(new Log
-		{
-			CreationDate = DateTime.Now,
-			Message = Messages.UserUpdateOk + $" Id: {user.Id} Username: {user.UserName}",
-			Type = "user,update,OK"
-		});
+        return new ErrorResult(Messages.UserEmailAndUsernameIsNotFound);
+    }
 
-		return new SuccessResult(Messages.UserUpdateOk);
-	}
+    public IResult UpdateUserDetails(UserForUpdateDto userForUpdateDto)
+    {
+        var user = _userDal.Get(u => u.Id == userForUpdateDto.Id);
 
-	public IResult DeleteUser(int id)
-	{
-		var user = _userDal.Get(u => u.Id == id);
+        if (user == null)
+        {
+            _logDal.Add(new Log
+            {
+                CreationDate = DateTime.Now,
+                Message = Messages.UserUpdateError + " " + Messages.UserNotFound,
+                Type = "user,update,Error"
+            });
+            return new ErrorResult(Messages.UserNotFound);
+        }
 
-		if (user == null)
-		{
-			_logDal.Add(new Log
-			{
-				CreationDate = DateTime.Now,
-				Message = Messages.UserDeleteError + " " + Messages.UserNotFound,
-				Type = "user,delete,Error"
-			});
-			return new ErrorResult(Messages.UserNotFound);
-		}
+        user.Name = userForUpdateDto.Name;
+        user.Surname = userForUpdateDto.Surname;
+        user.Email = userForUpdateDto.Email;
+        user.CityCode = userForUpdateDto.CityCode;
+        user.Gender = userForUpdateDto.GenderCode;
 
-		user.IsDeleted = true;
-		user.DeleteDate = DateTime.Now;
-		_userDal.Update(user);
+        _userDal.Update(user);
 
-		_logDal.Add(new Log
-		{
-			CreationDate = DateTime.Now,
-			Message = Messages.UserDeleteOk + $" Id: {user.Id} Username: {user.UserName}",
-			Type = "user,delete,OK"
-		});
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = Messages.UserUpdateOk + $" Id: {user.Id} Username: {user.UserName}",
+            Type = "user,update,OK"
+        });
 
-		return new SuccessResult(Messages.UserDeleteOk);
-	}
+        return new SuccessResult(Messages.UserUpdateOk);
+    }
+
+    public IResult DeleteUser(int id)
+    {
+        var user = _userDal.Get(u => u.Id == id);
+
+        if (user == null)
+        {
+            _logDal.Add(new Log
+            {
+                CreationDate = DateTime.Now,
+                Message = Messages.UserDeleteError + " " + Messages.UserNotFound,
+                Type = "user,delete,Error"
+            });
+            return new ErrorResult(Messages.UserNotFound);
+        }
+
+        user.IsDeleted = true;
+        user.DeleteDate = DateTime.Now;
+        _userDal.Update(user);
+
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = Messages.UserDeleteOk + $" Id: {user.Id} Username: {user.UserName}",
+            Type = "user,delete,OK"
+        });
+
+        return new SuccessResult(Messages.UserDeleteOk);
+    }
+
+    public User GetByUserName(string userName)
+    {
+        return _userDal.Get(u => u.UserName == userName);
+    }
 }

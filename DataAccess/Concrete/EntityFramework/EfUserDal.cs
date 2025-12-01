@@ -1,8 +1,8 @@
 ﻿using System.Linq.Expressions;
 using Core.DataAccess.EntityFramework;
+using Core.Entities.Concrete;
 using Core.Entities.Constants;
 using DataAccess.Abstract;
-using Entities.Concrete;
 using Entities.DTOs.User;
 
 namespace DataAccess.Concrete.EntityFramework;

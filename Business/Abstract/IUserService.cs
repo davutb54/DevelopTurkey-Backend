@@ -1,5 +1,6 @@
-﻿using Core.Utilities.Results;
-using Entities.Concrete;
+﻿using Core.Entities.Concrete;
+using Core.Utilities.Results;
+using Core.Utilities.Security.JWT;
 using Entities.DTOs;
 using Entities.DTOs.User;
 
@@ -7,12 +8,14 @@ namespace Business.Abstract;
 
 public interface IUserService
 {
-	IDataResult<UserDetailDto?> GetById(int id);
-	IResult Login(UserForLoginDto userForLoginDto);
-	IDataResult<List<UserDetailDto>> GetAll();
-	IResult UpdatePassword(UserForPasswordUpdateDto userForPasswordUpdateDto);
-	IResult CheckUserExists(CheckExistsDto checkExistsDto);
-	IResult Register(UserForRegisterDto userForRegisterDto);
-	IResult UpdateUserDetails(UserForUpdateDto userForUpdateDto);
-	IResult DeleteUser(int id);
+    IDataResult<UserDetailDto?> GetById(int id);
+    IDataResult<List<UserDetailDto>> GetAll();
+    IResult Login(UserForLoginDto userForLoginDto);
+    IResult Register(UserForRegisterDto userForRegisterDto);
+    IDataResult<AccessToken> CreateAccessToken(User user);
+    IResult UpdatePassword(UserForPasswordUpdateDto userForPasswordUpdateDto);
+    IResult CheckUserExists(CheckExistsDto checkExistsDto);
+    IResult UpdateUserDetails(UserForUpdateDto userForUpdateDto);
+    User GetByUserName(string userName);
+    IResult DeleteUser(int id);
 }
