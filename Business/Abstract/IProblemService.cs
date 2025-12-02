@@ -14,4 +14,5 @@ public interface IProblemService
 	IResult Add(Problem problem);
 	IResult Update(Problem problem);
 	IResult Delete(int id);
+    IDataResult<List<ProblemDetailDto>> GetList(ProblemFilterDto filterDto);
 }

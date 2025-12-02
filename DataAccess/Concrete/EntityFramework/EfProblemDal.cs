@@ -64,4 +64,60 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
 			};
 		return result.Where(filter).SingleOrDefault();
 	}
+
+    public List<ProblemDetailDto> GetListByFilter(ProblemFilterDto filter)
+    {
+        using (var context = new DevelopTurkeyContext())
+        {
+            var query = from p in context.Problems
+                        join u in context.Users on p.SenderId equals u.Id
+                        join t in context.Topics on p.TopicId equals t.Id
+                        where p.IsDeleted == false
+                        select new { p, u, t };
+
+            
+
+            if (filter.CityCode.HasValue)
+            {
+                query = query.Where(x => x.p.CityCode == filter.CityCode.Value);
+            }
+
+            if (filter.TopicId.HasValue)
+            {
+                query = query.Where(x => x.p.TopicId == filter.TopicId.Value);
+            }
+
+            if (!string.IsNullOrEmpty(filter.SearchText))
+            {
+                string text = filter.SearchText.ToLower();
+                query = query.Where(x => x.p.Title.ToLower().Contains(text) ||
+                                         x.p.Description.ToLower().Contains(text));
+            }
+
+            
+            var result = query.Select(x => new ProblemDetailDto
+            {
+                Id = x.p.Id,
+                Title = x.p.Title,
+                Description = x.p.Description,
+                CityCode = x.p.CityCode,
+                CityName = ConstantData.GetCity(x.p.CityCode).Text,
+                TopicId = x.p.TopicId,
+                TopicName = x.t.Name,
+                SenderId = x.p.SenderId,
+                SenderUsername = x.u.UserName,
+                SenderIsExpert = x.u.IsExpert,
+                SenderIsOfficial = x.u.IsOfficial,
+                ImageUrl = x.p.ImageUrl,
+                IsHighlighted = x.p.IsHighlighted,
+                IsReported = x.p.IsReported,
+                IsDeleted = x.p.IsDeleted,
+                SendDate = x.p.SendDate
+            });
+
+            // Sıralama: En yeni en üstte
+            return result.OrderByDescending(p => p.SendDate).ToList();
+        }
+    }
+
 }

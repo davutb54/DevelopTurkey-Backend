@@ -55,4 +55,9 @@ public class ProblemManager : IProblemService
 		_problemDal.Delete(_problemDal.Get(problem => problem.Id == id));
 		return new SuccessResult(Messages.ProblemDeleted);
 	}
+
+    public IDataResult<List<ProblemDetailDto>> GetList(ProblemFilterDto filterDto)
+    {
+        return new SuccessDataResult<List<ProblemDetailDto>>(_problemDal.GetListByFilter(filterDto));
+    }
 }

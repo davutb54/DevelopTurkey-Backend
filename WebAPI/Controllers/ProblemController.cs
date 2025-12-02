@@ -109,5 +109,12 @@ namespace WebAPI.Controllers
             var result = _problemService.Delete(id);
             return result.Success ? Ok(result) : BadRequest(result);
         }
+
+        [HttpGet("getlist")]
+        public IActionResult GetList([FromQuery] ProblemFilterDto filterDto)
+        {
+            var result = _problemService.GetList(filterDto);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
     }
 }

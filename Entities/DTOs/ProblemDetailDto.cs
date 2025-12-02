@@ -2,7 +2,9 @@
 
 public class ProblemDetailDto
 {
-	public int Id { get; set; }
+    public bool SenderIsOfficial;
+
+    public int Id { get; set; }
 	public int SenderId { get; set; }
 	public string TopicName { get; set; }
 	public string SenderUsername { get; set; }
