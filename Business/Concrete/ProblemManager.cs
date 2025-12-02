@@ -10,9 +10,16 @@ namespace Business.Concrete;
 
 public class ProblemManager : IProblemService
 {
-	private readonly IProblemDal _problemDal = new EfProblemDal();
+	private readonly IProblemDal _problemDal;
+	private readonly ILogDal _logDal;
 
-	public IDataResult<ProblemDetailDto> GetById(int id)
+    public ProblemManager(IProblemDal problemDal, ILogDal logDal)
+    {
+		_problemDal = problemDal;
+		_logDal = logDal;
+    }
+
+    public IDataResult<ProblemDetailDto> GetById(int id)
 	{
 		return new SuccessDataResult<ProblemDetailDto>(_problemDal.GetProblemDetail(problem => problem.Id == id));
 	}
@@ -41,20 +48,48 @@ public class ProblemManager : IProblemService
 	{
 		problem.SendDate = DateTime.Now;
 		_problemDal.Add(problem);
-		return new SuccessResult(Messages.ProblemAdded);
+
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = Messages.ProblemAdded + $" - Başlık: {problem.Title}",
+            Type = "Problem,Add,Info"
+        });
+
+        return new SuccessResult(Messages.ProblemAdded);
 	}
 
 	public IResult Update(Problem problem)
 	{
 		_problemDal.Update(problem);
-		return new SuccessResult(Messages.ProblemUpdated);
+
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = Messages.ProblemUpdated + $" - ID: {problem.Id}",
+            Type = "Problem,Update,Info"
+        });
+        return new SuccessResult(Messages.ProblemUpdated);
 	}
 
 	public IResult Delete(int id)
 	{
-		_problemDal.Delete(_problemDal.Get(problem => problem.Id == id));
-		return new SuccessResult(Messages.ProblemDeleted);
-	}
+        var problem = _problemDal.Get(p => p.Id == id);
+        if (problem == null) return new ErrorResult("Kayıt bulunamadı");
+
+        problem.IsDeleted = true;
+        problem.DeleteDate = DateTime.Now;
+        _problemDal.Update(problem);
+
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = Messages.ProblemDeleted + $" - ID: {id}",
+            Type = "Problem,Delete,Info"
+        });
+
+        return new SuccessResult(Messages.ProblemDeleted);
+    }
 
     public IDataResult<List<ProblemDetailDto>> GetList(ProblemFilterDto filterDto)
     {

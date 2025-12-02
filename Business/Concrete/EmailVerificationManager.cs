@@ -12,12 +12,14 @@ public class EmailVerificationManager : IEmailVerificationService
     private readonly IEmailVerificationDal _emailVerificationDal;
     private readonly IUserDal _userDal;
     private readonly IEmailHelper _emailHelper;
+    private readonly ILogDal _logDal;
 
-    public EmailVerificationManager(IEmailVerificationDal emailVerificationDal, IUserDal userDal, IEmailHelper emailHelper)
+    public EmailVerificationManager(IEmailVerificationDal emailVerificationDal, IUserDal userDal, IEmailHelper emailHelper, ILogDal logDal)
     {
         _emailVerificationDal = emailVerificationDal;
         _userDal = userDal;
         _emailHelper = emailHelper;
+        _logDal = logDal;
     }
 
     public IResult SendVerificationCode(User user)
@@ -44,9 +46,21 @@ public class EmailVerificationManager : IEmailVerificationService
 
         if (!sendResult.Success)
         {
+            _logDal.Add(new Log
+            {
+                CreationDate = DateTime.Now,
+                Message = "Email gönderme hatası: " + sendResult.Message + " " + user.Id,
+                Type = "EmailVerification,Error"
+            });
             return new ErrorResult("Kayıt oldu ama mail gidemedi: " + sendResult.Message);
         }
 
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = "Doğrulama kodu gönderildi: " + user.Id,
+            Type = "EmailVerification,Info"
+        });
         return new SuccessResult("Doğrulama kodu e-posta adresinize gönderildi.");
     }
 
@@ -68,6 +82,12 @@ public class EmailVerificationManager : IEmailVerificationService
 
         if (validVerification == null)
         {
+            _logDal.Add(new Log
+            {
+                CreationDate = DateTime.Now,
+                Message = "Geçersiz doğrulama kodu denemesi: " + user.Id,
+                Type = "EmailVerification,Warning"
+            });
             return new ErrorResult("Geçersiz veya süresi dolmuş kod.");
         }
 
@@ -75,6 +95,13 @@ public class EmailVerificationManager : IEmailVerificationService
         {
             validVerification.IsExpired = true;
             _emailVerificationDal.Update(validVerification);
+
+            _logDal.Add(new Log
+            {
+                CreationDate = DateTime.Now,
+                Message = "Süresi dolmuş doğrulama kodu denemesi: " + user.Id,
+                Type = "EmailVerification,Warning"
+            });
             return new ErrorResult("Kodun süresi dolmuş.");
         }
 
@@ -85,6 +112,12 @@ public class EmailVerificationManager : IEmailVerificationService
         user.IsEmailVerified = true;
         _userDal.Update(user);
 
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = "Email başarıyla doğrulandı: " + user.Id,
+            Type = "EmailVerification,Info"
+        });
         return new SuccessResult("Email başarıyla doğrulandı!");
     }
 
@@ -111,9 +144,21 @@ public class EmailVerificationManager : IEmailVerificationService
         var sendResult = _emailHelper.Send(user.Email, subject, body);
         if (!sendResult.Success)
         {
+            _logDal.Add(new Log
+            {
+                CreationDate = DateTime.Now,
+                Message = "Şifre sıfırlama maili gönderme hatası: " + sendResult.Message + " " + user.Id,
+                Type = "EmailVerification,Error"
+            });
             return new ErrorResult("Mail gönderilemedi: " + sendResult.Message);
         }
 
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = "Şifre sıfırlama kodu gönderildi: " + user.Id,
+            Type = "EmailVerification,Info"
+        });
         return new SuccessResult("Şifre sıfırlama kodu gönderildi.");
     }
 }

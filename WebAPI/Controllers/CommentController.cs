@@ -9,10 +9,15 @@ namespace WebAPI.Controllers
 	[Route("api/[controller]")]
 	[ApiController]
 	public class CommentController : Controller
-	{
-		private readonly ICommentService _commentService = new CommentManager();
+    {
+        private readonly ICommentService _commentService;
 
-		[HttpGet("getbyid")]
+		public CommentController(ICommentService commentService)
+		{
+			_commentService = commentService;
+        }
+
+        [HttpGet("getbyid")]
 		public IActionResult GetById(int id)
 		{
 			var result = _commentService.GetById(id);

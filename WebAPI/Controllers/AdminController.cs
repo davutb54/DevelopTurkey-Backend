@@ -12,12 +12,14 @@ namespace WebAPI.Controllers
         private readonly IUserService _userService;
         private readonly IProblemService _problemService;
         private readonly ISolutionService _solutionService;
+        private readonly ILogService _logService;
 
-        public AdminController(IUserService userService, IProblemService problemService, ISolutionService solutionService)
+        public AdminController(IUserService userService, IProblemService problemService, ISolutionService solutionService, ILogService logService)
         {
             _userService = userService;
             _problemService = problemService;
             _solutionService = solutionService;
+            _logService = logService;
         }
 
         [HttpPost("banuser")]
@@ -62,6 +64,13 @@ namespace WebAPI.Controllers
         {
             var result = _userService.UnbanUser(userId);
             return result.Success ? Ok(result.Message) : BadRequest(result.Message);
+        }
+
+        [HttpGet("getlogs")]
+        public IActionResult GetLogs([FromQuery] Entities.DTOs.LogFilterDto filter)
+        {
+            var result = _logService.GetList(filter);
+            return result.Success ? Ok(result) : BadRequest(result);
         }
     }
 }

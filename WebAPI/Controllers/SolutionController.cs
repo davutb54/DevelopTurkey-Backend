@@ -9,10 +9,16 @@ namespace WebAPI.Controllers
 	[Route("api/[controller]")]
 	[ApiController]
 	public class SolutionController : Controller
-	{
-		private readonly ISolutionService _solutionService = new SolutionManager();
+    {
+        private readonly ISolutionService _solutionService;
 
-		[HttpGet("getbyid")]
+        public SolutionController(ISolutionService solutionService)
+        {
+			_solutionService = solutionService;
+        }
+
+
+        [HttpGet("getbyid")]
 		public IActionResult GetById(int id)
 		{
 			var result = _solutionService.GetById(id);

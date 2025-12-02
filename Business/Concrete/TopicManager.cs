@@ -9,9 +9,15 @@ namespace Business.Concrete;
 
 public class TopicManager : ITopicService
 {
-	private readonly ITopicDal _topicDal = new EfTopicDal();
+    private readonly ITopicDal _topicDal;
+	private readonly ILogDal _logDal;
+	public TopicManager(ITopicDal topicDal, ILogDal logDal)
+	{
+		_topicDal = topicDal;
+		_logDal = logDal;
+    }
 
-	public IDataResult<Topic?> GetById(int id)
+    public IDataResult<Topic?> GetById(int id)
 	{
 		return new SuccessDataResult<Topic?>(_topicDal.Get(topic => topic.Id == id));
 	}
@@ -24,18 +30,37 @@ public class TopicManager : ITopicService
 	public IResult Add(Topic topic)
 	{
 		_topicDal.Add(topic);
+
+		_logDal.Add(new Log
+        {
+			CreationDate = DateTime.Now,
+			Message = "New topic added: " + topic.Name,
+			Type = "Topic,Add,Info"
+        });
 		return new SuccessResult(Messages.TopicAdded);
 	}
 
 	public IResult Update(Topic topic)
 	{
 		_topicDal.Update(topic);
-		return new SuccessResult(Messages.TopicUpdated);
+		_logDal.Add(new Log
+		{
+			CreationDate = DateTime.Now,
+			Message = "Topic updated: " + topic.Name,
+			Type = "Topic,Update,Info"
+		});
+        return new SuccessResult(Messages.TopicUpdated);
 	}
 
 	public IResult Delete(Topic topic)
 	{
 		_topicDal.Delete(topic);
-		return new SuccessResult(Messages.TopicDeleted);
+		_logDal.Add(new Log
+		{
+			CreationDate = DateTime.Now,
+			Message = "Topic deleted: " + topic.Name,
+			Type = "Topic,Delete,Info"
+		});
+        return new SuccessResult(Messages.TopicDeleted);
 	}
 }

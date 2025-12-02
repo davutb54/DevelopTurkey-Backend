@@ -63,6 +63,7 @@ builder.Services.AddSingleton<IEmailVerificationService, EmailVerificationManage
 builder.Services.AddSingleton<IEmailVerificationDal, EfEmailVerificationDal>();
 
 builder.Services.AddSingleton<IEmailHelper, SmtpEmailHelper>();
+builder.Services.AddSingleton<ILogService, LogManager>();
 
 var tokenOptions = builder.Configuration.GetSection("TokenOptions").Get<TokenOptions>();
 

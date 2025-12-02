@@ -9,10 +9,16 @@ namespace WebAPI.Controllers
 	[Route("api/[controller]")]
 	[ApiController]
 	public class TopicController : Controller
-	{
-		private readonly ITopicService _topicService = new TopicManager();
+    {
+        private readonly ITopicService _topicService;
 
-		[HttpGet("getbyid")]
+        public TopicController(ITopicService topicService)
+        {
+			_topicService = topicService;
+        }
+
+
+        [HttpGet("getbyid")]
 		public IActionResult GetById(int id)
 		{
 			var result = _topicService.GetById(id);
