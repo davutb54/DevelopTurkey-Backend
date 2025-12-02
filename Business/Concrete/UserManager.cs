@@ -264,4 +264,24 @@ public class UserManager : IUserService
         _userDal.Update(user);
         return new SuccessResult(Messages.UserUpdateOk);
     }
+
+    public IResult ResetPassword(int userId, string newPassword)
+    {
+        var user = _userDal.Get(u => u.Id == userId);
+        if (user == null) return new ErrorResult(Messages.UserNotFound);
+
+        byte[] passwordHash, passwordSalt;
+        HashingHelper.CreatePasswordHash(newPassword, out passwordHash, out passwordSalt);
+
+        user.PasswordHash = passwordHash;
+        user.PasswordSalt = passwordSalt;
+
+        _userDal.Update(user);
+        return new SuccessResult("Şifreniz başarıyla sıfırlandı.");
+    }
+
+    public User GetByEmail(string email)
+    {
+        return _userDal.Get(u => u.Email == email);
+    }
 }

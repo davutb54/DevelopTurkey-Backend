@@ -19,4 +19,6 @@ public interface IUserService
     User GetByUserName(string userName);
     IResult DeleteUser(int id);
     IResult Update(User user);
+    IResult ResetPassword(int userId, string newPassword);
+    User GetByEmail(string email);
 }

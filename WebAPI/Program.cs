@@ -1,5 +1,6 @@
 using Business.Abstract;
 using Business.Concrete;
+using Core.Utilities.Helpers.Email;
 using Core.Utilities.Security.Encryption;
 using Core.Utilities.Security.JWT;
 using DataAccess.Abstract;
@@ -56,6 +57,11 @@ builder.Services.AddSingleton<ITokenHelper, JwtHelper>();
 
 builder.Services.AddSingleton<ISolutionVoteService, SolutionVoteManager>();
 builder.Services.AddSingleton<ISolutionVoteDal, EfSolutionVoteDal>();
+
+builder.Services.AddSingleton<IEmailVerificationService, EmailVerificationManager>();
+builder.Services.AddSingleton<IEmailVerificationDal, EfEmailVerificationDal>();
+
+builder.Services.AddSingleton<IEmailHelper, SmtpEmailHelper>();
 
 var tokenOptions = builder.Configuration.GetSection("TokenOptions").Get<TokenOptions>();
 

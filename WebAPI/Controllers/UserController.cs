@@ -16,15 +16,17 @@ namespace WebAPI.Controllers
         private readonly IUserService _userService;
         private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly IValidator<UserForRegisterDto> _registerValidator;
+        private readonly IEmailVerificationService _emailVerificationService;
 
         public UserController(
             IUserService userService,
             IWebHostEnvironment webHostEnvironment,
-            IValidator<UserForRegisterDto> registerValidator)
+            IValidator<UserForRegisterDto> registerValidator,IEmailVerificationService emailVerificationService)
         {
             _userService = userService;
             _webHostEnvironment = webHostEnvironment;
             _registerValidator = registerValidator;
+            _emailVerificationService = emailVerificationService;
         }
 
         [HttpGet("getbyid")]
@@ -102,6 +104,14 @@ namespace WebAPI.Controllers
 
             if (registerResult.Success)
             {
+                var user = _userService.GetByUserName(userForRegisterDto.UserName);
+                var emailResult = _emailVerificationService.SendVerificationCode(user);
+
+                if (!emailResult.Success)
+                {
+                    return BadRequest(emailResult.Message);
+                }
+
                 if (result.Success)
                 {
                     return Ok(result.Data);
