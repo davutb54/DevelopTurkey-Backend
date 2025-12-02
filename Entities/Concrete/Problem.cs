@@ -15,5 +15,6 @@ public class Problem : IEntity
 	public bool IsDeleted { get; set; } = false;
 	public DateTime SendDate { get; set; }
 	public DateTime? DeleteDate { get; set; }
+    public string? ImageUrl { get; set; }
 
 }

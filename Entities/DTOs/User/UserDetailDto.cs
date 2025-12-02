@@ -19,4 +19,5 @@ public class UserDetailDto
 	public bool IsEmailVerified { get; set; }
 	public DateTime RegisterDate { get; set; }
 	public DateTime? DeleteDate { get; set; }
+    public string? ProfileImageUrl { get; set; }
 }

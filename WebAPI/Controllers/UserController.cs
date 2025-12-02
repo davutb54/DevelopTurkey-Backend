@@ -3,6 +3,7 @@ using Business.Concrete;
 using Core.Entities.Concrete;
 using Entities.DTOs;
 using Entities.DTOs.User;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 
 namespace WebAPI.Controllers
@@ -12,10 +13,12 @@ namespace WebAPI.Controllers
     public class UserController : Controller
     {
         private readonly IUserService _userService;
+        private readonly IWebHostEnvironment _webHostEnvironment;
 
-        public UserController(IUserService userService)
+        public UserController(IUserService userService, IWebHostEnvironment webHostEnvironment)
         {
             _userService = userService;
+            _webHostEnvironment = webHostEnvironment;
         }
 
         [HttpGet("getbyid")]
@@ -118,6 +121,26 @@ namespace WebAPI.Controllers
         {
             var result = _userService.CheckUserExists(checkExistsDto);
             return Ok(result);
+        }
+
+        [HttpPost("uploadprofileimage")]
+        public IActionResult UploadProfileImage([FromForm] UserImageUpdateDto userImageUpdateDto)
+        {
+            var userDetail = _userService.GetById(userImageUpdateDto.UserId);
+            if (!userDetail.Success) return BadRequest(userDetail.Message);
+
+            string uploadPath = Path.Combine(_webHostEnvironment.WebRootPath, "uploads", "profiles");
+
+            string newFileName = Core.Utilities.Helpers.FileHelper.FileHelper.Add(userImageUpdateDto.Image, uploadPath);
+
+            if (newFileName == null) return BadRequest("Dosya yüklenemedi.");
+
+            var user = _userService.GetByUserName(userDetail.Data.UserName);
+
+            user.ProfileImageUrl = newFileName;
+            _userService.Update(user);
+
+            return Ok(new { message = "Profil resmi güncellendi", imageUrl = newFileName });
         }
     }
 }

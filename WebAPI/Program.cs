@@ -87,6 +87,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 
 app.UseCors("AllowOrigin");
 app.UseAuthentication();

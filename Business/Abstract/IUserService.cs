@@ -18,4 +18,5 @@ public interface IUserService
     IResult UpdateUserDetails(UserForUpdateDto userForUpdateDto);
     User GetByUserName(string userName);
     IResult DeleteUser(int id);
+    IResult Update(User user);
 }

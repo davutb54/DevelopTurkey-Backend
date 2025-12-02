@@ -258,4 +258,10 @@ public class UserManager : IUserService
     {
         return _userDal.Get(u => u.UserName == userName);
     }
+
+    public IResult Update(User user)
+    {
+        _userDal.Update(user);
+        return new SuccessResult(Messages.UserUpdateOk);
+    }
 }

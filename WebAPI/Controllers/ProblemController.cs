@@ -2,6 +2,7 @@
 using Business.Concrete;
 using Core.Utilities.Results;
 using Entities.Concrete;
+using Entities.DTOs;
 using Microsoft.AspNetCore.Mvc;
 
 namespace WebAPI.Controllers
@@ -9,10 +10,17 @@ namespace WebAPI.Controllers
 	[Route("api/[controller]")]
 	[ApiController]
 	public class ProblemController : Controller
-	{
-		private readonly IProblemService _problemService = new ProblemManager();
+    {
+        private readonly IProblemService _problemService;
+        private readonly IWebHostEnvironment _webHostEnvironment;
 
-		[HttpGet("getbyid")]
+        public ProblemController(IProblemService problemService, IWebHostEnvironment webHostEnvironment)
+        {
+            _problemService = problemService;
+            _webHostEnvironment = webHostEnvironment;
+        }
+
+        [HttpGet("getbyid")]
 		public IActionResult GetById(int id)
 		{
 			var result = _problemService.GetById(id);
@@ -47,14 +55,35 @@ namespace WebAPI.Controllers
 			return result.Success ? Ok(result) : BadRequest(result);
 		}
 
-		[HttpPost("add")]
-		public IActionResult Add(Problem problem)
-		{
-			var result = _problemService.Add(problem);
-			return result.Success ? Ok(result) : BadRequest(result);
-		}
+        [HttpPost("add")]
+        public IActionResult Add([FromForm] ProblemAddDto problemAddDto)
+        {
+            string imagePath = null;
+            if (problemAddDto.Image != null)
+            {
+                string uploadPath = Path.Combine(_webHostEnvironment.WebRootPath, "uploads", "problems");
+                imagePath = Core.Utilities.Helpers.FileHelper.FileHelper.Add(problemAddDto.Image, uploadPath);
+            }
 
-		[HttpPost("update")]
+            var problem = new Problem
+            {
+                SenderId = problemAddDto.SenderId,
+                Title = problemAddDto.Title,
+                Description = problemAddDto.Description,
+                CityCode = problemAddDto.CityCode,
+                TopicId = problemAddDto.TopicId,
+                ImageUrl = imagePath,
+                SendDate = DateTime.Now,
+                IsHighlighted = false,
+                IsReported = false,
+                IsDeleted = false
+            };
+
+            var result = _problemService.Add(problem);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpPost("update")]
 		public IActionResult Update(Problem problem)
 		{
 			var result = _problemService.Update(problem);

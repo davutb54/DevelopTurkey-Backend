@@ -29,7 +29,8 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
 						 IsDeleted = p.IsDeleted,
 						 TopicId = p.TopicId,
 						 SenderId = p.SenderId,
-						 SenderUsername = u.UserName,
+                         ImageUrl = p.ImageUrl,
+                         SenderUsername = u.UserName,
 						 CityName = ConstantData.GetCity(p.CityCode).Text,
 						 SenderIsExpert = u.IsExpert,
 						 SendDate = p.SendDate
@@ -55,7 +56,8 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
 				IsHighlighted = p.IsHighlighted,
 				IsReported = p.IsReported,
 				IsDeleted = p.IsDeleted,
-				TopicId = p.TopicId,
+                ImageUrl = p.ImageUrl,
+                TopicId = p.TopicId,
 				SenderId = p.SenderId,
 				SenderUsername = u.UserName,
 				CityName = ConstantData.GetCity(p.CityCode).Text

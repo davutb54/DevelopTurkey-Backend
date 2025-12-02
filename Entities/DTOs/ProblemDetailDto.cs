@@ -16,4 +16,5 @@ public class ProblemDetailDto
 	public bool IsReported { get; set; }
 	public bool IsDeleted { get; set; }
 	public DateTime SendDate { get; set; }
+    public string? ImageUrl { get; set; }
 }
