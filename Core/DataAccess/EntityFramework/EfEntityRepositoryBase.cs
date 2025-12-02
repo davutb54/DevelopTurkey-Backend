@@ -44,4 +44,12 @@ public class EfEntityRepositoryBase<TEntity, TContext> : IEntityRepository<TEnti
 		deletedEntity.State = EntityState.Deleted;
 		context.SaveChanges();
 	}
+
+    public int Count(Expression<Func<TEntity, bool>>? filter = null)
+    {
+        using var context = new TContext();
+        return filter == null
+            ? context.Set<TEntity>().Count()
+            : context.Set<TEntity>().Count(filter);
+    }
 }

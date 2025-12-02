@@ -41,6 +41,16 @@ public class JwtHelper : ITokenHelper
             new Claim(ClaimTypes.Name, user.UserName)
         };
 
+        if (user.IsAdmin)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, "Admin"));
+        }
+
+        if (user.IsExpert)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, "Expert"));
+        }
+
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),

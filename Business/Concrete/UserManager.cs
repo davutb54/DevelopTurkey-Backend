@@ -284,4 +284,36 @@ public class UserManager : IUserService
     {
         return _userDal.Get(u => u.Email == email);
     }
+
+    public IResult BanUser(int userId)
+    {
+        var user = _userDal.Get(u => u.Id == userId);
+        if (user == null) return new ErrorResult(Messages.UserNotFound);
+
+        user.IsBanned = true;
+        _userDal.Update(user);
+
+        return new SuccessResult($"Kullanıcı (ID: {user.Id}) yasaklandı.");
+    }
+
+    public IResult UnbanUser(int userId)
+    {
+        var user = _userDal.Get(u => u.Id == userId);
+        if (user == null) return new ErrorResult(Messages.UserNotFound);
+
+        user.IsBanned = false;
+        _userDal.Update(user);
+
+        return new SuccessResult($"Kullanıcı (ID: {user.Id}) yasağı kaldırıldı.");
+    }
+
+    public int GetUserCount()
+    {
+        return _userDal.Count();
+    }
+
+    public int GetBannedUserCount()
+    {
+        return _userDal.Count(u => u.IsBanned == true);
+    }
 }

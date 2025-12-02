@@ -14,5 +14,6 @@ public interface ISolutionService
 	IResult Add(Solution solution);
 	IResult Update(Solution solution);
 	IResult Delete(int id);
+    int GetTotalCount();
 
 }

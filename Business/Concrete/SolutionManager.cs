@@ -55,4 +55,9 @@ public class SolutionManager : ISolutionService
 		_solutionDal.Delete(_solutionDal.Get(solution => solution.Id == id));
 		return new SuccessResult(Messages.SolutionDeleted);
 	}
+
+    public int GetTotalCount()
+    {
+        return _solutionDal.Count();
+    }
 }

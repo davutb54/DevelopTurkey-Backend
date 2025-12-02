@@ -60,4 +60,21 @@ public class ProblemManager : IProblemService
     {
         return new SuccessDataResult<List<ProblemDetailDto>>(_problemDal.GetListByFilter(filterDto));
     }
+
+    public IDataResult<List<ProblemDetailDto>> GetReportedProblems()
+    {
+        return new SuccessDataResult<List<ProblemDetailDto>>(
+            _problemDal.GetProblemsDetails(p => p.IsReported == true)
+        );
+    }
+
+    public int GetTotalCount()
+    {
+        return _problemDal.Count();
+    }
+
+    public int GetReportedCount()
+    {
+        return _problemDal.Count(p => p.IsReported == true);
+    }
 }

@@ -21,4 +21,8 @@ public interface IUserService
     IResult Update(User user);
     IResult ResetPassword(int userId, string newPassword);
     User GetByEmail(string email);
+    IResult BanUser(int userId);
+    IResult UnbanUser(int userId); 
+    int GetUserCount(); 
+    int GetBannedUserCount();
 }
