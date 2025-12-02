@@ -3,6 +3,7 @@ using Business.Concrete;
 using Core.Entities.Concrete;
 using Entities.DTOs;
 using Entities.DTOs.User;
+using FluentValidation;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,11 +15,16 @@ namespace WebAPI.Controllers
     {
         private readonly IUserService _userService;
         private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly IValidator<UserForRegisterDto> _registerValidator;
 
-        public UserController(IUserService userService, IWebHostEnvironment webHostEnvironment)
+        public UserController(
+            IUserService userService,
+            IWebHostEnvironment webHostEnvironment,
+            IValidator<UserForRegisterDto> registerValidator)
         {
             _userService = userService;
             _webHostEnvironment = webHostEnvironment;
+            _registerValidator = registerValidator;
         }
 
         [HttpGet("getbyid")]
@@ -66,6 +72,12 @@ namespace WebAPI.Controllers
         [HttpPost("register")]
         public IActionResult Register(UserForRegisterDto userForRegisterDto)
         {
+            var validationResult = _registerValidator.Validate(userForRegisterDto);
+
+            if (!validationResult.IsValid)
+            {
+                return BadRequest(validationResult.Errors);
+            }
 
             var userExists = _userService.CheckUserExists(new CheckExistsDto
             {
