@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <Folder Include="wwwroot\uploads\problems\" />
+    <Folder Include="wwwroot\uploads\problems\" />
     <Folder Include="wwwroot\uploads\profiles\" />
   </ItemGroup>
 

@@ -63,6 +63,18 @@ public class UserManager : IUserService
     {
         var user = _userDal.Get(u => u.UserName == userForLoginDto.UserName);
 
+        if (user.IsDeleted)
+        {
+            _logDal.Add(new Log
+            {
+                CreationDate = DateTime.Now,
+                Message = Messages.UserLoginError + " " + Messages.UserNotFound,
+                Type = "user,login,Error"
+            });
+
+            return new ErrorResult(Messages.UserNotFound);
+        }
+
         if (user == null)
         {
             _logDal.Add(new Log

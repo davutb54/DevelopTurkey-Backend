@@ -8,8 +8,8 @@ public class DevelopTurkeyContext : DbContext
 {
 	protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 	{
-		optionsBuilder.UseSqlServer(@"Server=89.252.187.226\MSSQLSERVER2019;Database=turki121_developturkey;user=turki121_dbadmin;password=yM$y*eI51qRl7yoe;TrustServerCertificate=True;");
-	}
+        optionsBuilder.UseSqlServer(@"Server=(localdb)\MSSQLLocalDB;Database=DevelopTurkey;Trusted_Connection=True;MultipleActiveResultSets=True;TrustServerCertificate=True;");
+    }
 
 	public DbSet<User> Users { get; set; }
 	public DbSet<Topic> Topics { get; set; }

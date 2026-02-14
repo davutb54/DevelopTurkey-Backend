@@ -15,5 +15,6 @@ public class SolutionDetailDto
     public bool IsReported { get; set; }
 	public bool IsDeleted { get; set; }
 	public DateTime SendDate { get; set; }
+    public int VoteCount { get; set; }
 
 }

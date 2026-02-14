@@ -1,4 +1,5 @@
 ﻿using Business.Abstract;
+using Entities.DTOs;
 using Microsoft.AspNetCore.Mvc;
 
 namespace WebAPI.Controllers
@@ -15,15 +16,15 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("vote")]
-        public IActionResult Vote(int userId, int solutionId, bool isUpvote)
+        public IActionResult Vote([FromBody] SolutionVoteAddDto solutionVoteAddDto)
         {
-            var result = _solutionVoteService.Vote(userId, solutionId, isUpvote);
 
+            var result = _solutionVoteService.Vote(solutionVoteAddDto.UserId, solutionVoteAddDto.SolutionId, solutionVoteAddDto.IsUpvote);
             if (result.Success)
             {
-                return Ok(result.Message);
+                return Ok(result);
             }
-            return BadRequest(result.Message);
+            return BadRequest(result);
         }
 
         [HttpGet("getvotecount")]
@@ -33,7 +34,7 @@ namespace WebAPI.Controllers
 
             if (result.Success)
             {
-                return Ok(result.Data); 
+                return Ok(result.Data);
             }
             return BadRequest(result.Message);
         }

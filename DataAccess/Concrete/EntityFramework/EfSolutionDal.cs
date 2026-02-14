@@ -29,7 +29,8 @@ public class EfSolutionDal : EfEntityRepositoryBase<Solution, DevelopTurkeyConte
                          ProblemName = p.Title,
                          SenderIsOfficial = u.IsOfficial,
                          SenderIsExpert = u.IsExpert,
-                         SendDate = s.SendDate
+                         SendDate = s.SendDate,
+                         VoteCount = context.SolutionVotes.Count(v => v.SolutionId == s.Id && v.IsUpvote) - context.SolutionVotes.Count(v => v.SolutionId == s.Id && !v.IsUpvote)
                      };
         return filter == null ? result.ToList() : result.Where(filter).ToList();
     }
