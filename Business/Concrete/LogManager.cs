@@ -19,4 +19,10 @@ public class LogManager : ILogService
     {
         return new SuccessDataResult<List<Log>>(_logDal.GetListByFilter(filter));
     }
+
+    public IResult Add(Log log)
+    {
+        _logDal.Add(log);
+        return new SuccessResult("Log başarıyla eklendi.");
+    }
 }

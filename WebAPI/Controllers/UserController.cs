@@ -1,6 +1,7 @@
 ﻿using Business.Abstract;
 using Business.Concrete;
 using Core.Entities.Concrete;
+using Entities.Concrete;
 using Entities.DTOs;
 using Entities.DTOs.User;
 using FluentValidation;
@@ -17,16 +18,18 @@ namespace WebAPI.Controllers
         private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly IValidator<UserForRegisterDto> _registerValidator;
         private readonly IEmailVerificationService _emailVerificationService;
+        private readonly ILogService _logService;
 
         public UserController(
             IUserService userService,
             IWebHostEnvironment webHostEnvironment,
-            IValidator<UserForRegisterDto> registerValidator,IEmailVerificationService emailVerificationService)
+            IValidator<UserForRegisterDto> registerValidator,IEmailVerificationService emailVerificationService, ILogService logService)
         {
             _userService = userService;
             _webHostEnvironment = webHostEnvironment;
             _registerValidator = registerValidator;
             _emailVerificationService = emailVerificationService;
+            _logService = logService;
         }
 
         [HttpGet("getbyid")]
@@ -50,10 +53,26 @@ namespace WebAPI.Controllers
             var userToLogin = _userService.Login(userForLoginDto);
             if (!userToLogin.Success)
             {
+                var failIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+                _logService.Add(new Log
+                {
+                    Message = $"Başarısız Giriş Denemesi: {userForLoginDto.UserName} kullanıcısı için yanlış şifre girildi. IP: {failIp}",
+                    CreationDate = DateTime.Now,
+                    Type = "user,loginIP,Error"
+                });
                 return BadRequest(userToLogin.Message);
             }
 
             var user = _userService.GetByUserName(userForLoginDto.UserName);
+
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+
+            _logService.Add(new Log
+            {
+                Message = $"Kullanıcı Girişi: {user.UserName} adlı kullanıcı sisteme giriş yaptı. IP: {ipAddress}",
+                CreationDate = DateTime.Now,
+                Type = "user,loginIP,OK"
+            });
 
             var result = _userService.CreateAccessToken(user);
             if (result.Success)

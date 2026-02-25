@@ -74,6 +74,17 @@ public class UserManager : IUserService
             return new ErrorResult(Messages.UserNotFound);
         }
 
+        if (user.IsBanned)
+        {
+            _logDal.Add(new Log
+            {
+                CreationDate = DateTime.Now,
+                Message = $"Banlı Giriş Denemesi: {user.UserName}",
+                Type = "user,login,Banned"
+            });
+            return new ErrorResult("Hesabınız kuralları ihlal ettiğiniz gerekçesiyle sistem yöneticileri tarafından askıya alınmıştır.");
+        }
+
         if (!HashingHelper.VerifyPasswordHash(userForLoginDto.Password, user.PasswordHash, user.PasswordSalt))
         {
             _logDal.Add(new Log
@@ -128,6 +139,14 @@ public class UserManager : IUserService
         };
 
         _userDal.Add(user);
+
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = Messages.UserRegisterOk + $" Id: {user.Id} Username: {user.UserName}",
+            Type = "user,register,OK"
+        });
+
         return new SuccessResult(Messages.UserRegisterOk);
     }
 
@@ -277,6 +296,14 @@ public class UserManager : IUserService
         user.PasswordSalt = passwordSalt;
 
         _userDal.Update(user);
+
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = $"Kullanıcı (ID: {user.Id}) şifresi sıfırlandı.",
+            Type = "user,resetPassword,OK"
+        });
+
         return new SuccessResult("Şifreniz başarıyla sıfırlandı.");
     }
 
@@ -293,6 +320,13 @@ public class UserManager : IUserService
         user.IsBanned = true;
         _userDal.Update(user);
 
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = $"Kullanıcı (ID: {user.Id}) yasaklandı.",
+            Type = "user,ban,OK"
+        });
+
         return new SuccessResult($"Kullanıcı (ID: {user.Id}) yasaklandı.");
     }
 
@@ -303,6 +337,13 @@ public class UserManager : IUserService
 
         user.IsBanned = false;
         _userDal.Update(user);
+
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = $"Kullanıcı (ID: {user.Id}) yasağı kaldırıldı.",
+            Type = "user,unban,OK"
+        });
 
         return new SuccessResult($"Kullanıcı (ID: {user.Id}) yasağı kaldırıldı.");
     }

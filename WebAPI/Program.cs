@@ -7,6 +7,7 @@ using DataAccess.Abstract;
 using DataAccess.Concrete.EntityFramework;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -16,41 +17,41 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowOrigin", policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy.AllowAnyOrigin()
               .AllowAnyMethod()
               .AllowAnyHeader();
     });
 });
 
-builder.Services.AddSingleton<IUserService, UserManager>();
-builder.Services.AddSingleton<IUserDal, EfUserDal>();
+builder.Services.AddScoped<IUserService, UserManager>();
+builder.Services.AddScoped<IUserDal, EfUserDal>();
 
-builder.Services.AddSingleton<ITopicService, TopicManager>();
-builder.Services.AddSingleton<ITopicDal, EfTopicDal>();
+builder.Services.AddScoped<ITopicService, TopicManager>();
+builder.Services.AddScoped<ITopicDal, EfTopicDal>();
 
-builder.Services.AddSingleton<IProblemService, ProblemManager>();
-builder.Services.AddSingleton<IProblemDal, EfProblemDal>();
+builder.Services.AddScoped<IProblemService, ProblemManager>();
+builder.Services.AddScoped<IProblemDal, EfProblemDal>();
 
-builder.Services.AddSingleton<ISolutionService, SolutionManager>();
-builder.Services.AddSingleton<ISolutionDal, EfSolutionDal>();
+builder.Services.AddScoped<ISolutionService, SolutionManager>();
+builder.Services.AddScoped<ISolutionDal, EfSolutionDal>();
 
-builder.Services.AddSingleton<ICommentService, CommentManager>();
-builder.Services.AddSingleton<ICommentDal, EfCommentDal>();
+builder.Services.AddScoped<ICommentService, CommentManager>();
+builder.Services.AddScoped<ICommentDal, EfCommentDal>();
 
-builder.Services.AddSingleton<ILogDal, EfLogDal>();
-builder.Services.AddSingleton<ITokenHelper, JwtHelper>();
+builder.Services.AddScoped<ILogDal, EfLogDal>();
+builder.Services.AddScoped<ITokenHelper, JwtHelper>();
 
-builder.Services.AddSingleton<ISolutionVoteService, SolutionVoteManager>();
-builder.Services.AddSingleton<ISolutionVoteDal, EfSolutionVoteDal>();
+builder.Services.AddScoped<ISolutionVoteService, SolutionVoteManager>();
+builder.Services.AddScoped<ISolutionVoteDal, EfSolutionVoteDal>();
 
-builder.Services.AddSingleton<IEmailVerificationService, EmailVerificationManager>();
-builder.Services.AddSingleton<IEmailVerificationDal, EfEmailVerificationDal>();
+builder.Services.AddScoped<IEmailVerificationService, EmailVerificationManager>();
+builder.Services.AddScoped<IEmailVerificationDal, EfEmailVerificationDal>();
 
-builder.Services.AddSingleton<IEmailHelper, SmtpEmailHelper>();
-builder.Services.AddSingleton<ILogService, LogManager>();
+builder.Services.AddScoped<IEmailHelper, SmtpEmailHelper>();
+builder.Services.AddScoped<ILogService, LogManager>();
 
-builder.Services.AddSingleton<IReportDal, EfReportDal>();
-builder.Services.AddSingleton<IReportService, ReportManager>();
+builder.Services.AddScoped<IReportDal, EfReportDal>();
+builder.Services.AddScoped<IReportService, ReportManager>();
 
 var tokenOptions = builder.Configuration.GetSection("TokenOptions").Get<TokenOptions>();
 
@@ -103,18 +104,25 @@ builder.Services.AddValidatorsFromAssemblyContaining<Business.ValidationRules.Fl
 
 builder.Services.AddRateLimiter(options =>
 {
+    options.RejectionStatusCode = 429;
+
     options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
         System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? httpContext.Request.Headers.Host.ToString(),
             factory: partition => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
             {
                 AutoReplenishment = true,
-                PermitLimit = 50,
+                PermitLimit = 300,
                 Window = TimeSpan.FromMinutes(1)
             }));
 });
 
 var app = builder.Build();
+
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -122,8 +130,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
-
-if (!app.Environment.IsDevelopment())
+else
 {
     app.UseExceptionHandler(c => c.Run(async context =>
     {
@@ -135,11 +142,31 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
+app.UseRouting();
+
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.Value.StartsWith("/api"))
+    {
+        var expectedToken = builder.Configuration["ApiSettings:SiteToken"];
+        var hasHeader = context.Request.Headers.TryGetValue("X-Site-Token", out var token);
+
+        if (!hasHeader || token != expectedToken)
+        {
+            context.Response.StatusCode = 403;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync("{\"message\": \"Erisim reddedildi. Bu API'ye sadece site uzerinden erisim saglanabilir.\"}");
+            return;
+        }
+    }
+    await next();
+});
+
 app.UseCors("AllowOrigin");
+app.UseRateLimiter();
 app.UseAuthentication();
-app.UseAuthorization(); 
+app.UseAuthorization();
 
 app.MapControllers();
-app.UseRateLimiter();
 
 app.Run();

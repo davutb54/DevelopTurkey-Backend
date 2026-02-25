@@ -50,6 +50,7 @@ public class JwtHelper : ITokenHelper
         {
             claims.Add(new Claim(ClaimTypes.Role, "Expert"));
         }
+        if (user.IsOfficial) claims.Add(new Claim(ClaimTypes.Role, "Official"));
 
         var tokenDescriptor = new SecurityTokenDescriptor
         {

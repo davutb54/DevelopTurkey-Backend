@@ -7,4 +7,5 @@ namespace Business.Abstract;
 public interface ILogService
 {
     IDataResult<List<Log>> GetList(LogFilterDto filter);
+    IResult Add(Log log);
 }
