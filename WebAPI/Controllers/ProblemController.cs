@@ -114,6 +114,17 @@ namespace WebAPI.Controllers
         public IActionResult GetList([FromQuery] ProblemFilterDto filterDto)
         {
             var result = _problemService.GetList(filterDto);
+            if (result.Success)
+            {
+                return Ok(result);
+            }
+            return BadRequest(result);
+        }
+
+        [HttpPost("incrementview")]
+        public IActionResult IncrementView(int id)
+        {
+            var result = _problemService.IncrementView(id);
             return result.Success ? Ok(result) : BadRequest(result);
         }
     }

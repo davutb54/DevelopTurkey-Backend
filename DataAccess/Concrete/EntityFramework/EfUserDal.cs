@@ -33,8 +33,10 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
                          IsOfficial = u.IsOfficial,
                          IsEmailVerified = u.IsEmailVerified,
 						 RegisterDate = u.RegisterDate,
-						 DeleteDate = u.DeleteDate
-					 };
+						 DeleteDate = u.DeleteDate,
+						 CityCode = u.CityCode,
+						 GenderCode = u.Gender
+                     };
 		return result.SingleOrDefault(filter);
 	}
 

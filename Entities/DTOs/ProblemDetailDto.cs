@@ -19,4 +19,9 @@ public class ProblemDetailDto
 	public bool IsDeleted { get; set; }
 	public DateTime SendDate { get; set; }
     public string? ImageUrl { get; set; }
+    public int ViewCount { get; set; }
+    public int SolutionCount { get; set; }
+    public bool IsResolvedByExpert { get; set; }
+    public bool IsResolved { get; set; }
+    public string? SenderImageUrl { get; set; }
 }

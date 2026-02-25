@@ -59,5 +59,16 @@ namespace WebAPI.Controllers
             return BadRequest(updateResult.Message);
         }
 
+        [HttpPost("resendverification")]
+        public IActionResult ResendVerification([FromBody] string email)
+        {
+            var userDetail = _userService.GetByEmail(email);
+            if (userDetail == null) return BadRequest("Kullanıcı bulunamadı.");
+            if (userDetail.IsEmailVerified) return BadRequest("Bu hesap zaten doğrulanmış.");
+
+            var result = _emailVerificationService.SendVerificationCode(userDetail);
+            return result.Success ? Ok(result.Message) : BadRequest(result.Message);
+        }
+
     }
 }

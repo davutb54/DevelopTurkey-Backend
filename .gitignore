@@ -362,3 +362,8 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 /WebAPI/appsettings.json
+
+# Ayar ve Sır Dosyaları (Secret Files)
+appsettings.json
+appsettings.Development.json
+appsettings.*.json

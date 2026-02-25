@@ -14,4 +14,6 @@ public class Solution : IEntity
 	public bool IsDeleted { get; set; } = false;
 	public DateTime SendDate { get; set; }
 	public DateTime? DeleteDate { get; set; }
+    // 0: Bekliyor (Pending), 1: Onaylandı (Approved), 2: Reddedildi (Rejected)
+    public int ExpertApprovalStatus { get; set; } = 0;
 }

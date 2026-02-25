@@ -19,22 +19,6 @@ builder.Services.AddCors(options =>
         policy.WithOrigins("http://localhost:3000")
               .AllowAnyMethod()
               .AllowAnyHeader();
-
-        policy.WithOrigins("https://www.lucid-sinoussi.89-252-187-226.plesk.page")
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-
-        policy.WithOrigins("https://davutb54.github.io/developturkey/")
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-
-        policy.WithOrigins("https://www.turkiyeyigelistirmeplatformu.com")
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-
-        policy.WithOrigins("https://www.turkiyeyigelistirmeplatformu.com.tr")
-              .AllowAnyMethod()
-              .AllowAnyHeader();
     });
 });
 
@@ -64,6 +48,9 @@ builder.Services.AddSingleton<IEmailVerificationDal, EfEmailVerificationDal>();
 
 builder.Services.AddSingleton<IEmailHelper, SmtpEmailHelper>();
 builder.Services.AddSingleton<ILogService, LogManager>();
+
+builder.Services.AddSingleton<IReportDal, EfReportDal>();
+builder.Services.AddSingleton<IReportService, ReportManager>();
 
 var tokenOptions = builder.Configuration.GetSection("TokenOptions").Get<TokenOptions>();
 
@@ -114,6 +101,19 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.AddValidatorsFromAssemblyContaining<Business.ValidationRules.FluentValidation.ProblemValidator>();
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? httpContext.Request.Headers.Host.ToString(),
+            factory: partition => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 50,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -121,6 +121,15 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler(c => c.Run(async context =>
+    {
+        context.Response.StatusCode = 500;
+        await context.Response.WriteAsJsonAsync(new { success = false, message = "Sunucuda beklenmeyen bir hata oluştu. Lütfen daha sonra tekrar deneyin." });
+    }));
 }
 
 app.UseHttpsRedirection();
@@ -131,5 +140,6 @@ app.UseAuthentication();
 app.UseAuthorization(); 
 
 app.MapControllers();
+app.UseRateLimiter();
 
 app.Run();

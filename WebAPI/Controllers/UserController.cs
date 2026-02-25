@@ -151,6 +151,14 @@ namespace WebAPI.Controllers
             var userDetail = _userService.GetById(userImageUpdateDto.UserId);
             if (!userDetail.Success) return BadRequest(userDetail.Message);
 
+            var extension = Path.GetExtension(userImageUpdateDto.Image.FileName).ToLower();
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+
+            if (!allowedExtensions.Contains(extension))
+            {
+                return BadRequest("Sadece .jpg, .jpeg, .png veya .webp formatında resim yükleyebilirsiniz!");
+            }
+
             string uploadPath = Path.Combine(_webHostEnvironment.WebRootPath, "uploads", "profiles");
 
             string newFileName = Core.Utilities.Helpers.FileHelper.FileHelper.Add(userImageUpdateDto.Image, uploadPath);

@@ -18,4 +18,10 @@ public interface IProblemService
     IDataResult<List<ProblemDetailDto>> GetReportedProblems();
     int GetTotalCount();
     int GetReportedCount();
+	IResult ReportProblem(int id);
+	IResult UnReportProblem(int id);
+	IResult ToggleHighlight(int id);
+    IResult IncrementView(int id);
+	IResult ToggleResolved(int id);
+	IResult ResolveProblem(int id);
 }

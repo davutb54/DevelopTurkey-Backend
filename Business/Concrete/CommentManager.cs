@@ -68,10 +68,8 @@ public class CommentManager : ICommentService
     public IResult Delete(int id)
     {
         var comment = _commentDal.Get(comment => comment.Id == id);
-        if (comment == null)
-        {
-            return new ErrorResult("Yorum Bulunamadı");
-        }
+        if (comment == null) return new ErrorResult("Yorum Bulunamadı");
+
         comment.IsDeleted = true;
         comment.DeleteDate = DateTime.Now;
         _commentDal.Update(comment);

@@ -16,5 +16,6 @@ public class Problem : IEntity
 	public DateTime SendDate { get; set; }
 	public DateTime? DeleteDate { get; set; }
     public string? ImageUrl { get; set; }
-
+    public int ViewCount { get; set; }
+    public bool IsResolved { get; set; }
 }

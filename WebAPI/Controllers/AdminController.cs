@@ -14,7 +14,8 @@ namespace WebAPI.Controllers
         private readonly ISolutionService _solutionService;
         private readonly ILogService _logService;
 
-        public AdminController(IUserService userService, IProblemService problemService, ISolutionService solutionService, ILogService logService)
+        public AdminController(IUserService userService, IProblemService problemService,
+            ISolutionService solutionService, ILogService logService)
         {
             _userService = userService;
             _problemService = problemService;
@@ -29,7 +30,7 @@ namespace WebAPI.Controllers
             return result.Success ? Ok(result.Message) : BadRequest(result.Message);
         }
 
-        
+
         [HttpGet("getreportedproblems")]
         public IActionResult GetReportedProblems()
         {
@@ -56,7 +57,8 @@ namespace WebAPI.Controllers
                 TotalSolutions = _solutionService.GetTotalCount()
             };
 
-            return Ok(new Core.Utilities.Results.SuccessDataResult<Entities.DTOs.AdminDashboardDto>(stats, "İstatistikler getirildi."));
+            return Ok(new Core.Utilities.Results.SuccessDataResult<Entities.DTOs.AdminDashboardDto>(stats,
+                "İstatistikler getirildi."));
         }
 
         [HttpPost("unbanuser")]
@@ -71,6 +73,69 @@ namespace WebAPI.Controllers
         {
             var result = _logService.GetList(filter);
             return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpPost("toggleadminrole")]
+        public IActionResult ToggleAdminRole(int userId)
+        {
+            var result = _userService.ToggleAdminRole(userId);
+            return result.Success ? Ok(result.Message) : BadRequest(result.Message);
+        }
+
+        [HttpPost("toggleexpertrole")]
+        public IActionResult ToggleExpertRole(int userId)
+        {
+            var result = _userService.ToggleExpertRole(userId);
+            return result.Success ? Ok(result.Message) : BadRequest(result.Message);
+        }
+
+        [HttpPost("toggleofficialrole")]
+        public IActionResult ToggleOfficialRole(int userId)
+        {
+            var result = _userService.ToggleOfficialRole(userId);
+            return result.Success ? Ok(result.Message) : BadRequest(result.Message);
+        }
+
+        [HttpPost("toggleproblemhighlight")]
+        public IActionResult ToggleProblemHighlight(int problemId)
+        {
+            var result = _problemService.ToggleHighlight(problemId);
+            return result.Success ? Ok(result.Message) : BadRequest(result.Message);
+        }
+
+        [HttpPost("togglesolutionhighlight")]
+        public IActionResult ToggleSolutionHighlight(int solutionId)
+        {
+            var result = _solutionService.ToggleHighlight(solutionId);
+            return result.Success ? Ok(result.Message) : BadRequest(result.Message);
+        }
+
+        [HttpPost("toggleproblemresolved")]
+        public IActionResult ToggleProblemResolved(int problemId)
+        {
+            var result = _problemService.ToggleResolved(problemId);
+            return result.Success ? Ok(result.Message) : BadRequest(result.Message);
+        }
+
+        [HttpGet("getpendingexpertsolutions")]
+        public IActionResult GetPendingExpertSolutions()
+        {
+            var result = _solutionService.GetPendingExpertSolutions();
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpPost("approvesolution")]
+        public IActionResult ApproveSolution(int solutionId)
+        {
+            var result = _solutionService.ApproveSolution(solutionId);
+            return result.Success ? Ok(result.Message) : BadRequest(result.Message);
+        }
+
+        [HttpPost("rejectsolution")]
+        public IActionResult RejectSolution(int solutionId)
+        {
+            var result = _solutionService.RejectSolution(solutionId);
+            return result.Success ? Ok(result.Message) : BadRequest(result.Message);
         }
     }
 }

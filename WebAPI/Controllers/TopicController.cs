@@ -2,6 +2,7 @@
 using Business.Concrete;
 using Core.Utilities.Results;
 using Entities.Concrete;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace WebAPI.Controllers
@@ -33,21 +34,24 @@ namespace WebAPI.Controllers
 		}
 
 		[HttpPost("add")]
-		public IActionResult Add(Topic topic)
+        [Authorize(Roles = "Admin")]
+        public IActionResult Add(Topic topic)
 		{
 			var result = _topicService.Add(topic);
 			return result.Success ? Ok(result) : BadRequest(result);
 		}
 
 		[HttpPost("update")]
-		public IActionResult Update(Topic topic)
+        [Authorize(Roles = "Admin")]
+        public IActionResult Update(Topic topic)
 		{
 			var result = _topicService.Update(topic);
 			return result.Success ? Ok(result) : BadRequest(result);
 		}
 
 		[HttpDelete("delete")]
-		public IActionResult Delete(Topic topic)
+        [Authorize(Roles = "Admin")]
+        public IActionResult Delete(Topic topic)
 		{
 			var result = _topicService.Delete(topic);
 			return result.Success ? Ok(result) : BadRequest(result);

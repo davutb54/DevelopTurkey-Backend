@@ -16,5 +16,7 @@ public class SolutionDetailDto
 	public bool IsDeleted { get; set; }
 	public DateTime SendDate { get; set; }
     public int VoteCount { get; set; }
-
+    // 0: Bekliyor (Pending), 1: Onaylandı (Approved), 2: Reddedildi (Rejected)
+    public int ExpertApprovalStatus { get; set; } = 0;
+    public string? SenderImageUrl { get; set; }
 }

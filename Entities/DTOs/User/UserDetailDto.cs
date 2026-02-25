@@ -9,6 +9,8 @@ public class UserDetailDto
 	public required string Email { get; set; }
 	public required string CityName { get; set; }
 	public required string Gender { get; set; }
+    public int CityCode { get; set; }
+    public int GenderCode { get; set; }
 	public bool EmailNotificationPermission { get; set; }
 	public bool IsAdmin { get; set; }
 	public bool IsExpert { get; set; }

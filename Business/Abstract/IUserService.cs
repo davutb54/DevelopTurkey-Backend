@@ -22,7 +22,12 @@ public interface IUserService
     IResult ResetPassword(int userId, string newPassword);
     User GetByEmail(string email);
     IResult BanUser(int userId);
-    IResult UnbanUser(int userId); 
-    int GetUserCount(); 
+    IResult UnbanUser(int userId);
+    int GetUserCount();
     int GetBannedUserCount();
+    IResult ReportUser(int userId);
+    IResult UnReportUser(int userId);
+    IResult ToggleAdminRole(int userId);
+    IResult ToggleExpertRole(int userId);
+    IResult ToggleOfficialRole(int userId);
 }

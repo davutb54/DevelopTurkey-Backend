@@ -16,7 +16,7 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
 					 join t in context.Topics
 						 on p.TopicId equals t.Id
 					 join u in context.Users on p.SenderId equals u.Id
-					 where p.IsDeleted == false
+                     where p.IsDeleted == false
 					 select new ProblemDetailDto
 					 {
 						 Id = p.Id,
@@ -33,8 +33,14 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                          SenderUsername = u.UserName,
 						 CityName = ConstantData.GetCity(p.CityCode).Text,
 						 SenderIsExpert = u.IsExpert,
-						 SendDate = p.SendDate
-					 };
+						 SendDate = p.SendDate,
+                         ViewCount = p.ViewCount,
+                         SolutionCount = context.Solutions.Count(s => s.ProblemId == p.Id),
+                         SenderIsOfficial = u.IsOfficial,
+                         SenderImageUrl = u.ProfileImageUrl,
+                         IsResolvedByExpert = context.Solutions.Any(s => s.ExpertApprovalStatus == 1),
+                         IsResolved = p.IsResolved
+                     };
 		return filter == null ? result.ToList() : result.Where(filter).ToList();
 	}
 
@@ -60,8 +66,16 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                 TopicId = p.TopicId,
 				SenderId = p.SenderId,
 				SenderUsername = u.UserName,
-				CityName = ConstantData.GetCity(p.CityCode).Text
-			};
+				CityName = ConstantData.GetCity(p.CityCode).Text,
+                ViewCount = p.ViewCount,
+                SolutionCount = context.Solutions.Count(s => s.ProblemId == p.Id),
+                SenderIsExpert = u.IsExpert,
+                SendDate = p.SendDate,
+                SenderIsOfficial = u.IsOfficial,
+                SenderImageUrl = u.ProfileImageUrl,
+                IsResolvedByExpert = context.Solutions.Any(s => s.ExpertApprovalStatus == 1),
+                IsResolved = p.IsResolved
+            };
 		return result.Where(filter).SingleOrDefault();
 	}
 
@@ -112,11 +126,15 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                 IsHighlighted = x.p.IsHighlighted,
                 IsReported = x.p.IsReported,
                 IsDeleted = x.p.IsDeleted,
-                SendDate = x.p.SendDate
+                SendDate = x.p.SendDate,
+                ViewCount = x.p.ViewCount,
+                SolutionCount = context.Solutions.Count(s => s.ProblemId == x.p.Id),
+                SenderImageUrl = x.u.ProfileImageUrl,
+                IsResolvedByExpert = context.Solutions.Any(s => s.ExpertApprovalStatus == 1),
+                IsResolved = x.p.IsResolved
             });
 
-            // Sıralama: En yeni en üstte
-            return result.OrderByDescending(p => p.SendDate).ToList();
+            return result.OrderByDescending(p => p.ViewCount).ToList();
         }
     }
 

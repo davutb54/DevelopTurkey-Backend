@@ -63,19 +63,7 @@ public class UserManager : IUserService
     {
         var user = _userDal.Get(u => u.UserName == userForLoginDto.UserName);
 
-        if (user.IsDeleted)
-        {
-            _logDal.Add(new Log
-            {
-                CreationDate = DateTime.Now,
-                Message = Messages.UserLoginError + " " + Messages.UserNotFound,
-                Type = "user,login,Error"
-            });
-
-            return new ErrorResult(Messages.UserNotFound);
-        }
-
-        if (user == null)
+        if (user == null || user.IsDeleted)
         {
             _logDal.Add(new Log
             {
@@ -327,5 +315,79 @@ public class UserManager : IUserService
     public int GetBannedUserCount()
     {
         return _userDal.Count(u => u.IsBanned == true);
+    }
+
+    public IResult ReportUser(int userId)
+    {
+        var user = _userDal.Get(u => u.Id == userId);
+        if (user == null) return new ErrorResult(Messages.UserNotFound);
+        user.IsReported = true;
+        _userDal.Update(user);
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = $"Kullanıcı (ID: {user.Id}) raporlandı.",
+            Type = "user,report,OK"
+        });
+        return new SuccessResult($"Kullanıcı (ID: {user.Id}) raporlandı");
+    }
+
+    public IResult UnReportUser(int id)
+    {
+        var user = _userDal.Get(u => u.Id == id);
+        if (user != null)
+        {
+            user.IsReported = false;
+            _userDal.Update(user);
+        }
+        return new SuccessResult();
+    }
+
+    public IResult ToggleAdminRole(int userId)
+    {
+        var user = _userDal.Get(u => u.Id == userId);
+        if (user == null) return new ErrorResult(Messages.UserNotFound);
+        user.IsAdmin = !user.IsAdmin;
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = $"Kullanıcı (ID: {user.Id}) admin rolü {(user.IsAdmin ? "verildi" : "kaldırıldı")}.",
+            Type = "user,toggleAdminRole,OK"
+        });
+        _userDal.Update(user);
+        string action = user.IsAdmin ? "Admin rolü verildi" : "Admin rolü kaldırıldı";
+        return new SuccessResult($"{action} (ID: {user.Id})");
+    }
+
+    public IResult ToggleExpertRole(int userId)
+    {
+        var user = _userDal.Get(u => u.Id == userId);
+        if (user == null) return new ErrorResult(Messages.UserNotFound);
+        user.IsExpert = !user.IsExpert;
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = $"Kullanıcı (ID: {user.Id}) uzman rolü {(user.IsExpert ? "verildi" : "kaldırıldı")}.",
+            Type = "user,toggleExpertRole,OK"
+        });
+        _userDal.Update(user);
+        string action = user.IsExpert ? "Uzman rolü verildi" : "Uzman rolü kaldırıldı";
+        return new SuccessResult($"{action} (ID: {user.Id})");
+    }
+
+    public IResult ToggleOfficialRole(int userId)
+    {
+        var user = _userDal.Get(u => u.Id == userId);
+        if (user == null) return new ErrorResult(Messages.UserNotFound);
+        user.IsOfficial = !user.IsOfficial;
+        _logDal.Add(new Log
+        {
+            CreationDate = DateTime.Now,
+            Message = $"Kullanıcı (ID: {user.Id}) resmi rolü {(user.IsOfficial ? "verildi" : "kaldırıldı")}.",
+            Type = "user,toggleOfficialRole,OK"
+        });
+        _userDal.Update(user);
+        string action = user.IsOfficial ? "Resmi rolü verildi" : "Resmi rolü kaldırıldı";
+        return new SuccessResult($"{action} (ID: {user.Id})");
     }
 }

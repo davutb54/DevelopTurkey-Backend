@@ -13,7 +13,8 @@ public class EfCommentDal : EfEntityRepositoryBase<Comment, DevelopTurkeyContext
 		using var context = new DevelopTurkeyContext();
 		var result = from comment in context.Comments
 					 join user in context.Users on comment.SenderId equals user.Id
-					 select new CommentDetailDto
+					 where comment.IsDeleted == false
+                     select new CommentDetailDto
 					 {
 						 Id = comment.Id,
 						 ParentCommentId = comment.ParentCommentId,
