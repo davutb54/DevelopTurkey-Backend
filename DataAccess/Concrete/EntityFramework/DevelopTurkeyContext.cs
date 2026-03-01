@@ -31,4 +31,5 @@ public class DevelopTurkeyContext : DbContext
     public DbSet<EmailVerification> EmailVerifications { get; set; }
     public DbSet<SolutionVote> SolutionVotes { get; set; }
     public DbSet<Report> Reports { get; set; }
+    public DbSet<Institution> Institutions { get; set; }
 }

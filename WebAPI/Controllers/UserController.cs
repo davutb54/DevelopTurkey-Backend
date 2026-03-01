@@ -49,6 +49,11 @@ namespace WebAPI.Controllers
         [HttpPost("login")]
         public IActionResult Login(UserForLoginDto userForLoginDto)
         {
+           
+            if (string.IsNullOrWhiteSpace(userForLoginDto.UserName) || string.IsNullOrWhiteSpace(userForLoginDto.Password))
+            {
+                return BadRequest("Kullanıcı adı ve şifre boş olamaz.");
+            }
 
             var userToLogin = _userService.Login(userForLoginDto);
             if (!userToLogin.Success)
@@ -86,6 +91,19 @@ namespace WebAPI.Controllers
         [HttpPost("updatepassword")]
         public IActionResult UpdatePassword(UserForPasswordUpdateDto userForPasswordUpdateDto)
         {
+            if (User.Identity == null || !User.Identity.IsAuthenticated)
+            {
+                return Unauthorized("Kullanıcı girişi gereklidir.");
+            }
+
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
+            if (userIdClaim == null)
+            {
+                return Unauthorized("Geçersiz token.");
+            }
+
+            userForPasswordUpdateDto.Id = Convert.ToInt32(userIdClaim.Value);
+
             var result = _userService.UpdatePassword(userForPasswordUpdateDto);
             return Ok(result);
         }
@@ -124,16 +142,25 @@ namespace WebAPI.Controllers
             if (registerResult.Success)
             {
                 var user = _userService.GetByUserName(userForRegisterDto.UserName);
+                var tokenResult = _userService.CreateAccessToken(user);
+
                 var emailResult = _emailVerificationService.SendVerificationCode(user);
 
                 if (!emailResult.Success)
                 {
-                    return BadRequest(emailResult.Message);
+                    _logService.Add(new Log
+                    {
+                        Message = $"Kayıt başarılı ancak doğrulama e-postası gönderilemedi. User: {user.UserName}",
+                        CreationDate = DateTime.Now,
+                        Type = "user,register,EmailWarning"
+                    });
+
+                    return Ok(result);
                 }
 
-                if (result.Success)
+                if (tokenResult.Success)
                 {
-                    return Ok(result.Data);
+                    return Ok(tokenResult.Data);
                 }
 
                 return Ok(registerResult.Message);
@@ -146,13 +173,38 @@ namespace WebAPI.Controllers
         [HttpPost("updatedetails")]
         public IActionResult UpdateDetails(UserForUpdateDto userForUpdateDto)
         {
+            if (User.Identity == null || !User.Identity.IsAuthenticated)
+            {
+                return Unauthorized("Kullanıcı girişi gereklidir.");
+            }
+
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
+            if (userIdClaim == null)
+            {
+                return Unauthorized("Geçersiz token.");
+            }
+
+            userForUpdateDto.Id = Convert.ToInt32(userIdClaim.Value);
+
             var result = _userService.UpdateUserDetails(userForUpdateDto);
             return Ok(result);
         }
 
         [HttpPost("delete")]
+        [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
         public IActionResult Delete(int id)
         {
+            if (User.Identity == null || !User.Identity.IsAuthenticated)
+            {
+                return Unauthorized("Kullanıcı girişi gereklidir.");
+            }
+
+            var isAdminClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" && c.Value == "Admin");
+            if (isAdminClaim == null)
+            {
+                return Forbid("Bu işlemi yapma yetkiniz yok. Sadece adminler kullanıcı silebilir.");
+            }
+
             var result = _userService.DeleteUser(id);
             return Ok(result);
         }
@@ -167,29 +219,50 @@ namespace WebAPI.Controllers
         [HttpPost("uploadprofileimage")]
         public IActionResult UploadProfileImage([FromForm] UserImageUpdateDto userImageUpdateDto)
         {
-            var userDetail = _userService.GetById(userImageUpdateDto.UserId);
+            if (User.Identity == null || !User.Identity.IsAuthenticated)
+            {
+                return Unauthorized("Kullanıcı girişi gereklidir.");
+            }
+
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
+            if (userIdClaim == null)
+            {
+                return Unauthorized("Geçersiz token.");
+            }
+
+            int authenticatedUserId = Convert.ToInt32(userIdClaim.Value);
+
+            var userDetail = _userService.GetById(authenticatedUserId);
             if (!userDetail.Success) return BadRequest(userDetail.Message);
 
-            var extension = Path.GetExtension(userImageUpdateDto.Image.FileName).ToLower();
-            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
-
-            if (!allowedExtensions.Contains(extension))
+            if (userImageUpdateDto.Image == null || userImageUpdateDto.Image.Length == 0)
             {
-                return BadRequest("Sadece .jpg, .jpeg, .png veya .webp formatında resim yükleyebilirsiniz!");
+                return BadRequest("Lütfen bir resim dosyası seçin.");
             }
 
             string uploadPath = Path.Combine(_webHostEnvironment.WebRootPath, "uploads", "profiles");
 
-            string newFileName = Core.Utilities.Helpers.FileHelper.FileHelper.Add(userImageUpdateDto.Image, uploadPath);
+            try
+            {
+                string newFileName = Core.Utilities.Helpers.FileHelper.FileHelper.Add(userImageUpdateDto.Image, uploadPath);
 
-            if (newFileName == null) return BadRequest("Dosya yüklenemedi.");
+                if (newFileName == null) return BadRequest("Dosya yüklenemedi.");
 
-            var user = _userService.GetByUserName(userDetail.Data.UserName);
+                var user = _userService.GetByUserName(userDetail.Data.UserName);
 
-            user.ProfileImageUrl = newFileName;
-            _userService.Update(user);
+                user.ProfileImageUrl = newFileName;
+                _userService.Update(user);
 
-            return Ok(new { message = "Profil resmi güncellendi", imageUrl = newFileName });
+                return Ok(new { message = "Profil resmi güncellendi", imageUrl = newFileName });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (Exception)
+            {
+                return StatusCode(500, "Dosya yüklenirken bir hata oluştu.");
+            }
         }
     }
 }

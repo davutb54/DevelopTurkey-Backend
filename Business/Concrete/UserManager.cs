@@ -17,12 +17,14 @@ public class UserManager : IUserService
     private readonly IUserDal _userDal;
     private readonly ILogDal _logDal;
     private readonly ITokenHelper _tokenHelper;
+    private readonly IInstitutionService _institutionService;
 
-    public UserManager(IUserDal userDal, ILogDal logDal, ITokenHelper tokenHelper)
+    public UserManager(IUserDal userDal, ILogDal logDal, ITokenHelper tokenHelper, IInstitutionService institutionService)
     {
         _userDal = userDal;
         _logDal = logDal;
         _tokenHelper = tokenHelper;
+        _institutionService = institutionService;
     }
 
     public IDataResult<UserDetailDto?> GetById(int id)
@@ -51,12 +53,6 @@ public class UserManager : IUserService
 
     public IDataResult<List<UserDetailDto>> GetAll()
     {
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = Messages.UserGetAllOk,
-            Type = "user,getAll,OK"
-        });
         return new SuccessDataResult<List<UserDetailDto>>(_userDal.GetUserDetails(), Messages.UserGetAllOk);
     }
     public IResult Login(UserForLoginDto userForLoginDto)
@@ -110,6 +106,7 @@ public class UserManager : IUserService
         if (_tokenHelper == null) return new ErrorDataResult<AccessToken>(null, "Token servisi yapılandırılmadı.");
 
         var accessToken = _tokenHelper.CreateToken(user);
+        accessToken.UserId = user.Id;
         return new SuccessDataResult<AccessToken>(accessToken, "Token oluşturuldu");
     }
 
@@ -117,6 +114,14 @@ public class UserManager : IUserService
     {
         byte[] passwordHash, passwordSalt;
         HashingHelper.CreatePasswordHash(userForRegisterDto.Password, out passwordHash, out passwordSalt);
+
+        string emailDomain = userForRegisterDto.Email.Split('@')[1].ToLower();
+
+        var institutionResult = _institutionService.GetByDomain(emailDomain);
+
+        int assignedInstitutionId = (institutionResult.Success && institutionResult.Data != null)
+            ? institutionResult.Data.Id
+            : 1;
 
         User user = new User
         {
@@ -135,7 +140,8 @@ public class UserManager : IUserService
             IsDeleted = false,
             IsReported = false,
             IsBanned = false,
-            IsEmailVerified = false
+            IsEmailVerified = false,
+            InstitutionId = assignedInstitutionId
         };
 
         _userDal.Add(user);

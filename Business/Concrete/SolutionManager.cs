@@ -27,9 +27,9 @@ public class SolutionManager : ISolutionService
         return new SuccessDataResult<Solution?>(_solutionDal.Get(solution => solution.Id == id));
     }
 
-    public IDataResult<List<SolutionDetailDto>> GetAll()
+    public IDataResult<List<SolutionDetailDto>> GetAll(int institutionId)
     {
-        return new SuccessDataResult<List<SolutionDetailDto>>(_solutionDal.GetSolutions());
+        return new SuccessDataResult<List<SolutionDetailDto>>(_solutionDal.GetSolutions(s => s.InstitutionId == institutionId));
     }
 
     public IDataResult<List<SolutionDetailDto>> GetByProblem(int problemId)

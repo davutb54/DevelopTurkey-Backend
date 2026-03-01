@@ -39,7 +39,8 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                          SenderIsOfficial = u.IsOfficial,
                          SenderImageUrl = u.ProfileImageUrl,
                          IsResolvedByExpert = context.Solutions.Any(s => s.ExpertApprovalStatus == 1),
-                         IsResolved = p.IsResolved
+                         IsResolved = p.IsResolved,
+                         InstitutionId = p.InstitutionId,
                      };
 		return filter == null ? result.ToList() : result.Where(filter).ToList();
 	}
@@ -74,7 +75,8 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                 SenderIsOfficial = u.IsOfficial,
                 SenderImageUrl = u.ProfileImageUrl,
                 IsResolvedByExpert = context.Solutions.Any(s => s.ExpertApprovalStatus == 1),
-                IsResolved = p.IsResolved
+                IsResolved = p.IsResolved,
+                InstitutionId = p.InstitutionId,
             };
 		return result.Where(filter).SingleOrDefault();
 	}
@@ -131,7 +133,8 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                 SolutionCount = context.Solutions.Count(s => s.ProblemId == x.p.Id),
                 SenderImageUrl = x.u.ProfileImageUrl,
                 IsResolvedByExpert = context.Solutions.Any(s => s.ExpertApprovalStatus == 1),
-                IsResolved = x.p.IsResolved
+                IsResolved = x.p.IsResolved,
+                InstitutionId = x.p.InstitutionId,
             });
 
             return result.OrderByDescending(p => p.ViewCount).ToList();

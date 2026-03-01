@@ -26,4 +26,6 @@ public class User : IEntity
     public bool IsEmailVerified { get; set; } = false;
     public DateTime RegisterDate { get; set; }
     public DateTime? DeleteDate { get; set; }
+
+    public int InstitutionId { get; set; }
 }

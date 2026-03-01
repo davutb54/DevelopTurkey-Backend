@@ -92,10 +92,10 @@ public class ProblemManager : IProblemService
         return new SuccessResult(Messages.ProblemDeleted);
     }
 
-    public IDataResult<List<ProblemDetailDto>> GetList(ProblemFilterDto filterDto)
+    public IDataResult<List<ProblemDetailDto>> GetList(ProblemFilterDto filterDto, int institutionId)
     {
         var problems = _problemDal.GetProblemsDetails(p =>
-                (p.IsDeleted == false) &&
+                (p.IsDeleted == false && p.InstitutionId == institutionId) &&
                 (!filterDto.TopicId.HasValue || p.TopicId == filterDto.TopicId.Value) &&
                 (!filterDto.CityCode.HasValue || p.CityCode == filterDto.CityCode.Value) &&
                 (string.IsNullOrEmpty(filterDto.SearchText) || p.Title.Contains(filterDto.SearchText) || p.Description.Contains(filterDto.SearchText))

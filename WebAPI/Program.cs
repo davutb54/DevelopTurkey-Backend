@@ -53,6 +53,9 @@ builder.Services.AddScoped<ILogService, LogManager>();
 builder.Services.AddScoped<IReportDal, EfReportDal>();
 builder.Services.AddScoped<IReportService, ReportManager>();
 
+builder.Services.AddScoped<IInstitutionDal, EfInstitutionDal>();
+builder.Services.AddScoped<IInstitutionService, InstitutionManager>();
+
 var tokenOptions = builder.Configuration.GetSection("TokenOptions").Get<TokenOptions>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -124,7 +127,23 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
 
-// Configure the HTTP request pipeline.
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.Append("X-Frame-Options", "DENY");
+
+    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+
+    context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
+
+    context.Response.Headers.Append("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; frame-ancestors 'none';");
+
+    context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+
+    context.Response.Headers.Append("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+
+    await next();
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -137,6 +156,8 @@ else
         context.Response.StatusCode = 500;
         await context.Response.WriteAsJsonAsync(new { success = false, message = "Sunucuda beklenmeyen bir hata oluştu. Lütfen daha sonra tekrar deneyin." });
     }));
+
+    app.UseHsts();
 }
 
 app.UseHttpsRedirection();
@@ -144,23 +165,23 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
-app.Use(async (context, next) =>
-{
-    if (context.Request.Path.Value.StartsWith("/api"))
-    {
-        var expectedToken = builder.Configuration["ApiSettings:SiteToken"];
-        var hasHeader = context.Request.Headers.TryGetValue("X-Site-Token", out var token);
+//app.Use(async (context, next) =>
+//{
+//    if (context.Request.Path.Value.StartsWith("/api"))
+//    {
+//        var expectedToken = builder.Configuration["ApiSettings:SiteToken"];
+//        var hasHeader = context.Request.Headers.TryGetValue("X-Site-Token", out var token);
 
-        if (!hasHeader || token != expectedToken)
-        {
-            context.Response.StatusCode = 403;
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync("{\"message\": \"Erisim reddedildi. Bu API'ye sadece site uzerinden erisim saglanabilir.\"}");
-            return;
-        }
-    }
-    await next();
-});
+//        if (!hasHeader || token != expectedToken)
+//        {
+//            context.Response.StatusCode = 403;
+//            context.Response.ContentType = "application/json";
+//            await context.Response.WriteAsync("{\"message\": \"Erisim reddedildi. Bu API'ye sadece site uzerinden erisim saglanabilir.\"}");
+//            return;
+//        }
+//    }
+//    await next();
+//});
 
 app.UseCors("AllowOrigin");
 app.UseRateLimiter();

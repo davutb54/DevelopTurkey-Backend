@@ -32,7 +32,8 @@ public class EfSolutionDal : EfEntityRepositoryBase<Solution, DevelopTurkeyConte
                          SendDate = s.SendDate,
                          VoteCount = context.SolutionVotes.Count(v => v.SolutionId == s.Id && v.IsUpvote) - context.SolutionVotes.Count(v => v.SolutionId == s.Id && !v.IsUpvote),
                          ExpertApprovalStatus = s.ExpertApprovalStatus,
-                         SenderImageUrl = u.ProfileImageUrl
+                         SenderImageUrl = u.ProfileImageUrl,
+                         InstitutionId = u.InstitutionId
                      };
         return filter == null ? result.ToList() : result.Where(filter).ToList();
     }

@@ -18,11 +18,26 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("add")]
+        [Authorize]
         public IActionResult Add([FromBody] ReportAddDto reportAddDto)
         {
+            if (User.Identity == null || !User.Identity.IsAuthenticated)
+            {
+                return Unauthorized("Kullanıcı girişi gereklidir.");
+            }
+
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
+            if (userIdClaim == null)
+            {
+                return Unauthorized("Geçersiz token.");
+            }
+
+            
+            int authenticatedUserId = Convert.ToInt32(userIdClaim.Value);
+
             var report = new Report
             {
-                ReporterUserId = reportAddDto.ReporterUserId,
+                ReporterUserId = authenticatedUserId,
                 TargetType = reportAddDto.TargetType,
                 TargetId = reportAddDto.TargetId,
                 Reason = reportAddDto.Reason

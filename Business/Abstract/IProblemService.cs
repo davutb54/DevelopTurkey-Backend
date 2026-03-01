@@ -14,7 +14,7 @@ public interface IProblemService
 	IResult Add(Problem problem);
 	IResult Update(Problem problem);
 	IResult Delete(int id);
-    IDataResult<List<ProblemDetailDto>> GetList(ProblemFilterDto filterDto);
+    IDataResult<List<ProblemDetailDto>> GetList(ProblemFilterDto filterDto,int institutionId);
     IDataResult<List<ProblemDetailDto>> GetReportedProblems();
     int GetTotalCount();
     int GetReportedCount();

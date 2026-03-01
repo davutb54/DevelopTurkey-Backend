@@ -18,4 +18,6 @@ public class Problem : IEntity
     public string? ImageUrl { get; set; }
     public int ViewCount { get; set; }
     public bool IsResolved { get; set; }
+
+    public int InstitutionId { get; set; }
 }

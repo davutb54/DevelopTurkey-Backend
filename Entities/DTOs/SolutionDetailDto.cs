@@ -19,4 +19,6 @@ public class SolutionDetailDto
     // 0: Bekliyor (Pending), 1: Onaylandı (Approved), 2: Reddedildi (Rejected)
     public int ExpertApprovalStatus { get; set; } = 0;
     public string? SenderImageUrl { get; set; }
+
+    public int InstitutionId { get; set; }
 }

@@ -24,4 +24,5 @@ public class ProblemDetailDto
     public bool IsResolvedByExpert { get; set; }
     public bool IsResolved { get; set; }
     public string? SenderImageUrl { get; set; }
+    public int InstitutionId { get; set; }
 }
