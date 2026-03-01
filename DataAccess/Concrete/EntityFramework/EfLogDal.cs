@@ -33,7 +33,10 @@ public class EfLogDal : EfEntityRepositoryBase<Log, DevelopTurkeyContext>, ILogD
                 query = query.Where(l => l.CreationDate <= filter.EndDate.Value);
             }
 
-            return query.OrderByDescending(l => l.CreationDate).ToList();
+            return query.OrderByDescending(l => l.CreationDate)
+                .Skip((filter.Page - 1) * filter.PageSize)
+                .Take(filter.PageSize)
+                .ToList();
         }
     }
 }

@@ -13,11 +13,15 @@ public class ProblemManager : IProblemService
 {
     private readonly IProblemDal _problemDal;
     private readonly ILogDal _logDal;
+    private readonly ISolutionDal _solutionDal;
+    private readonly ICommentDal _commentDal;
 
-    public ProblemManager(IProblemDal problemDal, ILogDal logDal)
+    public ProblemManager(IProblemDal problemDal, ILogDal logDal, ISolutionDal solutionDal, ICommentDal commentDal)
     {
         _problemDal = problemDal;
         _logDal = logDal;
+        _solutionDal = solutionDal;
+        _commentDal = commentDal;
     }
 
     public IDataResult<ProblemDetailDto> GetById(int id)
@@ -82,10 +86,34 @@ public class ProblemManager : IProblemService
         problem.DeleteDate = DateTime.Now;
         _problemDal.Update(problem);
 
+        var solutions = _solutionDal.GetAll(s => s.ProblemId == id && !s.IsDeleted);
+        foreach (var sol in solutions)
+        {
+            sol.IsDeleted = true;
+            sol.DeleteDate = DateTime.Now;
+            _solutionDal.Update(sol);
+
+            var comments = _commentDal.GetAll(c => c.SolutionId == sol.Id && !c.IsDeleted);
+            foreach (var com in comments)
+            {
+                com.IsDeleted = true;
+                com.DeleteDate = DateTime.Now;
+                _commentDal.Update(com);
+
+                var childComments = _commentDal.GetAll(cc => cc.ParentCommentId == com.Id && !cc.IsDeleted);
+                foreach (var childCom in childComments)
+                {
+                    childCom.IsDeleted = true;
+                    childCom.DeleteDate = DateTime.Now;
+                    _commentDal.Update(childCom);
+                }
+            }
+        }
+
         _logDal.Add(new Log
         {
             CreationDate = DateTime.Now,
-            Message = Messages.ProblemDeleted + $" - ID: {id}",
+            Message = Messages.ProblemDeleted + $" - ID: {id} (Alt Çözüm ve Yorumlarıyla Birlikte Silindi)",
             Type = "Problem,Delete,Info"
         });
 
@@ -95,10 +123,10 @@ public class ProblemManager : IProblemService
     public IDataResult<List<ProblemDetailDto>> GetList(ProblemFilterDto filterDto, int institutionId)
     {
         var problems = _problemDal.GetProblemsDetails(p =>
-                (p.IsDeleted == false && p.InstitutionId == institutionId) &&
-                (!filterDto.TopicId.HasValue || p.TopicId == filterDto.TopicId.Value) &&
-                (!filterDto.CityCode.HasValue || p.CityCode == filterDto.CityCode.Value) &&
-                (string.IsNullOrEmpty(filterDto.SearchText) || p.Title.Contains(filterDto.SearchText) || p.Description.Contains(filterDto.SearchText))
+            (p.IsDeleted == false && p.InstitutionId == institutionId) &&
+            (!filterDto.TopicId.HasValue || p.TopicId == filterDto.TopicId.Value) &&
+            (!filterDto.CityCode.HasValue || p.CityCode == filterDto.CityCode.Value) &&
+            (string.IsNullOrEmpty(filterDto.SearchText) || p.Title.Contains(filterDto.SearchText) || p.Description.Contains(filterDto.SearchText))
         );
 
         var sortedProblems = problems.OrderByDescending(p =>

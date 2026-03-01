@@ -35,7 +35,8 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
 						 RegisterDate = u.RegisterDate,
 						 DeleteDate = u.DeleteDate,
 						 CityCode = u.CityCode,
-						 GenderCode = u.Gender
+						 GenderCode = u.Gender,
+						 InstitutionId = u.InstitutionId
                      };
 		return result.SingleOrDefault(filter);
 	}
@@ -64,7 +65,8 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
                          IsBanned = u.IsBanned,
 						 IsEmailVerified = u.IsEmailVerified,
 						 RegisterDate = u.RegisterDate,
-						 DeleteDate = u.DeleteDate
+						 DeleteDate = u.DeleteDate,
+						 InstitutionId = u.InstitutionId,
 					 };
 		return filter == null ? result.ToList() : result.Where(filter).ToList();
 	}

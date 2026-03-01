@@ -16,8 +16,8 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
 					 join t in context.Topics
 						 on p.TopicId equals t.Id
 					 join u in context.Users on p.SenderId equals u.Id
-                     where p.IsDeleted == false
-					 select new ProblemDetailDto
+                     where p.IsDeleted == false && t.Status == true
+                     select new ProblemDetailDto
 					 {
 						 Id = p.Id,
 						 Title = p.Title,
@@ -38,7 +38,7 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                          SolutionCount = context.Solutions.Count(s => s.ProblemId == p.Id),
                          SenderIsOfficial = u.IsOfficial,
                          SenderImageUrl = u.ProfileImageUrl,
-                         IsResolvedByExpert = context.Solutions.Any(s => s.ExpertApprovalStatus == 1),
+                         IsResolvedByExpert = context.Solutions.Any(s => s.ProblemId == p.Id && s.ExpertApprovalStatus == 1),
                          IsResolved = p.IsResolved,
                          InstitutionId = p.InstitutionId,
                      };
@@ -52,8 +52,8 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
 			join t in context.Topics
 				on p.TopicId equals t.Id
 			join u in context.Users on p.SenderId equals u.Id
-			where p.IsDeleted == false
-			select new ProblemDetailDto
+			where p.IsDeleted == false && t.Status == true
+                     select new ProblemDetailDto
 			{
 				Id = p.Id,
 				Title = p.Title,
@@ -74,7 +74,7 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                 SendDate = p.SendDate,
                 SenderIsOfficial = u.IsOfficial,
                 SenderImageUrl = u.ProfileImageUrl,
-                IsResolvedByExpert = context.Solutions.Any(s => s.ExpertApprovalStatus == 1),
+                IsResolvedByExpert = context.Solutions.Any(s => s.ProblemId == p.Id && s.ExpertApprovalStatus == 1),
                 IsResolved = p.IsResolved,
                 InstitutionId = p.InstitutionId,
             };
@@ -88,7 +88,7 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
             var query = from p in context.Problems
                         join u in context.Users on p.SenderId equals u.Id
                         join t in context.Topics on p.TopicId equals t.Id
-                        where p.IsDeleted == false
+                        where p.IsDeleted == false && t.Status == true
                         select new { p, u, t };
 
             
@@ -132,7 +132,7 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                 ViewCount = x.p.ViewCount,
                 SolutionCount = context.Solutions.Count(s => s.ProblemId == x.p.Id),
                 SenderImageUrl = x.u.ProfileImageUrl,
-                IsResolvedByExpert = context.Solutions.Any(s => s.ExpertApprovalStatus == 1),
+                IsResolvedByExpert = context.Solutions.Any(s => s.ProblemId == x.p.Id && s.ExpertApprovalStatus == 1),
                 IsResolved = x.p.IsResolved,
                 InstitutionId = x.p.InstitutionId,
             });

@@ -33,12 +33,6 @@ public class UserManager : IUserService
 
         if (user != null)
         {
-            _logDal.Add(new Log
-            {
-                CreationDate = DateTime.Now,
-                Message = Messages.UserGetByIdOk + $" Id: {user.Id}",
-                Type = "user,getById,OK"
-            });
             return new SuccessDataResult<UserDetailDto?>(user, Messages.UserGetByIdOk);
         }
 
@@ -79,6 +73,22 @@ public class UserManager : IUserService
                 Type = "user,login,Banned"
             });
             return new ErrorResult("Hesabınız kuralları ihlal ettiğiniz gerekçesiyle sistem yöneticileri tarafından askıya alınmıştır.");
+        }
+
+        if (user.InstitutionId != 1)
+        {
+            var institutionResult = _institutionService.GetById(user.InstitutionId);
+            if (institutionResult.Success && institutionResult.Data != null && !institutionResult.Data.Status)
+            {
+                _logDal.Add(new Log
+                {
+                    CreationDate = DateTime.Now,
+                    Message = $"Devre Dışı Kurumdan Giriş Denemesi: {user.UserName} ({institutionResult.Data.Name})",
+                    Type = "user,login,InstitutionDisabled"
+                });
+
+                return new ErrorResult($"Bağlı bulunduğunuz '{institutionResult.Data.Name}' ağı sistem yöneticileri tarafından devre dışı bırakılmıştır. Lütfen daha sonra tekrar deneyiniz.");
+            }
         }
 
         if (!HashingHelper.VerifyPasswordHash(userForLoginDto.Password, user.PasswordHash, user.PasswordSalt))
@@ -122,6 +132,16 @@ public class UserManager : IUserService
         int assignedInstitutionId = (institutionResult.Success && institutionResult.Data != null)
             ? institutionResult.Data.Id
             : 1;
+
+        if (institutionResult.Success && institutionResult.Data != null)
+        {
+            if (!institutionResult.Data.Status)
+            {
+                return new ErrorResult($"'{institutionResult.Data.Name}' ağı yöneticiler tarafından geçici olarak devre dışı bırakılmıştır. Bu kuruma ait e-posta adresinizle şu an kayıt oluşturamazsınız.");
+            }
+
+            assignedInstitutionId = institutionResult.Data.Id;
+        }
 
         User user = new User
         {

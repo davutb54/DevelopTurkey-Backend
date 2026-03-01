@@ -14,12 +14,14 @@ public class SolutionManager : ISolutionService
     private readonly ISolutionDal _solutionDal;
     private readonly ILogDal _logDal;
     private readonly IProblemService _problemService;
+    private readonly ICommentDal _commentDal;
 
-    public SolutionManager(ISolutionDal solutionDal, ILogDal logDal, IProblemService problemService)
+    public SolutionManager(ISolutionDal solutionDal, ILogDal logDal, IProblemService problemService, ICommentDal commentDal)
     {
         _solutionDal = solutionDal;
         _logDal = logDal;
         _problemService = problemService;
+        _commentDal = commentDal;
     }
 
     public IDataResult<Solution?> GetById(int id)
@@ -82,10 +84,26 @@ public class SolutionManager : ISolutionService
         solution.DeleteDate = DateTime.Now;
         _solutionDal.Update(solution);
 
+        var comments = _commentDal.GetAll(c => c.SolutionId == id && !c.IsDeleted);
+        foreach (var com in comments)
+        {
+            com.IsDeleted = true;
+            com.DeleteDate = DateTime.Now;
+            _commentDal.Update(com);
+
+            var childComments = _commentDal.GetAll(cc => cc.ParentCommentId == com.Id && !cc.IsDeleted);
+            foreach (var childCom in childComments)
+            {
+                childCom.IsDeleted = true;
+                childCom.DeleteDate = DateTime.Now;
+                _commentDal.Update(childCom);
+            }
+        }
+
         _logDal.Add(new Log
         {
             CreationDate = DateTime.Now,
-            Message = Messages.SolutionDeleted + $" - ID: {id}",
+            Message = Messages.SolutionDeleted + $" - ID: {id} (Alt Yorumlarıyla Birlikte)",
             Type = "Solution,Delete,Info"
         });
 

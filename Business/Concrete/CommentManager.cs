@@ -74,12 +74,21 @@ public class CommentManager : ICommentService
         comment.DeleteDate = DateTime.Now;
         _commentDal.Update(comment);
 
+        var childComments = _commentDal.GetAll(cc => cc.ParentCommentId == id && !cc.IsDeleted);
+        foreach (var childCom in childComments)
+        {
+            childCom.IsDeleted = true;
+            childCom.DeleteDate = DateTime.Now;
+            _commentDal.Update(childCom);
+        }
+
         _logDal.Add(new Log
         {
             CreationDate = DateTime.Now,
-            Message = Messages.CommentDeleted + $" - CommentId: {id}",
+            Message = Messages.CommentDeleted + $" - CommentId: {id} (Alt Yanıtlarıyla Birlikte)",
             Type = "Comment,Delete,Info"
         });
+
         return new SuccessResult(Messages.CommentDeleted);
     }
 }

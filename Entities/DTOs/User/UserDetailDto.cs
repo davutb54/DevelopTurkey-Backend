@@ -22,4 +22,5 @@ public class UserDetailDto
 	public DateTime RegisterDate { get; set; }
 	public DateTime? DeleteDate { get; set; }
     public string? ProfileImageUrl { get; set; }
+    public int InstitutionId { get; set; }
 }
