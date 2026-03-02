@@ -9,5 +9,6 @@ public interface IEmailVerificationService
     IResult SendVerificationCode(User user);
 
     IResult Verify(string email, int code);
+    IResult VerifyForResetPassword(string email, int code);
     IResult SendPasswordResetCode(User user);
 }

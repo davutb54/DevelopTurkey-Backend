@@ -15,15 +15,18 @@ namespace WebAPI.Controllers
         private readonly IProblemService _problemService;
         private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly IValidator<ProblemAddDto> _validator;
+        private readonly ISolutionService _solutionService;
 
         public ProblemController(
             IProblemService problemService,
             IWebHostEnvironment webHostEnvironment,
-            IValidator<ProblemAddDto> validator)
+            IValidator<ProblemAddDto> validator,
+            ISolutionService solutionService)
         {
             _problemService = problemService;
             _webHostEnvironment = webHostEnvironment;
             _validator = validator;
+            _solutionService = solutionService;
         }
 
         [HttpGet("getbyid")]
@@ -116,7 +119,6 @@ namespace WebAPI.Controllers
                 Title = problemAddDto.Title,
                 Description = problemAddDto.Description,
                 CityCode = problemAddDto.CityCode,
-                TopicId = problemAddDto.TopicId,
                 ImageUrl = imagePath,
                 SendDate = DateTime.Now,
                 IsHighlighted = false,
@@ -125,12 +127,33 @@ namespace WebAPI.Controllers
                 InstitutionId = institutionId
             };
 
-            var result = _problemService.Add(problem);
+            var result = _problemService.Add(problem, problemAddDto.TopicIds);
+
+            if (result.Success && !string.IsNullOrWhiteSpace(problemAddDto.SolutionDescription))
+            {
+                string finalSolutionTitle = string.IsNullOrWhiteSpace(problemAddDto.SolutionTitle)
+                    ? "Çözüm Önerim"
+                    : problemAddDto.SolutionTitle.Trim();
+
+                var solution = new Solution
+                {
+                    ProblemId = problem.Id,
+                    SenderId = senderId,
+                    Title = finalSolutionTitle,
+                    Description = problemAddDto.SolutionDescription.Trim(),
+                    SendDate = DateTime.Now,
+                    IsHighlighted = false,
+                    IsReported = false,
+                    IsDeleted = false,
+                    ExpertApprovalStatus = 0
+                };
+                _solutionService.Add(solution);
+            }
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
         [HttpPost("update")]
-        public IActionResult Update(Problem problem)
+        public IActionResult Update([FromBody] ProblemUpdateDto updateDto)
         {
             if (User.Identity == null || !User.Identity.IsAuthenticated)
             {
@@ -148,20 +171,37 @@ namespace WebAPI.Controllers
             var isAdminClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" && c.Value == "Admin");
             bool isAdmin = isAdminClaim != null;
 
-            
-            var existingProblem = _problemService.GetById(problem.Id);
+
+            var existingProblem = _problemService.GetById(updateDto.Id);
             if (!existingProblem.Success || existingProblem.Data == null)
             {
                 return NotFound("Sorun bulunamadı.");
             }
 
-            
+
             if (!isAdmin && existingProblem.Data.SenderId != currentUserId)
             {
                 return Forbid("Bu sorunu güncelleme yetkiniz yok.");
             }
 
-            var result = _problemService.Update(problem);
+            var problem = new Problem
+            {
+                Id = updateDto.Id,
+                SenderId = updateDto.SenderId,
+                Title = updateDto.Title,
+                Description = updateDto.Description,
+                CityCode = updateDto.CityCode,
+                ImageUrl = updateDto.ImageUrl,
+                SendDate = updateDto.SendDate,
+                IsHighlighted = updateDto.IsHighlighted,
+                IsReported = updateDto.IsReported,
+                IsDeleted = updateDto.IsDeleted,
+                IsResolved = updateDto.IsResolved,
+                InstitutionId = updateDto.InstitutionId,
+                ViewCount = updateDto.ViewCount
+            };
+
+            var result = _problemService.Update(problem,updateDto.TopicIds);
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
@@ -181,18 +221,18 @@ namespace WebAPI.Controllers
 
             int currentUserId = Convert.ToInt32(userIdClaim.Value);
 
-            
+
             var isAdminClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" && c.Value == "Admin");
             bool isAdmin = isAdminClaim != null;
 
-            
+
             var existingProblem = _problemService.GetById(id);
             if (!existingProblem.Success || existingProblem.Data == null)
             {
                 return NotFound("Sorun bulunamadı.");
             }
 
-            
+
             if (!isAdmin && existingProblem.Data.SenderId != currentUserId)
             {
                 return Forbid("Bu sorunu silme yetkiniz yok.");
@@ -216,7 +256,7 @@ namespace WebAPI.Controllers
                 }
             }
 
-            var result = _problemService.GetList(filterDto,institutionId);
+            var result = _problemService.GetList(filterDto, institutionId);
             if (result.Success)
             {
                 return Ok(result);

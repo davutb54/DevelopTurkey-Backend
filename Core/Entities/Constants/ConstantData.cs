@@ -4,7 +4,8 @@ public static class ConstantData
 {
 	public static List<City> Cities = new List<City>
 	{
-		new City(1, "Adana", "Adana"),
+		new City(0, "Türkiye Geneli", "Türkiye Geneli"),
+        new City(1, "Adana", "Adana"),
 		new City(2, "Adıyaman", "Adıyaman"),
 		new City(3, "Afyon", "Afyon"),
 		new City(4, "Ağrı", "Ağrı"),

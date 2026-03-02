@@ -12,14 +12,14 @@ namespace Business.Concrete;
 public class SolutionManager : ISolutionService
 {
     private readonly ISolutionDal _solutionDal;
-    private readonly ILogDal _logDal;
+    private readonly ILogService _logService;
     private readonly IProblemService _problemService;
     private readonly ICommentDal _commentDal;
 
-    public SolutionManager(ISolutionDal solutionDal, ILogDal logDal, IProblemService problemService, ICommentDal commentDal)
+    public SolutionManager(ISolutionDal solutionDal, ILogService logService, IProblemService problemService, ICommentDal commentDal)
     {
         _solutionDal = solutionDal;
-        _logDal = logDal;
+        _logService = logService;
         _problemService = problemService;
         _commentDal = commentDal;
     }
@@ -54,24 +54,14 @@ public class SolutionManager : ISolutionService
         solution.SendDate = DateTime.Now;
         _solutionDal.Add(solution);
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = Messages.SolutionAdded + $" - ProblemID: {solution.ProblemId}",
-            Type = "Solution,Add,Info"
-        });
+        _logService.LogInfo("Content", "Add", $"Çözüm eklendi - ProblemID: {solution.ProblemId}");
         return new SuccessResult(Messages.SolutionAdded);
     }
 
     public IResult Update(Solution solution)
     {
         _solutionDal.Update(solution);
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = Messages.SolutionUpdated + $" - ID: {solution.Id}",
-            Type = "Solution,Update,Info"
-        });
+        _logService.LogInfo("Content", "Update", $"Çözüm güncellendi - ID: {solution.Id}");
         return new SuccessResult(Messages.SolutionUpdated);
     }
 
@@ -100,12 +90,7 @@ public class SolutionManager : ISolutionService
             }
         }
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = Messages.SolutionDeleted + $" - ID: {id} (Alt Yorumlarıyla Birlikte)",
-            Type = "Solution,Delete,Info"
-        });
+        _logService.LogWarning("Content", "Delete", $"Çözüm silindi - ID: {id} (Alt Yorumlarıyla Birlikte)");
 
         return new SuccessResult(Messages.SolutionDeleted);
     }
@@ -121,12 +106,7 @@ public class SolutionManager : ISolutionService
         if (solution == null) return new ErrorResult("Çözüm bulunamadı");
         solution.IsReported = true;
         _solutionDal.Update(solution);
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Çözüm (ID: {solution.Id}) raporlandı.",
-            Type = "Solution,Report,Info"
-        });
+        _logService.LogInfo("Moderation", "Report", $"Çözüm raporlandı - ID: {solution.Id}");
         return new SuccessResult($"Çözüm (ID: {solution.Id}) raporlandı.");
     }
 
@@ -148,12 +128,7 @@ public class SolutionManager : ISolutionService
         solution.IsHighlighted = !solution.IsHighlighted;
         _solutionDal.Update(solution);
         string action = solution.IsHighlighted ? "vurgulandı" : "vurgulama kaldırıldı";
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Çözüm (ID: {solution.Id}) {action}.",
-            Type = "Solution,Highlight,Info"
-        });
+        _logService.LogInfo("Content", "Highlight", $"Çözüm {action} - ID: {solution.Id}");
         return new SuccessResult($"Çözüm (ID: {solution.Id}) {action}.");
     }
 
@@ -171,12 +146,7 @@ public class SolutionManager : ISolutionService
 
         _problemService.ResolveProblem(solution.ProblemId);
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Çözüm (ID: {solution.Id}) admin tarafından onaylandı.",
-            Type = "Solution,Approve,Info"
-        });
+        _logService.LogInfo("Moderation", "Approve", $"Çözüm onaylandı - ID: {solution.Id}");
         return new SuccessResult($"Çözüm (ID: {solution.Id}) admin tarafından onaylandı.");
     }
 
@@ -186,12 +156,11 @@ public class SolutionManager : ISolutionService
         if (solution == null) return new ErrorResult("Çözüm bulunamadı");
         solution.ExpertApprovalStatus = 2;
         _solutionDal.Update(solution);
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Çözüm (ID: {solution.Id}) admin tarafından reddedildi.",
-            Type = "Solution,Reject,Info"
-        });
+        _logService.LogInfo("Moderation", "Reject", $"Çözüm reddedildi - ID: {solution.Id}");
         return new SuccessResult($"Çözüm (ID: {solution.Id}) admin tarafından reddedildi.");
+    }
+    public IDataResult<List<SolutionDetailDto>> GetAllForAdmin()
+    {
+        return new SuccessDataResult<List<SolutionDetailDto>>(_solutionDal.GetSolutions());
     }
 }

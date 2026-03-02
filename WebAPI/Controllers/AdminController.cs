@@ -13,14 +13,16 @@ namespace WebAPI.Controllers
         private readonly IProblemService _problemService;
         private readonly ISolutionService _solutionService;
         private readonly ILogService _logService;
+        private readonly ITopicService _topicService;
 
         public AdminController(IUserService userService, IProblemService problemService,
-            ISolutionService solutionService, ILogService logService)
+            ISolutionService solutionService, ILogService logService, ITopicService topicService)
         {
             _userService = userService;
             _problemService = problemService;
             _solutionService = solutionService;
             _logService = logService;
+            _topicService = topicService;
         }
 
         [HttpPost("banuser")]
@@ -71,7 +73,7 @@ namespace WebAPI.Controllers
         [HttpGet("getlogs")]
         public IActionResult GetLogs([FromQuery] Entities.DTOs.LogFilterDto filter)
         {
-            var result = _logService.GetList(filter);
+            var result = _logService.GetListByFilter(filter);
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
@@ -136,6 +138,34 @@ namespace WebAPI.Controllers
         {
             var result = _solutionService.RejectSolution(solutionId);
             return result.Success ? Ok(result.Message) : BadRequest(result.Message);
+        }
+
+        [HttpGet("getallproblems")]
+        public IActionResult GetAllProblems()
+        {
+            var result = _problemService.GetAllForAdmin();
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpGet("getallsolutions")]
+        public IActionResult GetAllSolutions()
+        {
+            var result = _solutionService.GetAllForAdmin();
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpPost("removetopicfromproblem")]
+        public IActionResult RemoveTopicFromProblem(int problemId, int topicId)
+        {
+            var result = _problemService.RemoveTopicFromProblem(problemId, topicId);
+            return result.Success ? Ok(result.Message) : BadRequest(result.Message);
+        }
+
+        [HttpGet("getalltopics")]
+        public IActionResult GetAllTopics()
+        {
+            var result = _topicService.GetAllForAdmin();
+            return result.Success ? Ok(result) : BadRequest(result);
         }
     }
 }

@@ -9,12 +9,12 @@ namespace Business.Concrete;
 public class InstitutionManager : IInstitutionService
 {
     private readonly IInstitutionDal _institutionDal;
-    private readonly ILogDal _logDal;
+    private readonly ILogService _logService;
 
-    public InstitutionManager(IInstitutionDal institutionDal, ILogDal logDal)
+    public InstitutionManager(IInstitutionDal institutionDal, ILogService logService)
     {
         _institutionDal = institutionDal;
-        _logDal = logDal;
+        _logService = logService;
     }
 
     public IDataResult<Institution> GetById(int id)
@@ -46,12 +46,7 @@ public class InstitutionManager : IInstitutionService
     {
         _institutionDal.Add(institution);
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Kurum eklendi - İsim: {institution.Name}",
-            Type = "Institution,Add,Info"
-        });
+        _logService.LogInfo("Institution", "Add", $"Kurum eklendi - İsim: {institution.Name}");
 
         return new SuccessResult("Kurum başarıyla eklendi");
     }
@@ -60,12 +55,7 @@ public class InstitutionManager : IInstitutionService
     {
         _institutionDal.Update(institution);
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Kurum güncellendi - ID: {institution.Id}",
-            Type = "Institution,Update,Info"
-        });
+        _logService.LogInfo("Institution", "Update", $"Kurum güncellendi - ID: {institution.Id}, İsim: {institution.Name}");
 
         return new SuccessResult("Kurum başarıyla güncellendi");
     }
@@ -81,12 +71,7 @@ public class InstitutionManager : IInstitutionService
         institution.Status = false;
         _institutionDal.Update(institution);
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Kurum silindi - ID: {id}",
-            Type = "Institution,Delete,Info"
-        });
+        _logService.LogWarning("Institution", "Delete", $"Kurum pasife alındı - ID: {id}, İsim: {institution.Name}");
 
         return new SuccessResult("Kurum başarıyla silindi");
     }

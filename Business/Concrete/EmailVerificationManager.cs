@@ -12,14 +12,14 @@ public class EmailVerificationManager : IEmailVerificationService
     private readonly IEmailVerificationDal _emailVerificationDal;
     private readonly IUserDal _userDal;
     private readonly IEmailHelper _emailHelper;
-    private readonly ILogDal _logDal;
+    private readonly ILogService _logService;
 
-    public EmailVerificationManager(IEmailVerificationDal emailVerificationDal, IUserDal userDal, IEmailHelper emailHelper, ILogDal logDal)
+    public EmailVerificationManager(IEmailVerificationDal emailVerificationDal, IUserDal userDal, IEmailHelper emailHelper, ILogService logService)
     {
         _emailVerificationDal = emailVerificationDal;
         _userDal = userDal;
         _emailHelper = emailHelper;
-        _logDal = logDal;
+        _logService = logService;
     }
 
     public IResult SendVerificationCode(User user)
@@ -46,21 +46,11 @@ public class EmailVerificationManager : IEmailVerificationService
 
         if (!sendResult.Success)
         {
-            _logDal.Add(new Log
-            {
-                CreationDate = DateTime.Now,
-                Message = "Email gönderme hatası: " + sendResult.Message + " " + user.Id,
-                Type = "EmailVerification,Error"
-            });
+            _logService.LogError("Auth", "SendVerification", $"Email gönderme hatası - UserID: {user.Id}, Email: {user.Email}", sendResult.Message);
             return new ErrorResult("Kayıt oldu ama mail gidemedi: " + sendResult.Message);
         }
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = "Doğrulama kodu gönderildi: " + user.Id,
-            Type = "EmailVerification,Info"
-        });
+        _logService.LogInfo("Auth", "SendVerification", $"Doğrulama kodu gönderildi - UserID: {user.Id}");
         return new SuccessResult("Doğrulama kodu e-posta adresinize gönderildi.");
     }
 
@@ -82,12 +72,7 @@ public class EmailVerificationManager : IEmailVerificationService
 
         if (validVerification == null)
         {
-            _logDal.Add(new Log
-            {
-                CreationDate = DateTime.Now,
-                Message = "Geçersiz doğrulama kodu denemesi: " + user.Id,
-                Type = "EmailVerification,Warning"
-            });
+            _logService.LogWarning("Auth", "Verify", $"Geçersiz doğrulama kodu denemesi - UserID: {user.Id}");
             return new ErrorResult("Geçersiz veya süresi dolmuş kod.");
         }
 
@@ -96,12 +81,7 @@ public class EmailVerificationManager : IEmailVerificationService
             validVerification.IsExpired = true;
             _emailVerificationDal.Update(validVerification);
 
-            _logDal.Add(new Log
-            {
-                CreationDate = DateTime.Now,
-                Message = "Süresi dolmuş doğrulama kodu denemesi: " + user.Id,
-                Type = "EmailVerification,Warning"
-            });
+            _logService.LogWarning("Auth", "Verify", $"Süresi dolmuş doğrulama kodu denemesi - UserID: {user.Id}");
             return new ErrorResult("Kodun süresi dolmuş.");
         }
 
@@ -112,12 +92,47 @@ public class EmailVerificationManager : IEmailVerificationService
         user.IsEmailVerified = true;
         _userDal.Update(user);
 
-        _logDal.Add(new Log
+        _logService.LogInfo("Auth", "Verify", $"Email başarıyla doğrulandı - UserID: {user.Id}");
+        return new SuccessResult("Email başarıyla doğrulandı!");
+    }
+
+    public IResult VerifyForResetPassword(string email, int code)
+    {
+        var user = _userDal.Get(u => u.Email == email);
+        if (user == null) return new ErrorResult("Kullanıcı bulunamadı.");
+
+        var verifications = _emailVerificationDal.GetAll(v =>
+            v.UserId == user.Id &&
+            v.VerificationCode == code &&
+            v.IsVerified == false &&
+            v.IsExpired == false
+        );
+
+        var validVerification = verifications.OrderByDescending(v => v.SendDate).FirstOrDefault();
+
+        if (validVerification == null)
         {
-            CreationDate = DateTime.Now,
-            Message = "Email başarıyla doğrulandı: " + user.Id,
-            Type = "EmailVerification,Info"
-        });
+            _logService.LogWarning("Auth", "VerifyForReset", $"Geçersiz doğrulama kodu denemesi - UserID: {user.Id}");
+            return new ErrorResult("Geçersiz veya süresi dolmuş kod.");
+        }
+
+        if (validVerification.ExpirationDate < DateTime.Now)
+        {
+            validVerification.IsExpired = true;
+            _emailVerificationDal.Update(validVerification);
+
+            _logService.LogWarning("Auth", "VerifyForReset", $"Süresi dolmuş doğrulama kodu denemesi - UserID: {user.Id}");
+            return new ErrorResult("Kodun süresi dolmuş.");
+        }
+
+        validVerification.IsVerified = true;
+        validVerification.VerificationDate = DateTime.Now;
+        _emailVerificationDal.Update(validVerification);
+
+        user.IsEmailVerified = true;
+        _userDal.Update(user);
+
+        _logService.LogInfo("Auth", "VerifyForReset", $"Email başarıyla doğrulandı - UserID: {user.Id}");
         return new SuccessResult("Email başarıyla doğrulandı!");
     }
 
@@ -144,21 +159,11 @@ public class EmailVerificationManager : IEmailVerificationService
         var sendResult = _emailHelper.Send(user.Email, subject, body);
         if (!sendResult.Success)
         {
-            _logDal.Add(new Log
-            {
-                CreationDate = DateTime.Now,
-                Message = "Şifre sıfırlama maili gönderme hatası: " + sendResult.Message + " " + user.Id,
-                Type = "EmailVerification,Error"
-            });
+            _logService.LogError("Auth", "SendPasswordReset", $"Email gönderme hatası - UserID: {user.Id}, Email: {user.Email}", sendResult.Message);
             return new ErrorResult("Mail gönderilemedi: " + sendResult.Message);
         }
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = "Şifre sıfırlama kodu gönderildi: " + user.Id,
-            Type = "EmailVerification,Info"
-        });
+        _logService.LogInfo("Auth", "SendPasswordReset", $"Şifre sıfırlama kodu gönderildi - UserID: {user.Id}");
         return new SuccessResult("Şifre sıfırlama kodu gönderildi.");
     }
 }

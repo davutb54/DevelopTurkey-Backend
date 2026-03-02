@@ -9,7 +9,6 @@ public class Problem : IEntity
 	public string Title { get; set; }
 	public string Description { get; set; }
 	public int CityCode { get; set; }
-	public int TopicId { get; set; }
 	public bool IsHighlighted { get; set; } = false;
 	public bool IsReported { get; set; } = false;
 	public bool IsDeleted { get; set; } = false;

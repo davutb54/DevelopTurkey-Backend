@@ -6,4 +6,5 @@ public class TopicAddDto
     public string Name { get; set; }
     public IFormFile? Image { get; set; }
     public bool Status { get; set; } = true;
+    public int InstitutionId { get; set; }
 }

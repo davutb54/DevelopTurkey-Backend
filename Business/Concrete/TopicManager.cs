@@ -10,57 +10,48 @@ namespace Business.Concrete;
 public class TopicManager : ITopicService
 {
     private readonly ITopicDal _topicDal;
-	private readonly ILogDal _logDal;
-	public TopicManager(ITopicDal topicDal, ILogDal logDal)
-	{
-		_topicDal = topicDal;
-		_logDal = logDal;
+    private readonly ILogService _logService;
+    public TopicManager(ITopicDal topicDal, ILogService logService)
+    {
+        _topicDal = topicDal;
+        _logService = logService;
     }
 
     public IDataResult<Topic?> GetById(int id)
-	{
-		return new SuccessDataResult<Topic?>(_topicDal.Get(topic => topic.Id == id));
-	}
+    {
+        return new SuccessDataResult<Topic?>(_topicDal.Get(topic => topic.Id == id));
+    }
 
-	public IDataResult<List<Topic>> GetAll()
-	{
-		return new SuccessDataResult<List<Topic>>(_topicDal.GetAll());
-	}
+    public IDataResult<List<Topic>> GetAll(int institutionId)
+    {
+        var topics = _topicDal.GetAll(t => t.Status == true && (t.InstitutionId == institutionId || t.InstitutionId == 1));
+        return new SuccessDataResult<List<Topic>>(topics);
+    }
 
-	public IResult Add(Topic topic)
-	{
-		_topicDal.Add(topic);
+    public IDataResult<List<Topic>> GetAllForAdmin()
+    {
+        return new SuccessDataResult<List<Topic>>(_topicDal.GetAll());
+    }
 
-		_logDal.Add(new Log
-        {
-			CreationDate = DateTime.Now,
-			Message = "New topic added: " + topic.Name,
-			Type = "Topic,Add,Info"
-        });
-		return new SuccessResult(Messages.TopicAdded);
-	}
+    public IResult Add(Topic topic)
+    {
+        _topicDal.Add(topic);
 
-	public IResult Update(Topic topic)
-	{
-		_topicDal.Update(topic);
-		_logDal.Add(new Log
-		{
-			CreationDate = DateTime.Now,
-			Message = "Topic updated: " + topic.Name,
-			Type = "Topic,Update,Info"
-		});
+        _logService.LogInfo("Content", "Add", $"Yeni konu eklendi: {topic.Name}");
+        return new SuccessResult(Messages.TopicAdded);
+    }
+
+    public IResult Update(Topic topic)
+    {
+        _topicDal.Update(topic);
+        _logService.LogInfo("Content", "Update", $"Konu güncellendi: {topic.Name}");
         return new SuccessResult(Messages.TopicUpdated);
-	}
+    }
 
-	public IResult Delete(Topic topic)
-	{
-		_topicDal.Delete(topic);
-		_logDal.Add(new Log
-		{
-			CreationDate = DateTime.Now,
-			Message = "Topic deleted: " + topic.Name,
-			Type = "Topic,Delete,Info"
-		});
+    public IResult Delete(Topic topic)
+    {
+        _topicDal.Delete(topic);
+        _logService.LogWarning("Content", "Delete", $"Konu silindi: {topic.Name}");
         return new SuccessResult(Messages.TopicDeleted);
-	}
+    }
 }

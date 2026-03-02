@@ -44,7 +44,7 @@ namespace WebAPI.Controllers
         [HttpPost("resetpassword")]
         public IActionResult ResetPassword(ResetPasswordDto resetPasswordDto)
         {
-            var verifyResult = _emailVerificationService.Verify(resetPasswordDto.Email, resetPasswordDto.Code);
+            var verifyResult = _emailVerificationService.VerifyForResetPassword(resetPasswordDto.Email, resetPasswordDto.Code);
             if (!verifyResult.Success)
             {
                 return BadRequest(verifyResult.Message);

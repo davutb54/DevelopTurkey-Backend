@@ -8,6 +8,9 @@ public class ProblemAddDto
     public string Title { get; set; }
     public string Description { get; set; }
     public int CityCode { get; set; }
-    public int TopicId { get; set; }
+    public List<int> TopicIds { get; set; }
     public IFormFile? Image { get; set; }
+
+    public string? SolutionTitle { get; set; }
+    public string? SolutionDescription { get; set; }
 }

@@ -2,6 +2,7 @@
 using Business.Concrete;
 using Core.Utilities.Results;
 using Entities.Concrete;
+using Entities.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -71,7 +72,7 @@ namespace WebAPI.Controllers
 
 		[HttpPost("update")]
 		[Authorize]
-		public IActionResult Update(Comment comment)
+		public IActionResult Update(CommentUpdateDto commentUpdateDto)
 		{
 			if (User.Identity == null || !User.Identity.IsAuthenticated)
 			{
@@ -89,7 +90,7 @@ namespace WebAPI.Controllers
 			var isAdminClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" && c.Value == "Admin");
 			bool isAdmin = isAdminClaim != null;
 
-			var existingComment = _commentService.GetById(comment.Id);
+			var existingComment = _commentService.GetById(commentUpdateDto.Id);
 			if (!existingComment.Success || existingComment.Data == null)
 			{
 				return NotFound("Yorum bulunamadı.");
@@ -100,7 +101,7 @@ namespace WebAPI.Controllers
 				return Forbid("Bu yorumu güncelleme yetkiniz yok.");
 			}
 
-			var result = _commentService.Update(comment);
+			var result = _commentService.Update(commentUpdateDto);
 			return result.Success ? Ok(result) : BadRequest(result);
 		}
 

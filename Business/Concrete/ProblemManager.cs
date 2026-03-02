@@ -3,7 +3,6 @@ using Business.Abstract;
 using Business.Constants;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
-using DataAccess.Concrete.EntityFramework;
 using Entities.Concrete;
 using Entities.DTOs;
 
@@ -12,16 +11,18 @@ namespace Business.Concrete;
 public class ProblemManager : IProblemService
 {
     private readonly IProblemDal _problemDal;
-    private readonly ILogDal _logDal;
+    private readonly ILogService _logService;
     private readonly ISolutionDal _solutionDal;
     private readonly ICommentDal _commentDal;
+    private readonly IProblemTopicDal _problemTopicDal;
 
-    public ProblemManager(IProblemDal problemDal, ILogDal logDal, ISolutionDal solutionDal, ICommentDal commentDal)
+    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal)
     {
         _problemDal = problemDal;
-        _logDal = logDal;
+        _logService = logService;
         _solutionDal = solutionDal;
         _commentDal = commentDal;
+        _problemTopicDal = problemTopicDal;
     }
 
     public IDataResult<ProblemDetailDto> GetById(int id)
@@ -36,7 +37,9 @@ public class ProblemManager : IProblemService
 
     public IDataResult<List<ProblemDetailDto>> GetByTopic(int topicId)
     {
-        return new SuccessDataResult<List<ProblemDetailDto>>(_problemDal.GetProblemsDetails(problem => problem.TopicId == topicId));
+        var problems = _problemDal.GetProblemsDetails(problem => problem.IsDeleted == false);
+        var filteredProblems = problems.Where(p => p.Topics != null && p.Topics.Any(t => t.Id == topicId)).ToList();
+        return new SuccessDataResult<List<ProblemDetailDto>>(filteredProblems);
     }
 
     public IDataResult<List<ProblemDetailDto>> GetBySender(int senderId)
@@ -49,31 +52,50 @@ public class ProblemManager : IProblemService
         return new SuccessDataResult<List<ProblemDetailDto>>(_problemDal.GetProblemsDetails(problem => problem.IsHighlighted));
     }
 
-    public IResult Add(Problem problem)
+    public IResult Add(Problem problem, List<int> topicIds)
     {
         problem.SendDate = DateTime.Now;
         _problemDal.Add(problem);
 
-        _logDal.Add(new Log
+        if (topicIds != null && topicIds.Count > 0)
         {
-            CreationDate = DateTime.Now,
-            Message = Messages.ProblemAdded + $" - Başlık: {problem.Title}",
-            Type = "Problem,Add,Info"
-        });
+            foreach (var topicId in topicIds)
+            {
+                _problemTopicDal.Add(new ProblemTopic
+                {
+                    ProblemId = problem.Id,
+                    TopicId = topicId
+                });
+            }
+        }
 
+        _logService.LogInfo("Content", "Add", $"Problem eklendi - Başlık: {problem.Title}");
         return new SuccessResult(Messages.ProblemAdded);
     }
 
-    public IResult Update(Problem problem)
+    public IResult Update(Problem problem, List<int> topicIds)
     {
         _problemDal.Update(problem);
 
-        _logDal.Add(new Log
+        var existingTopics = _problemTopicDal.GetAll(pt => pt.ProblemId == problem.Id);
+        foreach (var pt in existingTopics)
         {
-            CreationDate = DateTime.Now,
-            Message = Messages.ProblemUpdated + $" - ID: {problem.Id}",
-            Type = "Problem,Update,Info"
-        });
+            _problemTopicDal.Delete(pt);
+        }
+
+        if (topicIds != null && topicIds.Count > 0)
+        {
+            foreach (var topicId in topicIds)
+            {
+                _problemTopicDal.Add(new ProblemTopic
+                {
+                    ProblemId = problem.Id,
+                    TopicId = topicId
+                });
+            }
+        }
+
+        _logService.LogInfo("Content", "Update", $"Problem güncellendi - ID: {problem.Id}");
         return new SuccessResult(Messages.ProblemUpdated);
     }
 
@@ -85,6 +107,12 @@ public class ProblemManager : IProblemService
         problem.IsDeleted = true;
         problem.DeleteDate = DateTime.Now;
         _problemDal.Update(problem);
+
+        var problemTopics = _problemTopicDal.GetAll(pt => pt.ProblemId == id);
+        foreach (var pt in problemTopics)
+        {
+            _problemTopicDal.Delete(pt);
+        }
 
         var solutions = _solutionDal.GetAll(s => s.ProblemId == id && !s.IsDeleted);
         foreach (var sol in solutions)
@@ -110,24 +138,23 @@ public class ProblemManager : IProblemService
             }
         }
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = Messages.ProblemDeleted + $" - ID: {id} (Alt Çözüm ve Yorumlarıyla Birlikte Silindi)",
-            Type = "Problem,Delete,Info"
-        });
-
+        _logService.LogWarning("Content", "Delete", $"Problem silindi - ID: {id} (Alt Çözüm ve Yorumlarıyla Birlikte)");
         return new SuccessResult(Messages.ProblemDeleted);
     }
 
     public IDataResult<List<ProblemDetailDto>> GetList(ProblemFilterDto filterDto, int institutionId)
     {
         var problems = _problemDal.GetProblemsDetails(p =>
-            (p.IsDeleted == false && p.InstitutionId == institutionId) &&
-            (!filterDto.TopicId.HasValue || p.TopicId == filterDto.TopicId.Value) &&
+            (p.IsDeleted == false) &&
+            (institutionId == 0 || p.InstitutionId == institutionId) &&
             (!filterDto.CityCode.HasValue || p.CityCode == filterDto.CityCode.Value) &&
             (string.IsNullOrEmpty(filterDto.SearchText) || p.Title.Contains(filterDto.SearchText) || p.Description.Contains(filterDto.SearchText))
         );
+
+        if (filterDto.TopicId.HasValue && filterDto.TopicId.Value > 0)
+        {
+            problems = problems.Where(p => p.Topics != null && p.Topics.Any(t => t.Id == filterDto.TopicId.Value)).ToList();
+        }
 
         var sortedProblems = problems.OrderByDescending(p =>
             (p.ViewCount) +
@@ -166,12 +193,7 @@ public class ProblemManager : IProblemService
         if (problem == null) return new ErrorResult("Kayıt bulunamadı");
         problem.IsReported = true;
         _problemDal.Update(problem);
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Problem (ID: {problem.Id}) raporlandı.",
-            Type = "Problem,Report,Info"
-        });
+        _logService.LogInfo("Moderation", "Report", $"Problem raporlandı - ID: {problem.Id}");
         return new SuccessResult($"Problem (ID: {problem.Id}) raporlandı.");
     }
 
@@ -192,12 +214,7 @@ public class ProblemManager : IProblemService
         if (problem == null) return new ErrorResult("Kayıt bulunamadı");
         problem.IsHighlighted = !problem.IsHighlighted;
         _problemDal.Update(problem);
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Problem (ID: {problem.Id}) {(problem.IsHighlighted ? "vurgulandı" : "vurgulama kaldırıldı")}.",
-            Type = "Problem,Highlight,Info"
-        });
+        _logService.LogInfo("Content", "Highlight", $"Problem {(problem.IsHighlighted ? "vurgulandı" : "vurgulama kaldırıldı")} - ID: {problem.Id}");
         return new SuccessResult($"Problem (ID: {problem.Id}) {(problem.IsHighlighted ? "vurgulandı" : "vurgulama kaldırıldı")}.");
     }
 
@@ -218,12 +235,7 @@ public class ProblemManager : IProblemService
         if (problem == null) return new ErrorResult("Kayıt bulunamadı");
         problem.IsResolved = !problem.IsResolved;
         _problemDal.Update(problem);
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Problem (ID: {problem.Id}) {(problem.IsResolved ? "çözüldü" : "çözülmedi olarak işaretlendi")}.",
-            Type = "Problem,Resolved,Info"
-        });
+        _logService.LogInfo("Content", "ToggleResolved", $"Problem {(problem.IsResolved ? "çözüldü" : "çözülmedi olarak işaretlendi")} - ID: {problem.Id}");
         return new SuccessResult($"Problem (ID: {problem.Id}) {(problem.IsResolved ? "çözüldü" : "çözülmedi olarak işaretlendi")}.");
     }
 
@@ -233,12 +245,24 @@ public class ProblemManager : IProblemService
         if (problem == null) return new ErrorResult("Kayıt bulunamadı");
         problem.IsResolved = true;
         _problemDal.Update(problem);
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Problem (ID: {problem.Id}) çözüldü.",
-            Type = "Problem,Resolved,Info"
-        });
+        _logService.LogInfo("Content", "Resolve", $"Problem çözüldü - ID: {problem.Id}");
         return new SuccessResult($"Problem (ID: {problem.Id}) çözüldü işaretlendi.");
+    }
+
+    public IDataResult<List<ProblemDetailDto>> GetAllForAdmin()
+    {
+        var problems = _problemDal.GetProblemsDetails(p => p.IsDeleted == false);
+        return new SuccessDataResult<List<ProblemDetailDto>>(problems.OrderByDescending(p => p.SendDate).ToList());
+    }
+    public IResult RemoveTopicFromProblem(int problemId, int topicId)
+    {
+        var problemTopic = _problemTopicDal.Get(pt => pt.ProblemId == problemId && pt.TopicId == topicId);
+        if (problemTopic != null)
+        {
+            _problemTopicDal.Delete(problemTopic);
+            _logService.LogInfo("Moderation", "RemoveTopic", $"Problemden kategori silindi - ProblemID: {problemId}, TopicID: {topicId}");
+            return new SuccessResult("Kategori sorundan başarıyla kaldırıldı.");
+        }
+        return new ErrorResult("Bu sorunda böyle bir kategori bulunamadı.");
     }
 }

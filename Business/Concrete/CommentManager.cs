@@ -11,12 +11,12 @@ namespace Business.Concrete;
 public class CommentManager : ICommentService
 {
     private readonly ICommentDal _commentDal;
-    private readonly ILogDal _logDal;
+    private readonly ILogService _logService;
 
-    public CommentManager(ICommentDal commentDal, ILogDal logDal)
+    public CommentManager(ICommentDal commentDal, ILogService logService)
     {
         _commentDal = commentDal;
-        _logDal = logDal;
+        _logService = logService;
     }
 
 
@@ -44,24 +44,17 @@ public class CommentManager : ICommentService
     {
         comment.SendDate = DateTime.Now;
         _commentDal.Add(comment);
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = Messages.CommentAdded + $" - SolutionId: {comment.SolutionId}",
-            Type = "Comment,Add,Info"
-        });
+        _logService.LogInfo("Content", "Add", $"Yorum eklendi - SolutionId: {comment.SolutionId}");
         return new SuccessResult(Messages.CommentAdded);
     }
 
-    public IResult Update(Comment comment)
+    public IResult Update(CommentUpdateDto commentUpdateDto)
     {
+        var comment = _commentDal.Get(c => c.Id == commentUpdateDto.Id);
+        comment.Text = commentUpdateDto.Text;
+
         _commentDal.Update(comment);
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = Messages.CommentUpdated + $" - CommentId: {comment.Id}",
-            Type = "Comment,Update,Info"
-        });
+        _logService.LogInfo("Content", "Update", $"Yorum güncellendi - CommentId: {comment.Id}");
         return new SuccessResult(Messages.CommentUpdated);
     }
 
@@ -82,12 +75,7 @@ public class CommentManager : ICommentService
             _commentDal.Update(childCom);
         }
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = Messages.CommentDeleted + $" - CommentId: {id} (Alt Yanıtlarıyla Birlikte)",
-            Type = "Comment,Delete,Info"
-        });
+        _logService.LogWarning("Content", "Delete", $"Yorum silindi - CommentId: {id} (Alt Yanıtlarıyla Birlikte)");
 
         return new SuccessResult(Messages.CommentDeleted);
     }

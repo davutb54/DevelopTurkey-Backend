@@ -23,7 +23,7 @@ namespace WebAPI.Controllers
         public UserController(
             IUserService userService,
             IWebHostEnvironment webHostEnvironment,
-            IValidator<UserForRegisterDto> registerValidator,IEmailVerificationService emailVerificationService, ILogService logService)
+            IValidator<UserForRegisterDto> registerValidator, IEmailVerificationService emailVerificationService, ILogService logService)
         {
             _userService = userService;
             _webHostEnvironment = webHostEnvironment;
@@ -49,7 +49,7 @@ namespace WebAPI.Controllers
         [HttpPost("login")]
         public IActionResult Login(UserForLoginDto userForLoginDto)
         {
-           
+
             if (string.IsNullOrWhiteSpace(userForLoginDto.UserName) || string.IsNullOrWhiteSpace(userForLoginDto.Password))
             {
                 return BadRequest("Kullanıcı adı ve şifre boş olamaz.");
@@ -59,12 +59,7 @@ namespace WebAPI.Controllers
             if (!userToLogin.Success)
             {
                 var failIp = HttpContext.Connection.RemoteIpAddress?.ToString();
-                _logService.Add(new Log
-                {
-                    Message = $"Başarısız Giriş Denemesi: {userForLoginDto.UserName} kullanıcısı için yanlış şifre girildi. IP: {failIp}",
-                    CreationDate = DateTime.Now,
-                    Type = "user,loginIP,Error"
-                });
+                _logService.LogWarning("Auth", "Login", $"Başarısız giriş denemesi: {userForLoginDto.UserName} - IP: {failIp}");
                 return BadRequest(userToLogin.Message);
             }
 
@@ -72,12 +67,7 @@ namespace WebAPI.Controllers
 
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
 
-            _logService.Add(new Log
-            {
-                Message = $"Kullanıcı Girişi: {user.UserName} adlı kullanıcı sisteme giriş yaptı. IP: {ipAddress}",
-                CreationDate = DateTime.Now,
-                Type = "user,loginIP,OK"
-            });
+            _logService.LogInfo("Auth", "Login", $"Kullanıcı girişi: {user.UserName} - IP: {ipAddress}");
 
             var result = _userService.CreateAccessToken(user);
             if (result.Success)
@@ -130,14 +120,6 @@ namespace WebAPI.Controllers
             }
 
             var registerResult = _userService.Register(userForRegisterDto);
-            var result = _userService.CreateAccessToken(
-                new User
-                {
-                    UserName = userForRegisterDto.UserName,
-                    Email = userForRegisterDto.Email,
-                    Id = 0
-                }
-            );
 
             if (registerResult.Success)
             {
@@ -148,18 +130,13 @@ namespace WebAPI.Controllers
 
                 if (!emailResult.Success)
                 {
-                    _logService.Add(new Log
-                    {
-                        Message = $"Kayıt başarılı ancak doğrulama e-postası gönderilemedi. User: {user.UserName}",
-                        CreationDate = DateTime.Now,
-                        Type = "user,register,EmailWarning"
-                    });
-
-                    return Ok(result);
+                    _logService.LogWarning("Auth", "Register_Email_Failed", $"Kayıt başarılı ancak e-posta gönderilemedi. User: {user.UserName}");
+                    return Ok(tokenResult.Data);
                 }
 
                 if (tokenResult.Success)
                 {
+                    _logService.LogInfo("Auth", "Register", $"Yeni kullanıcı başarıyla kayıt oldu. User: {user.UserName}");
                     return Ok(tokenResult.Data);
                 }
 

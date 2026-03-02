@@ -11,6 +11,6 @@ public interface ICommentService
 	IDataResult<List<CommentDetailDto>> GetByParentCommentId(int parentCommentId);
 	IDataResult<List<CommentDetailDto>> GetBySolution(int solutionId);
 	IResult Add(Comment comment);
-	IResult Update(Comment comment);
+	IResult Update(CommentUpdateDto commentUpdateDto);
 	IResult Delete(int id);
 }

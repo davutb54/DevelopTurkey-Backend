@@ -8,4 +8,5 @@ public class Topic : IEntity
 	public string Name { get; set; }
 	public string ImageName { get; set; }
     public bool Status { get; set; } = true;
+    public int InstitutionId { get; set; }
 }

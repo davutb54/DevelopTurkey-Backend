@@ -6,8 +6,9 @@ namespace Business.Abstract;
 public interface ITopicService
 {
 	IDataResult<Topic?> GetById(int id);
-	IDataResult<List<Topic>> GetAll();
-	IResult Add(Topic topic);
+    IDataResult<List<Topic>> GetAll(int institutionId);
+    IDataResult<List<Topic>> GetAllForAdmin();
+    IResult Add(Topic topic);
 	IResult Update(Topic topic);
 	IResult Delete(Topic topic);
 }

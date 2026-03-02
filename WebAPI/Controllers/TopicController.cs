@@ -32,7 +32,18 @@ namespace WebAPI.Controllers
         [HttpGet("getall")]
         public IActionResult GetAll()
         {
-            var result = _topicService.GetAll();
+            int institutionId = 1;
+
+            if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                var claim = User.Claims.FirstOrDefault(c => c.Type == "InstitutionId");
+                if (claim != null)
+                {
+                    institutionId = Convert.ToInt32(claim.Value);
+                }
+            }
+
+            var result = _topicService.GetAll(institutionId);
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
@@ -40,7 +51,18 @@ namespace WebAPI.Controllers
         [AllowAnonymous]
         public IActionResult GetAllActive()
         {
-            var result = _topicService.GetAll();
+            int institutionId = 1;
+
+            if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                var claim = User.Claims.FirstOrDefault(c => c.Type == "InstitutionId");
+                if (claim != null)
+                {
+                    institutionId = Convert.ToInt32(claim.Value);
+                }
+            }
+
+            var result = _topicService.GetAll(institutionId);
             if (result.Success)
             {
                 var activeTopics = result.Data.Where(t => t.Status == true).ToList();
@@ -68,7 +90,7 @@ namespace WebAPI.Controllers
                 }
             }
 
-            var topic = new Topic { Name = topicAddDto.Name, ImageName = imagePath, Status = topicAddDto.Status };
+            var topic = new Topic { Name = topicAddDto.Name, ImageName = imagePath, Status = topicAddDto.Status, InstitutionId = topicAddDto.InstitutionId };
             var result = _topicService.Add(topic);
             return result.Success ? Ok(result) : BadRequest(result);
         }

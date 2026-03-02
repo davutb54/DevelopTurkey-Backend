@@ -16,7 +16,6 @@ public class ProblemValidator : AbstractValidator<ProblemAddDto>
             .NotEmpty().WithMessage("Açıklama boş olamaz.")
             .MinimumLength(20).WithMessage("Lütfen sorunu en az 20 karakterle açıklayın.");
 
-        RuleFor(p => p.CityCode).GreaterThan(0).WithMessage("Lütfen geçerli bir şehir seçin.");
-        RuleFor(p => p.TopicId).GreaterThan(0).WithMessage("Lütfen geçerli bir konu başlığı seçin.");
+        //RuleFor(p => p.TopicId).GreaterThan(0).WithMessage("Lütfen geçerli bir konu başlığı seçin.");
     }
 }

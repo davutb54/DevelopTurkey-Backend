@@ -22,6 +22,14 @@ public class DevelopTurkeyContext : DbContext
         }
     }
 
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ProblemTopic>()
+            .HasKey(pt => new { pt.ProblemId, pt.TopicId });
+
+        base.OnModelCreating(modelBuilder);
+    }
+
     public DbSet<User> Users { get; set; }
     public DbSet<Topic> Topics { get; set; }
     public DbSet<Solution> Solutions { get; set; }
@@ -32,4 +40,6 @@ public class DevelopTurkeyContext : DbContext
     public DbSet<SolutionVote> SolutionVotes { get; set; }
     public DbSet<Report> Reports { get; set; }
     public DbSet<Institution> Institutions { get; set; }
+    public DbSet<ProblemTopic> ProblemTopics { get; set; }
+    public DbSet<Feedback> Feedbacks { get; set; }
 }

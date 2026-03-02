@@ -21,5 +21,5 @@ public interface ISolutionService
 	IDataResult<List<SolutionDetailDto>> GetPendingExpertSolutions();
 	IResult ApproveSolution(int id);
 	IResult RejectSolution(int id);
-
+    IDataResult<List<SolutionDetailDto>> GetAllForAdmin();
 }

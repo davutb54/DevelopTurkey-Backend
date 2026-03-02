@@ -13,17 +13,20 @@ namespace Business.Concrete
         private readonly IProblemService _problemService;
         private readonly ISolutionService _solutionService;
         private readonly IUserService _userService;
+        private readonly ILogService _logService;
 
         public ReportManager(
             IReportDal reportDal,
             IProblemService problemService,
             ISolutionService solutionService,
-            IUserService userService)
+            IUserService userService,
+            ILogService logService)
         {
             _reportDal = reportDal;
             _problemService = problemService;
             _solutionService = solutionService;
             _userService = userService;
+            _logService = logService;
         }
 
         public IResult Add(Report report)
@@ -32,6 +35,7 @@ namespace Business.Concrete
             report.IsResolved = false;
 
             _reportDal.Add(report);
+            _logService.LogInfo("Report", "Add", $"{report.ReporterUserId} {report.TargetType} {report.TargetId} şikayetinde bulundu");
 
             switch (report.TargetType)
             {
@@ -80,6 +84,7 @@ namespace Business.Concrete
 
             report.IsResolved = true;
             _reportDal.Update(report);
+            _logService.LogInfo("Report", "ResolveReport", $"{report.ReporterUserId} {report.TargetType} {report.TargetId} şikayeti çözüldü");
 
             switch (report.TargetType)
             {

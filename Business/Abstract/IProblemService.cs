@@ -6,22 +6,24 @@ namespace Business.Abstract;
 
 public interface IProblemService
 {
-	IDataResult<ProblemDetailDto> GetById(int id);
-	IDataResult<List<Problem>> GetAll();
-	IDataResult<List<ProblemDetailDto>> GetByTopic(int topicId);
-	IDataResult<List<ProblemDetailDto>> GetBySender(int senderId);
-	IDataResult<List<ProblemDetailDto>> GetIsHighlighted();
-	IResult Add(Problem problem);
-	IResult Update(Problem problem);
-	IResult Delete(int id);
-    IDataResult<List<ProblemDetailDto>> GetList(ProblemFilterDto filterDto,int institutionId);
+    IDataResult<ProblemDetailDto> GetById(int id);
+    IDataResult<List<Problem>> GetAll();
+    IDataResult<List<ProblemDetailDto>> GetByTopic(int topicId);
+    IDataResult<List<ProblemDetailDto>> GetBySender(int senderId);
+    IDataResult<List<ProblemDetailDto>> GetIsHighlighted();
+    IResult Add(Problem problem, List<int> topicIds);
+    IResult Update(Problem problem, List<int> topicIds);
+    IResult Delete(int id);
+    IDataResult<List<ProblemDetailDto>> GetList(ProblemFilterDto filterDto, int institutionId);
     IDataResult<List<ProblemDetailDto>> GetReportedProblems();
     int GetTotalCount();
     int GetReportedCount();
-	IResult ReportProblem(int id);
-	IResult UnReportProblem(int id);
-	IResult ToggleHighlight(int id);
+    IResult ReportProblem(int id);
+    IResult UnReportProblem(int id);
+    IResult ToggleHighlight(int id);
     IResult IncrementView(int id);
-	IResult ToggleResolved(int id);
-	IResult ResolveProblem(int id);
+    IResult ToggleResolved(int id);
+    IResult ResolveProblem(int id);
+    IDataResult<List<ProblemDetailDto>> GetAllForAdmin();
+    IResult RemoveTopicFromProblem(int problemId, int topicId);
 }

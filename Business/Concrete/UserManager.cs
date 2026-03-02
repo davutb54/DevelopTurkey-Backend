@@ -15,14 +15,14 @@ namespace Business.Concrete;
 public class UserManager : IUserService
 {
     private readonly IUserDal _userDal;
-    private readonly ILogDal _logDal;
+    private readonly ILogService _logService;
     private readonly ITokenHelper _tokenHelper;
     private readonly IInstitutionService _institutionService;
 
-    public UserManager(IUserDal userDal, ILogDal logDal, ITokenHelper tokenHelper, IInstitutionService institutionService)
+    public UserManager(IUserDal userDal, ILogService logService, ITokenHelper tokenHelper, IInstitutionService institutionService)
     {
         _userDal = userDal;
-        _logDal = logDal;
+        _logService = logService;
         _tokenHelper = tokenHelper;
         _institutionService = institutionService;
     }
@@ -36,12 +36,6 @@ public class UserManager : IUserService
             return new SuccessDataResult<UserDetailDto?>(user, Messages.UserGetByIdOk);
         }
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = Messages.UserNotFound,
-            Type = "user,getById,Error"
-        });
         return new ErrorDataResult<UserDetailDto?>(user, Messages.UserGetByIdError);
     }
 
@@ -55,23 +49,13 @@ public class UserManager : IUserService
 
         if (user == null || user.IsDeleted)
         {
-            _logDal.Add(new Log
-            {
-                CreationDate = DateTime.Now,
-                Message = Messages.UserLoginError + " " + Messages.UserNotFound,
-                Type = "user,login,Error"
-            });
+            _logService.LogWarning("Auth", "Login", $"Kullanıcı bulunamadı: {userForLoginDto.UserName}");
             return new ErrorResult(Messages.UserNotFound);
         }
 
         if (user.IsBanned)
         {
-            _logDal.Add(new Log
-            {
-                CreationDate = DateTime.Now,
-                Message = $"Banlı Giriş Denemesi: {user.UserName}",
-                Type = "user,login,Banned"
-            });
+            _logService.LogWarning("Security", "Login", $"Banlı kullanıcı giriş denemesi: {user.UserName}");
             return new ErrorResult("Hesabınız kuralları ihlal ettiğiniz gerekçesiyle sistem yöneticileri tarafından askıya alınmıştır.");
         }
 
@@ -80,12 +64,7 @@ public class UserManager : IUserService
             var institutionResult = _institutionService.GetById(user.InstitutionId);
             if (institutionResult.Success && institutionResult.Data != null && !institutionResult.Data.Status)
             {
-                _logDal.Add(new Log
-                {
-                    CreationDate = DateTime.Now,
-                    Message = $"Devre Dışı Kurumdan Giriş Denemesi: {user.UserName} ({institutionResult.Data.Name})",
-                    Type = "user,login,InstitutionDisabled"
-                });
+                _logService.LogWarning("Auth", "Login", $"Devre dışı kurumdan giriş denemesi: {user.UserName} ({institutionResult.Data.Name})");
 
                 return new ErrorResult($"Bağlı bulunduğunuz '{institutionResult.Data.Name}' ağı sistem yöneticileri tarafından devre dışı bırakılmıştır. Lütfen daha sonra tekrar deneyiniz.");
             }
@@ -93,21 +72,11 @@ public class UserManager : IUserService
 
         if (!HashingHelper.VerifyPasswordHash(userForLoginDto.Password, user.PasswordHash, user.PasswordSalt))
         {
-            _logDal.Add(new Log
-            {
-                CreationDate = DateTime.Now,
-                Message = Messages.UserLoginError + " " + Messages.UserPasswordError,
-                Type = "user,login,Error"
-            });
+            _logService.LogWarning("Auth", "Login", $"Hatalı şifre girişi: {user.UserName}");
             return new ErrorResult(Messages.UserPasswordError);
         }
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = Messages.UserLoginOk + $" Id: {user.Id} Username: {user.UserName}",
-            Type = "user,login,OK"
-        });
+        _logService.LogInfo("Auth", "Login", $"Başarılı giriş - ID: {user.Id}, Kullanıcı: {user.UserName}");
         return new SuccessResult(Messages.UserLoginOk);
     }
 
@@ -166,12 +135,7 @@ public class UserManager : IUserService
 
         _userDal.Add(user);
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = Messages.UserRegisterOk + $" Id: {user.Id} Username: {user.UserName}",
-            Type = "user,register,OK"
-        });
+        _logService.LogInfo("Auth", "Register", $"Yeni kullanıcı kaydı - ID: {user.Id}, Kullanıcı: {user.UserName}");
 
         return new SuccessResult(Messages.UserRegisterOk);
     }
@@ -182,23 +146,12 @@ public class UserManager : IUserService
 
         if (user == null)
         {
-            _logDal.Add(new Log
-            {
-                CreationDate = DateTime.Now,
-                Message = Messages.UserPasswordUpdateError + " " + Messages.UserNotFound,
-                Type = "user,updatePassword,Error"
-            });
             return new ErrorResult(Messages.UserNotFound);
         }
 
         if (!HashingHelper.VerifyPasswordHash(userForPasswordUpdateDto.OldPassword, user.PasswordHash, user.PasswordSalt))
         {
-            _logDal.Add(new Log
-            {
-                CreationDate = DateTime.Now,
-                Message = Messages.UserPasswordUpdateError + $" Id: {user.Id} Username: {user.UserName} Hata Mesajı " + Messages.UserPasswordError,
-                Type = "user,updatePassword,Error"
-            });
+            _logService.LogWarning("Security", "UpdatePassword", $"Hatalı eski şifre girişi - ID: {user.Id}, Kullanıcı: {user.UserName}");
             return new ErrorResult(Messages.UserPasswordError);
         }
 
@@ -210,12 +163,7 @@ public class UserManager : IUserService
 
         _userDal.Update(user);
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = Messages.UserPasswordUpdateOk + $" Id: {user.Id} Username: {user.UserName}",
-            Type = "user,updatePassword,OK"
-        });
+        _logService.LogInfo("Security", "UpdatePassword", $"Şifre güncellendi - ID: {user.Id}, Kullanıcı: {user.UserName}");
         return new SuccessResult(Messages.UserPasswordUpdateOk);
     }
 
@@ -243,12 +191,6 @@ public class UserManager : IUserService
 
         if (user == null)
         {
-            _logDal.Add(new Log
-            {
-                CreationDate = DateTime.Now,
-                Message = Messages.UserUpdateError + " " + Messages.UserNotFound,
-                Type = "user,update,Error"
-            });
             return new ErrorResult(Messages.UserNotFound);
         }
 
@@ -260,12 +202,7 @@ public class UserManager : IUserService
 
         _userDal.Update(user);
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = Messages.UserUpdateOk + $" Id: {user.Id} Username: {user.UserName}",
-            Type = "user,update,OK"
-        });
+        _logService.LogInfo("Auth", "UpdateDetails", $"Kullanıcı bilgileri güncellendi - ID: {user.Id}, Kullanıcı: {user.UserName}");
 
         return new SuccessResult(Messages.UserUpdateOk);
     }
@@ -276,12 +213,6 @@ public class UserManager : IUserService
 
         if (user == null)
         {
-            _logDal.Add(new Log
-            {
-                CreationDate = DateTime.Now,
-                Message = Messages.UserDeleteError + " " + Messages.UserNotFound,
-                Type = "user,delete,Error"
-            });
             return new ErrorResult(Messages.UserNotFound);
         }
 
@@ -289,12 +220,7 @@ public class UserManager : IUserService
         user.DeleteDate = DateTime.Now;
         _userDal.Update(user);
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = Messages.UserDeleteOk + $" Id: {user.Id} Username: {user.UserName}",
-            Type = "user,delete,OK"
-        });
+        _logService.LogWarning("Security", "Delete", $"Kullanıcı silindi - ID: {user.Id}, Kullanıcı: {user.UserName}");
 
         return new SuccessResult(Messages.UserDeleteOk);
     }
@@ -323,12 +249,7 @@ public class UserManager : IUserService
 
         _userDal.Update(user);
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Kullanıcı (ID: {user.Id}) şifresi sıfırlandı.",
-            Type = "user,resetPassword,OK"
-        });
+        _logService.LogInfo("Security", "ResetPassword", $"Kullanıcı şifresi sıfırlandı - ID: {user.Id}");
 
         return new SuccessResult("Şifreniz başarıyla sıfırlandı.");
     }
@@ -346,12 +267,7 @@ public class UserManager : IUserService
         user.IsBanned = true;
         _userDal.Update(user);
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Kullanıcı (ID: {user.Id}) yasaklandı.",
-            Type = "user,ban,OK"
-        });
+        _logService.LogWarning("Moderation", "Ban", $"Kullanıcı yasaklandı - ID: {user.Id}, Kullanıcı: {user.UserName}");
 
         return new SuccessResult($"Kullanıcı (ID: {user.Id}) yasaklandı.");
     }
@@ -364,12 +280,7 @@ public class UserManager : IUserService
         user.IsBanned = false;
         _userDal.Update(user);
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Kullanıcı (ID: {user.Id}) yasağı kaldırıldı.",
-            Type = "user,unban,OK"
-        });
+        _logService.LogInfo("Moderation", "Unban", $"Kullanıcı yasağı kaldırıldı - ID: {user.Id}, Kullanıcı: {user.UserName}");
 
         return new SuccessResult($"Kullanıcı (ID: {user.Id}) yasağı kaldırıldı.");
     }
@@ -390,12 +301,7 @@ public class UserManager : IUserService
         if (user == null) return new ErrorResult(Messages.UserNotFound);
         user.IsReported = true;
         _userDal.Update(user);
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Kullanıcı (ID: {user.Id}) raporlandı.",
-            Type = "user,report,OK"
-        });
+        _logService.LogInfo("Moderation", "Report", $"Kullanıcı raporlandı - ID: {user.Id}");
         return new SuccessResult($"Kullanıcı (ID: {user.Id}) raporlandı");
     }
 
@@ -415,12 +321,7 @@ public class UserManager : IUserService
         var user = _userDal.Get(u => u.Id == userId);
         if (user == null) return new ErrorResult(Messages.UserNotFound);
         user.IsAdmin = !user.IsAdmin;
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Kullanıcı (ID: {user.Id}) admin rolü {(user.IsAdmin ? "verildi" : "kaldırıldı")}.",
-            Type = "user,toggleAdminRole,OK"
-        });
+        _logService.LogWarning("Security", "ToggleAdminRole", $"Admin rolü {(user.IsAdmin ? "verildi" : "kaldırıldı")} - ID: {user.Id}, Kullanıcı: {user.UserName}");
         _userDal.Update(user);
         string action = user.IsAdmin ? "Admin rolü verildi" : "Admin rolü kaldırıldı";
         return new SuccessResult($"{action} (ID: {user.Id})");
@@ -431,12 +332,7 @@ public class UserManager : IUserService
         var user = _userDal.Get(u => u.Id == userId);
         if (user == null) return new ErrorResult(Messages.UserNotFound);
         user.IsExpert = !user.IsExpert;
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Kullanıcı (ID: {user.Id}) uzman rolü {(user.IsExpert ? "verildi" : "kaldırıldı")}.",
-            Type = "user,toggleExpertRole,OK"
-        });
+        _logService.LogWarning("Security", "ToggleExpertRole", $"Uzman rolü {(user.IsExpert ? "verildi" : "kaldırıldı")} - ID: {user.Id}, Kullanıcı: {user.UserName}");
         _userDal.Update(user);
         string action = user.IsExpert ? "Uzman rolü verildi" : "Uzman rolü kaldırıldı";
         return new SuccessResult($"{action} (ID: {user.Id})");
@@ -447,12 +343,7 @@ public class UserManager : IUserService
         var user = _userDal.Get(u => u.Id == userId);
         if (user == null) return new ErrorResult(Messages.UserNotFound);
         user.IsOfficial = !user.IsOfficial;
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Kullanıcı (ID: {user.Id}) resmi rolü {(user.IsOfficial ? "verildi" : "kaldırıldı")}.",
-            Type = "user,toggleOfficialRole,OK"
-        });
+        _logService.LogWarning("Security", "ToggleOfficialRole", $"Resmi rolü {(user.IsOfficial ? "verildi" : "kaldırıldı")} - ID: {user.Id}, Kullanıcı: {user.UserName}");
         _userDal.Update(user);
         string action = user.IsOfficial ? "Resmi rolü verildi" : "Resmi rolü kaldırıldı";
         return new SuccessResult($"{action} (ID: {user.Id})");

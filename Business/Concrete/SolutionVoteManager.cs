@@ -8,12 +8,12 @@ namespace Business.Concrete;
 public class SolutionVoteManager : ISolutionVoteService
 {
     private readonly ISolutionVoteDal _solutionVoteDal;
-    private readonly ILogDal _logDal;
+    private readonly ILogService _logService;
 
-    public SolutionVoteManager(ISolutionVoteDal solutionVoteDal, ILogDal logDal)
+    public SolutionVoteManager(ISolutionVoteDal solutionVoteDal, ILogService logService)
     {
         _solutionVoteDal = solutionVoteDal;
-        _logDal = logDal;
+        _logService = logService;
     }
 
     public IDataResult<int> GetSolutionVoteCount(int solutionId)
@@ -40,13 +40,7 @@ public class SolutionVoteManager : ISolutionVoteService
                 VoteDate = DateTime.Now
             };
             _solutionVoteDal.Add(newVote);
-            
-            _logDal.Add(new Log
-            {
-                CreationDate = DateTime.Now,
-                Message = $"Kullanıcı {userId} çözüm {solutionId} için {(isUpvote ? "upvote" : "downvote")} verdi.",
-                Type = "Vote,Info"
-            });
+
             return new SuccessResult("Oy verildi.");
         }
 
@@ -54,12 +48,6 @@ public class SolutionVoteManager : ISolutionVoteService
         {
             _solutionVoteDal.Delete(existingVote);
 
-            _logDal.Add(new Log
-            {
-                CreationDate = DateTime.Now,
-                Message = $"Kullanıcı {userId} çözüm {solutionId} için {(isUpvote ? "upvote" : "downvote")} oyunu geri aldı.",
-                Type = "Vote,Info"
-            });
             return new SuccessResult("Oy geri alındı.");
         }
 
@@ -67,12 +55,6 @@ public class SolutionVoteManager : ISolutionVoteService
         existingVote.VoteDate = DateTime.Now;
         _solutionVoteDal.Update(existingVote);
 
-        _logDal.Add(new Log
-        {
-            CreationDate = DateTime.Now,
-            Message = $"Kullanıcı {userId} çözüm {solutionId} için oyunu {(isUpvote ? "upvote" : "downvote")} olarak güncelledi.",
-            Type = "Vote,Info"
-        });
         return new SuccessResult("Oy güncellendi.");
     }
 }
