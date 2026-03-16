@@ -1,4 +1,5 @@
-﻿using Business.Abstract;
+using Business.Abstract;
+using Core.Utilities.Context;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
 using Entities.Concrete;
@@ -11,15 +12,18 @@ public class FeedbackManager : IFeedbackService
 {
     private readonly IFeedbackDal _feedbackDal;
     private readonly ILogService _logService;
+    private readonly IClientContext _clientContext;
 
-    public FeedbackManager(IFeedbackDal feedbackDal, ILogService logService)
+    public FeedbackManager(IFeedbackDal feedbackDal, ILogService logService, IClientContext clientContext)
     {
         _feedbackDal = feedbackDal;
         _logService = logService;
+        _clientContext = clientContext;
     }
 
     public IResult Add(Feedback feedback)
     {
+        feedback.UserId = _clientContext.GetUserId() ?? 0;
         _feedbackDal.Add(feedback);
         _logService.LogInfo("Feedback","Add", $"Yeni Geribildirim eklendi: {feedback.Title}");
         return new SuccessResult("Geri bildirim başarıyla gönderildi.");

@@ -1,4 +1,4 @@
-﻿namespace Core.Utilities.Context;
+namespace Core.Utilities.Context;
 
 public interface IClientContext
 {
@@ -6,4 +6,6 @@ public interface IClientContext
     string GetPort();
     int? GetUserId();
     string GetUserName();
+    List<string> GetRoles();
+    int? GetInstitutionId();
 }

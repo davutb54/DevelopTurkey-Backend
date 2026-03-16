@@ -1,5 +1,6 @@
-﻿using System.Linq;
+using System.Linq;
 using Business.Abstract;
+using Core.Utilities.Context;
 using Business.Constants;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
@@ -15,14 +16,16 @@ public class ProblemManager : IProblemService
     private readonly ISolutionDal _solutionDal;
     private readonly ICommentDal _commentDal;
     private readonly IProblemTopicDal _problemTopicDal;
+    private readonly IClientContext _clientContext;
 
-    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal)
+    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal, IClientContext clientContext)
     {
         _problemDal = problemDal;
         _logService = logService;
         _solutionDal = solutionDal;
         _commentDal = commentDal;
         _problemTopicDal = problemTopicDal;
+        _clientContext = clientContext;
     }
 
     public IDataResult<ProblemDetailDto> GetById(int id)
@@ -75,6 +78,29 @@ public class ProblemManager : IProblemService
 
     public IResult Update(Problem problem, List<int> topicIds)
     {
+        var currentUserId = _clientContext.GetUserId();
+        var isAdmin = _clientContext.GetRoles().Contains("Admin");
+        var existingProblem = _problemDal.Get(p => p.Id == problem.Id);
+
+        if (existingProblem == null)
+        {
+            return new ErrorResult("Kayıt bulunamadı");
+        }
+
+        // TODO: İleride Moderator rolü (Örn: IsOfficial) eklendiğinde, moderatörün 
+        // kendi kurumuna (InstitutionId) ait olmayan problemleri güncellemesi engellenmelidir.
+        // Örn: var institutionId = _clientContext.GetInstitutionId();
+        // if (!isAdmin && isOfficial && existingProblem.InstitutionId != institutionId) return new ErrorResult(Messages.AuthorizationDenied); 
+
+        if (!isAdmin && existingProblem.SenderId != currentUserId)
+        {
+             return new ErrorResult("Bu sorunu güncelleme yetkiniz yok.");
+        }
+
+        // Prevent modification of read-only fields during update if not provided intentionally, or map allowed fields.
+        // Usually, an update method might fetch the entity, update specific fields and then save. 
+        // Here we keep existing logic of directly updating the provided problem object.
+        
         _problemDal.Update(problem);
 
         var existingTopics = _problemTopicDal.GetAll(pt => pt.ProblemId == problem.Id);
@@ -101,8 +127,21 @@ public class ProblemManager : IProblemService
 
     public IResult Delete(int id)
     {
+        var currentUserId = _clientContext.GetUserId();
+        var isAdmin = _clientContext.GetRoles().Contains("Admin");
+
         var problem = _problemDal.Get(p => p.Id == id);
         if (problem == null) return new ErrorResult("Kayıt bulunamadı");
+
+        // TODO: İleride Moderator rolü (Örn: IsOfficial) eklendiğinde, moderatörün 
+        // kendi kurumuna (InstitutionId) ait olmayan problemleri silmesi engellenmelidir.
+        // Örn: var institutionId = _clientContext.GetInstitutionId();
+        // if (!isAdmin && isOfficial && problem.InstitutionId != institutionId) return new ErrorResult(Messages.AuthorizationDenied);
+
+        if (!isAdmin && problem.SenderId != currentUserId)
+        {
+             return new ErrorResult("Bu sorunu silme yetkiniz yok.");
+        }
 
         problem.IsDeleted = true;
         problem.DeleteDate = DateTime.Now;

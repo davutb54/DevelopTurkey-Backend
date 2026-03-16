@@ -1,5 +1,6 @@
-﻿using Business.Abstract;
+using Business.Abstract;
 using Business.Constants;
+using Core.Utilities.Context;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
 using DataAccess.Concrete.EntityFramework;
@@ -11,10 +12,13 @@ public class TopicManager : ITopicService
 {
     private readonly ITopicDal _topicDal;
     private readonly ILogService _logService;
-    public TopicManager(ITopicDal topicDal, ILogService logService)
+    private readonly IClientContext _clientContext;
+    
+    public TopicManager(ITopicDal topicDal, ILogService logService, IClientContext clientContext)
     {
         _topicDal = topicDal;
         _logService = logService;
+        _clientContext = clientContext;
     }
 
     public IDataResult<Topic?> GetById(int id)
@@ -22,8 +26,9 @@ public class TopicManager : ITopicService
         return new SuccessDataResult<Topic?>(_topicDal.Get(topic => topic.Id == id));
     }
 
-    public IDataResult<List<Topic>> GetAll(int institutionId)
+    public IDataResult<List<Topic>> GetAll()
     {
+        int institutionId = _clientContext.GetInstitutionId() ?? 1;
         var topics = _topicDal.GetAll(t => t.Status == true && (t.InstitutionId == institutionId || t.InstitutionId == 1));
         return new SuccessDataResult<List<Topic>>(topics);
     }

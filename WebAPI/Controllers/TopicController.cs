@@ -1,4 +1,4 @@
-﻿using Business.Abstract;
+using Business.Abstract;
 using Business.Concrete;
 using Core.Utilities.Results;
 using Entities.Concrete;
@@ -32,18 +32,8 @@ namespace WebAPI.Controllers
         [HttpGet("getall")]
         public IActionResult GetAll()
         {
-            int institutionId = 1;
-
-            if (User.Identity != null && User.Identity.IsAuthenticated)
-            {
-                var claim = User.Claims.FirstOrDefault(c => c.Type == "InstitutionId");
-                if (claim != null)
-                {
-                    institutionId = Convert.ToInt32(claim.Value);
-                }
-            }
-
-            var result = _topicService.GetAll(institutionId);
+            // institutionId is handled by IClientContext inside TopicManager
+            var result = _topicService.GetAll();
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
@@ -51,18 +41,8 @@ namespace WebAPI.Controllers
         [AllowAnonymous]
         public IActionResult GetAllActive()
         {
-            int institutionId = 1;
-
-            if (User.Identity != null && User.Identity.IsAuthenticated)
-            {
-                var claim = User.Claims.FirstOrDefault(c => c.Type == "InstitutionId");
-                if (claim != null)
-                {
-                    institutionId = Convert.ToInt32(claim.Value);
-                }
-            }
-
-            var result = _topicService.GetAll(institutionId);
+            // institutionId is handled by IClientContext inside TopicManager
+            var result = _topicService.GetAll();
             if (result.Success)
             {
                 var activeTopics = result.Data.Where(t => t.Status == true).ToList();

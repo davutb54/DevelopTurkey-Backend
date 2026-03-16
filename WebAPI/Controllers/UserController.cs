@@ -1,4 +1,4 @@
-﻿using Business.Abstract;
+using Business.Abstract;
 using Business.Concrete;
 using Core.Entities.Concrete;
 using Entities.Concrete;
@@ -86,14 +86,7 @@ namespace WebAPI.Controllers
                 return Unauthorized("Kullanıcı girişi gereklidir.");
             }
 
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
-            if (userIdClaim == null)
-            {
-                return Unauthorized("Geçersiz token.");
-            }
-
-            userForPasswordUpdateDto.Id = Convert.ToInt32(userIdClaim.Value);
-
+            // userForPasswordUpdateDto.Id = _clientContext.GetUserId() will be set in Manager
             var result = _userService.UpdatePassword(userForPasswordUpdateDto);
             return Ok(result);
         }
@@ -155,14 +148,7 @@ namespace WebAPI.Controllers
                 return Unauthorized("Kullanıcı girişi gereklidir.");
             }
 
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
-            if (userIdClaim == null)
-            {
-                return Unauthorized("Geçersiz token.");
-            }
-
-            userForUpdateDto.Id = Convert.ToInt32(userIdClaim.Value);
-
+            // userForUpdateDto.Id = _clientContext.GetUserId() will be set in Manager
             var result = _userService.UpdateUserDetails(userForUpdateDto);
             return Ok(result);
         }
@@ -171,17 +157,6 @@ namespace WebAPI.Controllers
         [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
         public IActionResult Delete(int id)
         {
-            if (User.Identity == null || !User.Identity.IsAuthenticated)
-            {
-                return Unauthorized("Kullanıcı girişi gereklidir.");
-            }
-
-            var isAdminClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" && c.Value == "Admin");
-            if (isAdminClaim == null)
-            {
-                return Forbid("Bu işlemi yapma yetkiniz yok. Sadece adminler kullanıcı silebilir.");
-            }
-
             var result = _userService.DeleteUser(id);
             return Ok(result);
         }
@@ -201,12 +176,9 @@ namespace WebAPI.Controllers
                 return Unauthorized("Kullanıcı girişi gereklidir.");
             }
 
+            // ClientContext is not easily accessible here without DI, but we can rely on standard token claim since we removed it from business
             var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
-            if (userIdClaim == null)
-            {
-                return Unauthorized("Geçersiz token.");
-            }
-
+            if (userIdClaim == null) return Unauthorized("Geçersiz token.");
             int authenticatedUserId = Convert.ToInt32(userIdClaim.Value);
 
             var userDetail = _userService.GetById(authenticatedUserId);
@@ -241,5 +213,6 @@ namespace WebAPI.Controllers
                 return StatusCode(500, "Dosya yüklenirken bir hata oluştu.");
             }
         }
+
     }
 }

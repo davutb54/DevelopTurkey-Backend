@@ -1,4 +1,5 @@
-﻿using Business.Abstract;
+using Business.Abstract;
+using Core.Utilities.Context;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
 using Entities.Concrete;
@@ -14,23 +15,27 @@ namespace Business.Concrete
         private readonly ISolutionService _solutionService;
         private readonly IUserService _userService;
         private readonly ILogService _logService;
+        private readonly IClientContext _clientContext;
 
         public ReportManager(
             IReportDal reportDal,
             IProblemService problemService,
             ISolutionService solutionService,
             IUserService userService,
-            ILogService logService)
+            ILogService logService,
+            IClientContext clientContext)
         {
             _reportDal = reportDal;
             _problemService = problemService;
             _solutionService = solutionService;
             _userService = userService;
             _logService = logService;
+            _clientContext = clientContext;
         }
 
         public IResult Add(Report report)
         {
+            report.ReporterUserId = _clientContext.GetUserId() ?? 0;
             report.ReportDate = DateTime.Now;
             report.IsResolved = false;
 

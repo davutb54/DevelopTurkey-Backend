@@ -1,4 +1,4 @@
-﻿using Business.Abstract;
+using Business.Abstract;
 using Business.Concrete;
 using Core.Utilities.Results;
 using Entities.Concrete;
@@ -160,30 +160,6 @@ namespace WebAPI.Controllers
                 return Unauthorized("Kullanıcı girişi gereklidir.");
             }
 
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
-            if (userIdClaim == null)
-            {
-                return Unauthorized("Geçersiz token.");
-            }
-
-            int currentUserId = Convert.ToInt32(userIdClaim.Value);
-
-            var isAdminClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" && c.Value == "Admin");
-            bool isAdmin = isAdminClaim != null;
-
-
-            var existingProblem = _problemService.GetById(updateDto.Id);
-            if (!existingProblem.Success || existingProblem.Data == null)
-            {
-                return NotFound("Sorun bulunamadı.");
-            }
-
-
-            if (!isAdmin && existingProblem.Data.SenderId != currentUserId)
-            {
-                return Forbid("Bu sorunu güncelleme yetkiniz yok.");
-            }
-
             var problem = new Problem
             {
                 Id = updateDto.Id,
@@ -211,31 +187,6 @@ namespace WebAPI.Controllers
             if (User.Identity == null || !User.Identity.IsAuthenticated)
             {
                 return Unauthorized("Kullanıcı girişi gereklidir.");
-            }
-
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
-            if (userIdClaim == null)
-            {
-                return Unauthorized("Geçersiz token.");
-            }
-
-            int currentUserId = Convert.ToInt32(userIdClaim.Value);
-
-
-            var isAdminClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" && c.Value == "Admin");
-            bool isAdmin = isAdminClaim != null;
-
-
-            var existingProblem = _problemService.GetById(id);
-            if (!existingProblem.Success || existingProblem.Data == null)
-            {
-                return NotFound("Sorun bulunamadı.");
-            }
-
-
-            if (!isAdmin && existingProblem.Data.SenderId != currentUserId)
-            {
-                return Forbid("Bu sorunu silme yetkiniz yok.");
             }
 
             var result = _problemService.Delete(id);

@@ -1,4 +1,4 @@
-﻿using Business.Abstract;
+using Business.Abstract;
 using Entities.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -25,15 +25,7 @@ namespace WebAPI.Controllers
                 return Unauthorized("Kullanıcı girişi gereklidir.");
             }
 
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
-            if (userIdClaim == null)
-            {
-                return Unauthorized("Geçersiz token.");
-            }
-
-            int authenticatedUserId = Convert.ToInt32(userIdClaim.Value);
-
-            var result = _solutionVoteService.Vote(authenticatedUserId, solutionVoteAddDto.SolutionId, solutionVoteAddDto.IsUpvote);
+            var result = _solutionVoteService.Vote(solutionVoteAddDto.SolutionId, solutionVoteAddDto.IsUpvote);
             if (result.Success)
             {
                 return Ok(result);

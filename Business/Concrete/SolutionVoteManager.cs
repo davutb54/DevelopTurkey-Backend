@@ -1,4 +1,5 @@
-﻿using Business.Abstract;
+using Business.Abstract;
+using Core.Utilities.Context;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
 using Entities.Concrete;
@@ -9,11 +10,13 @@ public class SolutionVoteManager : ISolutionVoteService
 {
     private readonly ISolutionVoteDal _solutionVoteDal;
     private readonly ILogService _logService;
+    private readonly IClientContext _clientContext;
 
-    public SolutionVoteManager(ISolutionVoteDal solutionVoteDal, ILogService logService)
+    public SolutionVoteManager(ISolutionVoteDal solutionVoteDal, ILogService logService, IClientContext clientContext)
     {
         _solutionVoteDal = solutionVoteDal;
         _logService = logService;
+        _clientContext = clientContext;
     }
 
     public IDataResult<int> GetSolutionVoteCount(int solutionId)
@@ -26,8 +29,9 @@ public class SolutionVoteManager : ISolutionVoteService
         return new SuccessDataResult<int>(upvotes - downvotes);
     }
 
-    public IResult Vote(int userId, int solutionId, bool isUpvote)
+    public IResult Vote(int solutionId, bool isUpvote)
     {
+        var userId = _clientContext.GetUserId() ?? 0;
         var existingVote = _solutionVoteDal.Get(v => v.UserId == userId && v.SolutionId == solutionId);
 
         if (existingVote == null)

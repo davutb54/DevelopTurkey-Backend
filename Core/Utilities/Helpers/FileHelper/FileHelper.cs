@@ -1,4 +1,7 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
 
 namespace Core.Utilities.Helpers.FileHelper;
 
@@ -29,6 +32,11 @@ public class FileHelper
         if (!allowedContentTypes.Contains(file.ContentType.ToLower()))
         {
             throw new InvalidOperationException("Geçersiz dosya tipi.");
+        }
+
+        if (!IsValidImageSignature(file))
+        {
+            throw new InvalidOperationException("Dosya içeriği geçerli bir resim formatında değil (Zararlı yazılım koruması).");
         }
 
         if (!Directory.Exists(root))
@@ -67,6 +75,32 @@ public class FileHelper
         if (File.Exists(fullPath))
         {
             File.Delete(fullPath);
+        }
+    }
+
+    private static bool IsValidImageSignature(IFormFile file)
+    {
+        using (var reader = new BinaryReader(file.OpenReadStream()))
+        {
+            var signatures = new Dictionary<string, byte[][]>
+            {
+                { ".jpeg", new byte[][] { new byte[] { 0xFF, 0xD8, 0xFF, 0xE0 }, new byte[] { 0xFF, 0xD8, 0xFF, 0xE1 }, new byte[] { 0xFF, 0xD8, 0xFF, 0xE8 } } },
+                { ".jpg", new byte[][] { new byte[] { 0xFF, 0xD8, 0xFF, 0xE0 }, new byte[] { 0xFF, 0xD8, 0xFF, 0xE1 }, new byte[] { 0xFF, 0xD8, 0xFF, 0xE8 } } },
+                { ".png", new byte[][] { new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A } } },
+                { ".gif", new byte[][] { new byte[] { 0x47, 0x49, 0x46, 0x38 } } },
+                { ".webp", new byte[][] { new byte[] { 0x52, 0x49, 0x46, 0x46 } } } // RIFF prefix for webp
+            };
+
+            string ext = Path.GetExtension(file.FileName).ToLower();
+            if(!signatures.ContainsKey(ext)) return false;
+
+            var expectedSignatures = signatures[ext];
+            int maxSignatureLength = expectedSignatures.Max(s => s.Length);
+            byte[] headerBytes = reader.ReadBytes(maxSignatureLength);
+
+            return expectedSignatures.Any(signature => 
+                headerBytes.Take(signature.Length).SequenceEqual(signature)
+            );
         }
     }
 }

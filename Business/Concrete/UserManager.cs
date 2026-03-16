@@ -1,9 +1,10 @@
-﻿using Business.Abstract;
+using Business.Abstract;
 using Business.Constants;
 using Core.Entities.Concrete;
 using Core.Utilities.Results;
 using Core.Utilities.Security.Hashing;
 using Core.Utilities.Security.JWT;
+using Core.Utilities.Context;
 using DataAccess.Abstract;
 using DataAccess.Concrete.EntityFramework;
 using Entities.Concrete;
@@ -18,13 +19,15 @@ public class UserManager : IUserService
     private readonly ILogService _logService;
     private readonly ITokenHelper _tokenHelper;
     private readonly IInstitutionService _institutionService;
+    private readonly IClientContext _clientContext;
 
-    public UserManager(IUserDal userDal, ILogService logService, ITokenHelper tokenHelper, IInstitutionService institutionService)
+    public UserManager(IUserDal userDal, ILogService logService, ITokenHelper tokenHelper, IInstitutionService institutionService, IClientContext clientContext)
     {
         _userDal = userDal;
         _logService = logService;
         _tokenHelper = tokenHelper;
         _institutionService = institutionService;
+        _clientContext = clientContext;
     }
 
     public IDataResult<UserDetailDto?> GetById(int id)
@@ -142,6 +145,7 @@ public class UserManager : IUserService
 
     public IResult UpdatePassword(UserForPasswordUpdateDto userForPasswordUpdateDto)
     {
+        userForPasswordUpdateDto.Id = _clientContext.GetUserId() ?? 0;
         var user = _userDal.Get(u => u.Id == userForPasswordUpdateDto.Id);
 
         if (user == null)
@@ -187,6 +191,7 @@ public class UserManager : IUserService
 
     public IResult UpdateUserDetails(UserForUpdateDto userForUpdateDto)
     {
+        userForUpdateDto.Id = _clientContext.GetUserId() ?? 0;
         var user = _userDal.Get(u => u.Id == userForUpdateDto.Id);
 
         if (user == null)

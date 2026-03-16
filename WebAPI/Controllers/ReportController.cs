@@ -1,4 +1,4 @@
-﻿using Business.Abstract;
+using Business.Abstract;
 using Entities.Concrete;
 using Entities.DTOs;
 using Microsoft.AspNetCore.Authorization;
@@ -26,18 +26,9 @@ namespace WebAPI.Controllers
                 return Unauthorized("Kullanıcı girişi gereklidir.");
             }
 
-            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
-            if (userIdClaim == null)
-            {
-                return Unauthorized("Geçersiz token.");
-            }
-
-            
-            int authenticatedUserId = Convert.ToInt32(userIdClaim.Value);
-
             var report = new Report
             {
-                ReporterUserId = authenticatedUserId,
+                // ReporterUserId will be set in Manager using IClientContext
                 TargetType = reportAddDto.TargetType,
                 TargetId = reportAddDto.TargetId,
                 Reason = reportAddDto.Reason

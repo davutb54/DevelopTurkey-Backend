@@ -1,11 +1,13 @@
-﻿using Business.Abstract;
+using Business.Abstract;
 using Entities.Concrete;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace WebAPI.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
+[Authorize]
 public class FeedbackController : ControllerBase
 {
     private readonly IFeedbackService _feedbackService;
@@ -25,6 +27,7 @@ public class FeedbackController : ControllerBase
     }
 
     [HttpGet("getall")]
+    [Authorize(Roles = "Admin")]
     public IActionResult GetAll()
     {
         var result = _feedbackService.GetAllDetails();
@@ -32,6 +35,7 @@ public class FeedbackController : ControllerBase
     }
 
     [HttpPost("markasread")]
+    [Authorize(Roles = "Admin")]
     public IActionResult MarkAsRead(int id)
     {
         var feedback = _feedbackService.GetById(id).Data;

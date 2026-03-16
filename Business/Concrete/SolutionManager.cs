@@ -1,6 +1,7 @@
-﻿using Business.Abstract;
+using Business.Abstract;
 using Business.Constants;
 using Core.Entities.Concrete;
+using Core.Utilities.Context;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
 using DataAccess.Concrete.EntityFramework;
@@ -15,13 +16,15 @@ public class SolutionManager : ISolutionService
     private readonly ILogService _logService;
     private readonly IProblemService _problemService;
     private readonly ICommentDal _commentDal;
+    private readonly IClientContext _clientContext;
 
-    public SolutionManager(ISolutionDal solutionDal, ILogService logService, IProblemService problemService, ICommentDal commentDal)
+    public SolutionManager(ISolutionDal solutionDal, ILogService logService, IProblemService problemService, ICommentDal commentDal, IClientContext clientContext)
     {
         _solutionDal = solutionDal;
         _logService = logService;
         _problemService = problemService;
         _commentDal = commentDal;
+        _clientContext = clientContext;
     }
 
     public IDataResult<Solution?> GetById(int id)
@@ -51,6 +54,7 @@ public class SolutionManager : ISolutionService
 
     public IResult Add(Solution solution)
     {
+        solution.SenderId = _clientContext.GetUserId() ?? 0;
         solution.SendDate = DateTime.Now;
         _solutionDal.Add(solution);
 
@@ -60,6 +64,17 @@ public class SolutionManager : ISolutionService
 
     public IResult Update(Solution solution)
     {
+        var currentUserId = _clientContext.GetUserId();
+        var isAdmin = _clientContext.GetRoles().Contains("Admin");
+
+        var existingSolution = _solutionDal.Get(s => s.Id == solution.Id);
+        if (existingSolution == null) return new ErrorResult("Çözüm bulunamadı");
+
+        if (!isAdmin && existingSolution.SenderId != currentUserId)
+        {
+            return new ErrorResult("Bu çözümü güncelleme yetkiniz yok.");
+        }
+
         _solutionDal.Update(solution);
         _logService.LogInfo("Content", "Update", $"Çözüm güncellendi - ID: {solution.Id}");
         return new SuccessResult(Messages.SolutionUpdated);
@@ -67,8 +82,16 @@ public class SolutionManager : ISolutionService
 
     public IResult Delete(int id)
     {
+        var currentUserId = _clientContext.GetUserId();
+        var isAdmin = _clientContext.GetRoles().Contains("Admin");
+
         var solution = _solutionDal.Get(s => s.Id == id);
         if (solution == null) return new ErrorResult("Çözüm bulunamadı");
+
+        if (!isAdmin && solution.SenderId != currentUserId)
+        {
+            return new ErrorResult("Bu çözümü silme yetkiniz yok.");
+        }
 
         solution.IsDeleted = true;
         solution.DeleteDate = DateTime.Now;

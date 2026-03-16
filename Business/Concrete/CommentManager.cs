@@ -1,5 +1,6 @@
-﻿using Business.Abstract;
+using Business.Abstract;
 using Business.Constants;
+using Core.Utilities.Context;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
 using DataAccess.Concrete.EntityFramework;
@@ -12,11 +13,13 @@ public class CommentManager : ICommentService
 {
     private readonly ICommentDal _commentDal;
     private readonly ILogService _logService;
+    private readonly IClientContext _clientContext;
 
-    public CommentManager(ICommentDal commentDal, ILogService logService)
+    public CommentManager(ICommentDal commentDal, ILogService logService, IClientContext clientContext)
     {
         _commentDal = commentDal;
         _logService = logService;
+        _clientContext = clientContext;
     }
 
 
@@ -42,6 +45,7 @@ public class CommentManager : ICommentService
 
     public IResult Add(Comment comment)
     {
+        comment.SenderId = _clientContext.GetUserId() ?? 0;
         comment.SendDate = DateTime.Now;
         _commentDal.Add(comment);
         _logService.LogInfo("Content", "Add", $"Yorum eklendi - SolutionId: {comment.SolutionId}");
@@ -50,7 +54,16 @@ public class CommentManager : ICommentService
 
     public IResult Update(CommentUpdateDto commentUpdateDto)
     {
+        var currentUserId = _clientContext.GetUserId();
+        var isAdmin = _clientContext.GetRoles().Contains("Admin");
+
         var comment = _commentDal.Get(c => c.Id == commentUpdateDto.Id);
+        if (comment == null) return new ErrorResult("Yorum Bulunamadı");
+
+        if (!isAdmin && comment.SenderId != currentUserId)
+        {
+            return new ErrorResult("Bu yorumu güncelleme yetkiniz yok.");
+        }
         comment.Text = commentUpdateDto.Text;
 
         _commentDal.Update(comment);
@@ -60,8 +73,16 @@ public class CommentManager : ICommentService
 
     public IResult Delete(int id)
     {
+        var currentUserId = _clientContext.GetUserId();
+        var isAdmin = _clientContext.GetRoles().Contains("Admin");
+
         var comment = _commentDal.Get(comment => comment.Id == id);
         if (comment == null) return new ErrorResult("Yorum Bulunamadı");
+
+        if (!isAdmin && comment.SenderId != currentUserId)
+        {
+            return new ErrorResult("Bu yorumu silme yetkiniz yok.");
+        }
 
         comment.IsDeleted = true;
         comment.DeleteDate = DateTime.Now;

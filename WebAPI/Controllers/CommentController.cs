@@ -1,4 +1,4 @@
-﻿using Business.Abstract;
+using Business.Abstract;
 using Business.Concrete;
 using Core.Utilities.Results;
 using Entities.Concrete;
@@ -56,13 +56,7 @@ namespace WebAPI.Controllers
 				return Unauthorized("Kullanıcı girişi gereklidir.");
 			}
 
-			var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
-			if (userIdClaim == null)
-			{
-				return Unauthorized("Geçersiz token.");
-			}
-
-			comment.SenderId = Convert.ToInt32(userIdClaim.Value);
+			// comment.SenderId = _clientContext.GetUserId() will be set in Manager
 			comment.SendDate = DateTime.Now;
 			comment.IsDeleted = false;
 
@@ -79,28 +73,6 @@ namespace WebAPI.Controllers
 				return Unauthorized("Kullanıcı girişi gereklidir.");
 			}
 
-			var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
-			if (userIdClaim == null)
-			{
-				return Unauthorized("Geçersiz token.");
-			}
-
-			int currentUserId = Convert.ToInt32(userIdClaim.Value);
-
-			var isAdminClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" && c.Value == "Admin");
-			bool isAdmin = isAdminClaim != null;
-
-			var existingComment = _commentService.GetById(commentUpdateDto.Id);
-			if (!existingComment.Success || existingComment.Data == null)
-			{
-				return NotFound("Yorum bulunamadı.");
-			}
-			
-			if (!isAdmin && existingComment.Data.SenderId != currentUserId)
-			{
-				return Forbid("Bu yorumu güncelleme yetkiniz yok.");
-			}
-
 			var result = _commentService.Update(commentUpdateDto);
 			return result.Success ? Ok(result) : BadRequest(result);
 		}
@@ -112,28 +84,6 @@ namespace WebAPI.Controllers
 			if (User.Identity == null || !User.Identity.IsAuthenticated)
 			{
 				return Unauthorized("Kullanıcı girişi gereklidir.");
-			}
-
-			var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
-			if (userIdClaim == null)
-			{
-				return Unauthorized("Geçersiz token.");
-			}
-
-			int currentUserId = Convert.ToInt32(userIdClaim.Value);
-
-			var isAdminClaim = User.Claims.FirstOrDefault(c => c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role" && c.Value == "Admin");
-			bool isAdmin = isAdminClaim != null;
-
-			var existingComment = _commentService.GetById(id);
-			if (!existingComment.Success || existingComment.Data == null)
-			{
-				return NotFound("Yorum bulunamadı.");
-			}
-
-			if (!isAdmin && existingComment.Data.SenderId != currentUserId)
-			{
-				return Forbid("Bu yorumu silme yetkiniz yok.");
 			}
 
 			var result = _commentService.Delete(id);

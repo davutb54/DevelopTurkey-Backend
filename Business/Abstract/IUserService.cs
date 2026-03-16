@@ -1,4 +1,4 @@
-﻿using Core.Entities.Concrete;
+using Core.Entities.Concrete;
 using Core.Utilities.Results;
 using Core.Utilities.Security.JWT;
 using Entities.DTOs;
@@ -26,7 +26,7 @@ public interface IUserService
     int GetUserCount();
     int GetBannedUserCount();
     IResult ReportUser(int userId);
-    IResult UnReportUser(int userId);
+    IResult UnReportUser(int id);
     IResult ToggleAdminRole(int userId);
     IResult ToggleExpertRole(int userId);
     IResult ToggleOfficialRole(int userId);

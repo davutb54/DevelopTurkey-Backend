@@ -1,4 +1,4 @@
-﻿using Core.Utilities.Context;
+using Core.Utilities.Context;
 using System.Security.Claims;
 
 namespace WebAPI.Context;
@@ -28,5 +28,20 @@ public class WebClientContext : IClientContext
         return _httpContextAccessor.HttpContext?.User?.Identity?.Name
                ?? _httpContextAccessor.HttpContext?.User?.Claims?.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value
                ?? "Anonim/Sistem";
+    }
+
+    public List<string> GetRoles()
+    {
+        return _httpContextAccessor.HttpContext?.User?.Claims?
+            .Where(c => c.Type == ClaimTypes.Role)
+            .Select(c => c.Value)
+            .ToList() ?? new List<string>();
+    }
+
+    public int? GetInstitutionId()
+    {
+        var institutionClaim = _httpContextAccessor.HttpContext?.User?.Claims?.FirstOrDefault(c => c.Type == "InstitutionId");
+        if (institutionClaim != null && int.TryParse(institutionClaim.Value, out int id)) return id;
+        return null;
     }
 }
