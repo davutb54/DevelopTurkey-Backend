@@ -97,9 +97,21 @@ public class ProblemManager : IProblemService
              return new ErrorResult("Bu sorunu güncelleme yetkiniz yok.");
         }
 
-        // Prevent modification of read-only fields during update if not provided intentionally, or map allowed fields.
-        // Usually, an update method might fetch the entity, update specific fields and then save. 
-        // Here we keep existing logic of directly updating the provided problem object.
+        // --- IDOR & Privilege Escalation Koruma Ağı ---
+        // Kullanıcı yetkili dahi olsa (Admin veya kendi gönderisi) formdan gelebilecek 
+        // manipüle edilmiş metadataların/sahipliğin üzerine DB'den gelen orjinal hallerini eziyoruz.
+        problem.SenderId = existingProblem.SenderId; 
+        problem.SendDate = existingProblem.SendDate;
+        problem.InstitutionId = existingProblem.InstitutionId;
+        problem.ViewCount = existingProblem.ViewCount;
+
+        // Yalnızca Adminlerin müdahale edebileceği ayarlar; eğer kişi Admin değilse Database'dekini eziyoruz.
+        if (!isAdmin)
+        {
+            problem.IsReported = existingProblem.IsReported;
+            problem.IsHighlighted = existingProblem.IsHighlighted;
+            problem.IsResolved = existingProblem.IsResolved;
+        }
         
         _problemDal.Update(problem);
 

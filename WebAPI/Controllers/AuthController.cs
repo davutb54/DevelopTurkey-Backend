@@ -1,7 +1,8 @@
-﻿using Business.Abstract;
+using Business.Abstract;
 using Entities.DTOs;
 using Entities.DTOs.User;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace WebAPI.Controllers
 {
@@ -30,6 +31,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("forgotpassword")]
+        [EnableRateLimiting("AuthLimit")]
         public IActionResult ForgotPassword([FromBody] string email)
         {
             var userDetail = _userService.GetByEmail(email);
@@ -42,6 +44,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("resetpassword")]
+        [EnableRateLimiting("AuthLimit")]
         public IActionResult ResetPassword(ResetPasswordDto resetPasswordDto)
         {
             var verifyResult = _emailVerificationService.VerifyForResetPassword(resetPasswordDto.Email, resetPasswordDto.Code);
@@ -60,6 +63,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("resendverification")]
+        [EnableRateLimiting("AuthLimit")]
         public IActionResult ResendVerification([FromBody] string email)
         {
             var userDetail = _userService.GetByEmail(email);

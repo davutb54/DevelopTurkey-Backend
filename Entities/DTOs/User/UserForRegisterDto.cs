@@ -1,4 +1,4 @@
-﻿namespace Entities.DTOs.User;
+namespace Entities.DTOs.User;
 
 public class UserForRegisterDto
 {
@@ -10,4 +10,5 @@ public class UserForRegisterDto
 	public int CityCode { get; set; }
 	public int GenderCode { get; set; }
 	public bool EmailNotificationPermission { get; set; }
+	public string? CaptchaToken { get; set; }
 }

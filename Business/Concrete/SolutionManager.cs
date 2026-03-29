@@ -75,6 +75,18 @@ public class SolutionManager : ISolutionService
             return new ErrorResult("Bu çözümü güncelleme yetkiniz yok.");
         }
 
+        // --- IDOR & Privilege Escalation Koruma Ağı ---
+        solution.SenderId = existingSolution.SenderId;
+        solution.SendDate = existingSolution.SendDate;
+        solution.ProblemId = existingSolution.ProblemId;
+
+        if (!isAdmin)
+        {
+            solution.IsReported = existingSolution.IsReported;
+            solution.IsHighlighted = existingSolution.IsHighlighted;
+            solution.ExpertApprovalStatus = existingSolution.ExpertApprovalStatus;
+        }
+
         _solutionDal.Update(solution);
         _logService.LogInfo("Content", "Update", $"Çözüm güncellendi - ID: {solution.Id}");
         return new SuccessResult(Messages.SolutionUpdated);

@@ -17,9 +17,10 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowOrigin", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins("http://localhost:3000", "http://localhost:5173")
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials();
     });
 });
 
@@ -62,6 +63,8 @@ builder.Services.AddScoped<IProblemTopicDal, EfProblemTopicDal>();
 builder.Services.AddScoped<IFeedbackDal, EfFeedbackDal>();
 builder.Services.AddScoped<IFeedbackService, FeedbackManager>();
 
+builder.Services.AddHttpClient<ICaptchaService, CaptchaManager>();
+
 var tokenOptions = builder.Configuration.GetSection("TokenOptions").Get<TokenOptions>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -76,6 +79,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = tokenOptions.Audience,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = SecurityKeyHelper.CreateSecurityKey(tokenOptions.SecurityKey)
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                if (context.Request.Cookies.ContainsKey("token"))
+                {
+                    context.Token = context.Request.Cookies["token"];
+                }
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -116,13 +130,40 @@ builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = 429;
 
+    // Ortak PartitionKey oluşturucu (Aynı modeme bağlı cihazları ayırmak için IP + User-Agent)
+    string GetPartitionKey(HttpContext context)
+    {
+        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown_ip";
+        var userAgent = context.Request.Headers["User-Agent"].ToString();
+        var userId = context.User.Identity?.IsAuthenticated == true 
+            ? context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+            : "guest";
+            
+        // Benzersiz cihaz kimliği: IP + UserAgent + Kullanıcı Kimliği
+        return $"{ip}_{userAgent}_{userId}";
+    }
+
+    // 1. GLOBAL LIMIT (Genel Tarama için, Cihaz Başına 300 İstek / Dakika)
     options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
         System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? httpContext.Request.Headers.Host.ToString(),
+            partitionKey: GetPartitionKey(httpContext),
             factory: partition => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
             {
                 AutoReplenishment = true,
                 PermitLimit = 300,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+
+    // 2. AUTH LIMIT (Sadece Kayıt/Giriş için, Cihaz Başına 10 İstek / Dakika)
+    // Brute Force ve DDoS engellemek için daha katı bir kural.
+    options.AddPolicy("AuthLimit", httpContext =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: GetPartitionKey(httpContext),
+            factory: partition => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 10,
+                QueueLimit = 0,
                 Window = TimeSpan.FromMinutes(1)
             }));
 });
