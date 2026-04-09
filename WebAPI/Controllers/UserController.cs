@@ -21,12 +21,13 @@ namespace WebAPI.Controllers
         private readonly IEmailVerificationService _emailVerificationService;
         private readonly ILogService _logService;
         private readonly ICaptchaService _captchaService;
+        private readonly IValidator<UserForPasswordUpdateDto> _passwordUpdateValidator;
 
         public UserController(
             IUserService userService,
             IWebHostEnvironment webHostEnvironment,
             IValidator<UserForRegisterDto> registerValidator, IEmailVerificationService emailVerificationService, ILogService logService,
-            ICaptchaService captchaService)
+            ICaptchaService captchaService, IValidator<UserForPasswordUpdateDto> passwordUpdateValidator)
         {
             _userService = userService;
             _webHostEnvironment = webHostEnvironment;
@@ -34,23 +35,57 @@ namespace WebAPI.Controllers
             _emailVerificationService = emailVerificationService;
             _logService = logService;
             _captchaService = captchaService;
+            _passwordUpdateValidator = passwordUpdateValidator;
         }
 
         [HttpGet("getbyid")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
         public IActionResult GetById(int id)
         {
             var result = _userService.GetById(id);
             return Ok(result);
         }
 
+        [HttpGet("getpublicprofile")]
+        public IActionResult GetPublicProfile(int id)
+        {
+            var result = _userService.GetPublicProfile(id);
+            if (result.Success)
+            {
+                return Ok(result);
+            }
+            return BadRequest(result);
+        }
+
         [HttpGet("getall")]
+        [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
         public IActionResult GetAll()
         {
             var result = _userService.GetAll();
             return Ok(result);
         }
 
+        [HttpGet("getallpaged")]
+        [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+        public IActionResult GetAllPaged([FromQuery] UserFilterDto filter)
+        {
+            var result = _userService.GetAllPaged(filter);
+            if (!result.Success) return BadRequest(result);
+
+            return Ok(new
+            {
+                success = true,
+                message = result.Message,
+                data = result.Data.Items,
+                totalCount = result.Data.TotalCount,
+                page = filter.Page,
+                pageSize = filter.PageSize,
+                totalPages = (int)Math.Ceiling((double)result.Data.TotalCount / filter.PageSize)
+            });
+        }
+
         [HttpGet("me")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
         public IActionResult GetMe()
         {
             if (User.Identity == null || !User.Identity.IsAuthenticated)
@@ -123,12 +158,21 @@ namespace WebAPI.Controllers
 
         [HttpPost("updatepassword")]
         [EnableRateLimiting("AuthLimit")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
         public IActionResult UpdatePassword(UserForPasswordUpdateDto userForPasswordUpdateDto)
         {
             if (User.Identity == null || !User.Identity.IsAuthenticated)
             {
                 return Unauthorized("Kullanıcı girişi gereklidir.");
             }
+
+            if (User.Claims.Any(c => c.Type == System.Security.Claims.ClaimTypes.Actor))
+            {
+                return BadRequest("SUDO Güvenlik Politikası: Başka bir kullanıcının şifresini değiştiremezsiniz.");
+            }
+
+            var validationResult = _passwordUpdateValidator.Validate(userForPasswordUpdateDto);
+            if (!validationResult.IsValid) return BadRequest(validationResult.Errors);
 
             // userForPasswordUpdateDto.Id = _clientContext.GetUserId() will be set in Manager
             var result = _userService.UpdatePassword(userForPasswordUpdateDto);
@@ -208,11 +252,17 @@ namespace WebAPI.Controllers
 
 
         [HttpPost("updatedetails")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
         public IActionResult UpdateDetails(UserForUpdateDto userForUpdateDto)
         {
             if (User.Identity == null || !User.Identity.IsAuthenticated)
             {
                 return Unauthorized("Kullanıcı girişi gereklidir.");
+            }
+
+            if (User.Claims.Any(c => c.Type == System.Security.Claims.ClaimTypes.Actor))
+            {
+                return BadRequest("SUDO Güvenlik Politikası: Başka bir kullanıcının profil detaylarını güncelleyemezsiniz.");
             }
 
             // userForUpdateDto.Id = _clientContext.GetUserId() will be set in Manager
@@ -229,6 +279,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("checkuserexists")]
+        [EnableRateLimiting("AuthLimit")]
         public IActionResult CheckUserExists(CheckExistsDto checkExistsDto)
         {
             var result = _userService.CheckUserExists(checkExistsDto);
@@ -236,11 +287,17 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("uploadprofileimage")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
         public IActionResult UploadProfileImage([FromForm] UserImageUpdateDto userImageUpdateDto)
         {
             if (User.Identity == null || !User.Identity.IsAuthenticated)
             {
                 return Unauthorized("Kullanıcı girişi gereklidir.");
+            }
+
+            if (User.Claims.Any(c => c.Type == System.Security.Claims.ClaimTypes.Actor))
+            {
+                return BadRequest("SUDO Güvenlik Politikası: Başka bir kullanıcının profil resmini güncelleyemezsiniz.");
             }
 
             // ClientContext is not easily accessible here without DI, but we can rely on standard token claim since we removed it from business
@@ -296,6 +353,42 @@ namespace WebAPI.Controllers
             Response.Cookies.Append("userId", "", cookieOptions);
 
             return Ok(new { success = true, message = "Çıkış başarılı." });
+        }
+
+        [HttpPost("revertimpersonation")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        public IActionResult RevertImpersonation()
+        {
+            var actorClaim = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Actor);
+            if (actorClaim == null)
+            {
+                return BadRequest("Bu işlem için aktif bir sudo oturumunuz bulunmamaktadır.");
+            }
+
+            int adminId = int.Parse(actorClaim.Value);
+            var adminUserDto = _userService.GetById(adminId);
+            if (!adminUserDto.Success || adminUserDto.Data == null) return BadRequest("Orijinal hesap bulunamadı.");
+
+            var adminUser = _userService.GetByUserName(adminUserDto.Data.UserName);
+            
+            // Yeni token üret ve içine SUDO işareti KOYMA.
+            var tokenResult = _userService.CreateAccessToken(adminUser);
+            if (!tokenResult.Success) return BadRequest(tokenResult.Message);
+
+            _logService.LogInfo("Security", "RevertImpersonation", $"Admin (ID:{adminId}) kimliğine geri dönüş sağladı.");
+
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = _webHostEnvironment.IsDevelopment() ? SameSiteMode.None : SameSiteMode.Strict,
+                Expires = tokenResult.Data.Expiration
+            };
+
+            Response.Cookies.Append("token", tokenResult.Data.Token, cookieOptions);
+            Response.Cookies.Append("userId", tokenResult.Data.UserId.ToString(), cookieOptions);
+
+            return Ok(new { success = true, data = tokenResult.Data, message = "Admin hesabına başarıyla geri dönüldü." });
         }
 
     }

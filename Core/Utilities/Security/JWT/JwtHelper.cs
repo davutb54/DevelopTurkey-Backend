@@ -1,4 +1,4 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Core.Entities.Concrete;
 using Microsoft.Extensions.Configuration;
@@ -18,7 +18,7 @@ public class JwtHelper : ITokenHelper
         _tokenOptions = _configuration.GetSection("TokenOptions").Get<TokenOptions>();
     }
 
-    public AccessToken CreateToken(User user)
+    public AccessToken CreateToken(User user, int? impersonatedById = null)
     {
         if (_tokenOptions == null)
         {
@@ -52,6 +52,11 @@ public class JwtHelper : ITokenHelper
             claims.Add(new Claim(ClaimTypes.Role, "Expert"));
         }
         if (user.IsOfficial) claims.Add(new Claim(ClaimTypes.Role, "Official"));
+
+        if (impersonatedById.HasValue)
+        {
+            claims.Add(new Claim(ClaimTypes.Actor, impersonatedById.Value.ToString()));
+        }
 
         var tokenDescriptor = new SecurityTokenDescriptor
         {

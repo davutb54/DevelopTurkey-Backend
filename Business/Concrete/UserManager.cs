@@ -42,9 +42,42 @@ public class UserManager : IUserService
         return new ErrorDataResult<UserDetailDto?>(user, Messages.UserGetByIdError);
     }
 
+    public IDataResult<UserPublicProfileDto?> GetPublicProfile(int id)
+    {
+        var user = _userDal.GetUserDetail(u => u.Id == id);
+
+        if (user != null)
+        {
+            var publicProfile = new UserPublicProfileDto
+            {
+                Id = user.Id,
+                UserName = user.UserName,
+                Name = user.Name,
+                Surname = user.Surname,
+                CityName = user.CityName,
+                Gender = user.Gender,
+                IsAdmin = user.IsAdmin,
+                IsExpert = user.IsExpert,
+                IsOfficial = user.IsOfficial,
+                RegisterDate = user.RegisterDate,
+                ProfileImageUrl = user.ProfileImageUrl,
+                InstitutionId = user.InstitutionId
+            };
+            return new SuccessDataResult<UserPublicProfileDto?>(publicProfile, Messages.UserGetByIdOk);
+        }
+
+        return new ErrorDataResult<UserPublicProfileDto?>(null, Messages.UserGetByIdError);
+    }
+
     public IDataResult<List<UserDetailDto>> GetAll()
     {
         return new SuccessDataResult<List<UserDetailDto>>(_userDal.GetUserDetails(), Messages.UserGetAllOk);
+    }
+
+    public IDataResult<(List<UserDetailDto> Items, int TotalCount)> GetAllPaged(UserFilterDto filter)
+    {
+        var result = _userDal.GetUserDetailsPaged(filter);
+        return new SuccessDataResult<(List<UserDetailDto> Items, int TotalCount)>(result, Messages.UserGetAllOk);
     }
     public IResult Login(UserForLoginDto userForLoginDto)
     {
@@ -83,13 +116,20 @@ public class UserManager : IUserService
         return new SuccessResult(Messages.UserLoginOk);
     }
 
-    public IDataResult<AccessToken> CreateAccessToken(User user)
+    public IDataResult<AccessToken> CreateAccessToken(User user, int? impersonatedById = null)
     {
         if (_tokenHelper == null) return new ErrorDataResult<AccessToken>(null, "Token servisi yapılandırılmadı.");
 
-        var accessToken = _tokenHelper.CreateToken(user);
+        var accessToken = _tokenHelper.CreateToken(user, impersonatedById);
         accessToken.UserId = user.Id;
         return new SuccessDataResult<AccessToken>(accessToken, "Token oluşturuldu");
+    }
+
+    public bool VerifyPassword(int userId, string password)
+    {
+        var user = _userDal.Get(u => u.Id == userId);
+        if (user == null) return false;
+        return HashingHelper.VerifyPasswordHash(password, user.PasswordHash, user.PasswordSalt);
     }
 
     public IResult Register(UserForRegisterDto userForRegisterDto)

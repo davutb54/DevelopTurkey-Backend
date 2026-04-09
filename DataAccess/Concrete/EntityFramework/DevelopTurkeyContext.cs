@@ -1,4 +1,4 @@
-﻿using Core.Entities.Concrete;
+using Core.Entities.Concrete;
 using Entities.Concrete;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -11,9 +11,11 @@ public class DevelopTurkeyContext : DbContext
     {
         if (!optionsBuilder.IsConfigured)
         {
+            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+
             IConfigurationRoot configuration = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json")
+                .AddJsonFile($"appsettings.{env}.json")
                 .Build();
 
             var connectionString = configuration.GetConnectionString("DefaultConnection");

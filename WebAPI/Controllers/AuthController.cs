@@ -3,6 +3,7 @@ using Entities.DTOs;
 using Entities.DTOs.User;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using FluentValidation;
 
 namespace WebAPI.Controllers
 {
@@ -12,14 +13,17 @@ namespace WebAPI.Controllers
     {
         private readonly IEmailVerificationService _emailVerificationService;
         private readonly IUserService _userService;
+        private readonly IValidator<ResetPasswordDto> _resetPasswordValidator;
 
-        public AuthController(IEmailVerificationService emailVerificationService, IUserService userService)
+        public AuthController(IEmailVerificationService emailVerificationService, IUserService userService, IValidator<ResetPasswordDto> resetPasswordValidator)
         {
             _emailVerificationService = emailVerificationService;
             _userService = userService;
+            _resetPasswordValidator = resetPasswordValidator;
         }
 
         [HttpPost("verifyemail")]
+        [EnableRateLimiting("AuthLimit")]
         public IActionResult VerifyEmail([FromBody] VerifyEmailDto verifyEmailDto)
         {
             var result = _emailVerificationService.Verify(verifyEmailDto.Email, verifyEmailDto.Code);
@@ -47,6 +51,9 @@ namespace WebAPI.Controllers
         [EnableRateLimiting("AuthLimit")]
         public IActionResult ResetPassword(ResetPasswordDto resetPasswordDto)
         {
+            var validationResult = _resetPasswordValidator.Validate(resetPasswordDto);
+            if (!validationResult.IsValid) return BadRequest(validationResult.Errors);
+
             var verifyResult = _emailVerificationService.VerifyForResetPassword(resetPasswordDto.Email, resetPasswordDto.Code);
             if (!verifyResult.Success)
             {

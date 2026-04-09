@@ -9,10 +9,13 @@ namespace Business.Abstract;
 public interface IUserService
 {
     IDataResult<UserDetailDto?> GetById(int id);
+    IDataResult<UserPublicProfileDto?> GetPublicProfile(int id);
     IDataResult<List<UserDetailDto>> GetAll();
+    IDataResult<(List<UserDetailDto> Items, int TotalCount)> GetAllPaged(UserFilterDto filter);
     IResult Login(UserForLoginDto userForLoginDto);
     IResult Register(UserForRegisterDto userForRegisterDto);
-    IDataResult<AccessToken> CreateAccessToken(User user);
+    IDataResult<AccessToken> CreateAccessToken(User user, int? impersonatedById = null);
+    bool VerifyPassword(int userId, string password);
     IResult UpdatePassword(UserForPasswordUpdateDto userForPasswordUpdateDto);
     IResult CheckUserExists(CheckExistsDto checkExistsDto);
     IResult UpdateUserDetails(UserForUpdateDto userForUpdateDto);

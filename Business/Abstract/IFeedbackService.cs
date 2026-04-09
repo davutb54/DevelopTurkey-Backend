@@ -1,4 +1,4 @@
-﻿using Core.Utilities.Results;
+using Core.Utilities.Results;
 using Entities.Concrete;
 using Entities.DTOs;
 using System.Collections.Generic;
@@ -15,4 +15,5 @@ public interface IFeedbackService
 
     IDataResult<Feedback> GetById(int id);
     IDataResult<List<FeedbackDetailDto>> GetAllDetails();
+    IDataResult<(List<FeedbackDetailDto> Items, int TotalCount)> GetAllDetailsPaged(FeedbackFilterDto filter);
 }

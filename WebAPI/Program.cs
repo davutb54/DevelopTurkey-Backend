@@ -24,6 +24,7 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IUserService, UserManager>();
 builder.Services.AddScoped<IUserDal, EfUserDal>();
 
@@ -56,6 +57,9 @@ builder.Services.AddScoped<IReportService, ReportManager>();
 
 builder.Services.AddScoped<IInstitutionDal, EfInstitutionDal>();
 builder.Services.AddScoped<IInstitutionService, InstitutionManager>();
+
+builder.Services.AddScoped<IAdminService, AdminManager>();
+builder.Services.AddSingleton<Core.CrossCuttingConcerns.Monitoring.ISystemMonitor, Core.CrossCuttingConcerns.Monitoring.SystemMonitorManager>();
 
 builder.Services.AddScoped<Core.Utilities.Context.IClientContext, WebAPI.Context.WebClientContext>();
 builder.Services.AddScoped<IProblemTopicDal, EfProblemTopicDal>();
@@ -209,28 +213,29 @@ else
 }
 
 app.UseMiddleware<WebAPI.Middlewares.ExceptionMiddleware>();
+app.UseMiddleware<WebAPI.Middlewares.SystemMonitorMiddleware>();
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 
 app.UseRouting();
 
-app.Use(async (context, next) =>
-{
-    if (context.Request.Path.Value.StartsWith("/api"))
-    {
-        var expectedToken = builder.Configuration["ApiSettings:SiteToken"];
-        var hasHeader = context.Request.Headers.TryGetValue("X-Site-Token", out var token);
+//app.Use(async (context, next) =>
+//{
+//    if (context.Request.Path.Value.StartsWith("/api"))
+//    {
+//        var expectedToken = builder.Configuration["ApiSettings:SiteToken"];
+//        var hasHeader = context.Request.Headers.TryGetValue("X-Site-Token", out var token);
 
-        if (!hasHeader || token != expectedToken)
-        {
-            context.Response.StatusCode = 403;
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync("{\"message\": \"Erisim reddedildi. Bu API'ye sadece site uzerinden erisim saglanabilir.\"}");
-            return;
-        }
-    }
-    await next();
-});
+//        if (!hasHeader || token != expectedToken)
+//        {
+//            context.Response.StatusCode = 403;
+//            context.Response.ContentType = "application/json";
+//            await context.Response.WriteAsync("{\"message\": \"Erisim reddedildi. Bu API'ye sadece site uzerinden erisim saglanabilir.\"}");
+//            return;
+//        }
+//    }
+//    await next();
+//});
 
 app.UseCors("AllowOrigin");
 app.UseRateLimiter();

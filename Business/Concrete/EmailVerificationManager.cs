@@ -1,4 +1,4 @@
-﻿using Business.Abstract;
+using Business.Abstract;
 using Core.Entities.Concrete;
 using Core.Utilities.Helpers.Email;
 using Core.Utilities.Results;
@@ -72,6 +72,7 @@ public class EmailVerificationManager : IEmailVerificationService
 
         if (validVerification == null)
         {
+            // TODO: Belirli sayıda (Örn: 5) başarısız doğrulama denemesinden sonra ilgili kodu geçersiz kılacak bir sayaç mekanizması eklenmeli mi?
             _logService.LogWarning("Auth", "Verify", $"Geçersiz doğrulama kodu denemesi - UserID: {user.Id}");
             return new ErrorResult("Geçersiz veya süresi dolmuş kod.");
         }
@@ -112,6 +113,7 @@ public class EmailVerificationManager : IEmailVerificationService
 
         if (validVerification == null)
         {
+            // TODO: Belirli sayıda (Örn: 5) başarısız doğrulama denemesinden sonra ilgili kodu geçersiz kılacak bir sayaç mekanizması eklenmeli mi?
             _logService.LogWarning("Auth", "VerifyForReset", $"Geçersiz doğrulama kodu denemesi - UserID: {user.Id}");
             return new ErrorResult("Geçersiz veya süresi dolmuş kod.");
         }

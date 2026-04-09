@@ -65,6 +65,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("add")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
         public IActionResult Add([FromForm] ProblemAddDto problemAddDto)
         {
             if (User.Identity == null || !User.Identity.IsAuthenticated)
@@ -153,6 +154,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("update")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
         public IActionResult Update([FromBody] ProblemUpdateDto updateDto)
         {
             if (User.Identity == null || !User.Identity.IsAuthenticated)
@@ -182,6 +184,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpDelete("delete")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
         public IActionResult Delete(int id)
         {
             if (User.Identity == null || !User.Identity.IsAuthenticated)
@@ -218,7 +221,8 @@ namespace WebAPI.Controllers
         [HttpPost("incrementview")]
         public IActionResult IncrementView(int id)
         {
-            var result = _problemService.IncrementView(id);
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var result = _problemService.IncrementView(id, ipAddress);
             return result.Success ? Ok(result) : BadRequest(result);
         }
     }

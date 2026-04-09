@@ -6,6 +6,7 @@ using Core.Utilities.Results;
 using DataAccess.Abstract;
 using Entities.Concrete;
 using Entities.DTOs;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Business.Concrete;
 
@@ -17,8 +18,9 @@ public class ProblemManager : IProblemService
     private readonly ICommentDal _commentDal;
     private readonly IProblemTopicDal _problemTopicDal;
     private readonly IClientContext _clientContext;
+    private readonly IMemoryCache _cache;
 
-    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal, IClientContext clientContext)
+    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal, IClientContext clientContext, IMemoryCache cache)
     {
         _problemDal = problemDal;
         _logService = logService;
@@ -26,6 +28,7 @@ public class ProblemManager : IProblemService
         _commentDal = commentDal;
         _problemTopicDal = problemTopicDal;
         _clientContext = clientContext;
+        _cache = cache;
     }
 
     public IDataResult<ProblemDetailDto> GetById(int id)
@@ -269,14 +272,25 @@ public class ProblemManager : IProblemService
         return new SuccessResult($"Problem (ID: {problem.Id}) {(problem.IsHighlighted ? "vurgulandı" : "vurgulama kaldırıldı")}.");
     }
 
-    public IResult IncrementView(int id)
+    public IResult IncrementView(int id, string ipAddress)
     {
+        string cacheKey = $"View_Problem_{id}_{ipAddress}";
+
+        if (_cache.TryGetValue(cacheKey, out _))
+        {
+            // Aynı IP 10 dakika içinde tekrar istek attı, sayacı artırma
+            return new SuccessResult();
+        }
+
         var problem = _problemDal.Get(p => p.Id == id);
         if (problem != null)
         {
             problem.ViewCount += 1;
             _problemDal.Update(problem);
         }
+
+        // 10 dakika boyunca bu IP'nin bu problemi tekrar count etmesini engelle
+        _cache.Set(cacheKey, true, TimeSpan.FromMinutes(10));
         return new SuccessResult();
     }
 

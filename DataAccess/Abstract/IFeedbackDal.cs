@@ -1,4 +1,4 @@
-﻿using Core.DataAccess;
+using Core.DataAccess;
 using Entities.Concrete;
 using Entities.DTOs;
 using System;
@@ -12,5 +12,6 @@ namespace DataAccess.Abstract
     public interface IFeedbackDal : IEntityRepository<Feedback>
     {
         public List<FeedbackDetailDto> GetFeedbackDetails();
+        (List<FeedbackDetailDto> Items, int TotalCount) GetFeedbackDetailsPaged(FeedbackFilterDto filter);
     }
 }

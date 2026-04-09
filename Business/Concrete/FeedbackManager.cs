@@ -65,4 +65,10 @@ public class FeedbackManager : IFeedbackService
         var result = _feedbackDal.GetFeedbackDetails();
         return new SuccessDataResult<List<FeedbackDetailDto>>(result, "Geri bildirimler listelendi.");
     }
+
+    public IDataResult<(List<FeedbackDetailDto> Items, int TotalCount)> GetAllDetailsPaged(FeedbackFilterDto filter)
+    {
+        var result = _feedbackDal.GetFeedbackDetailsPaged(filter);
+        return new SuccessDataResult<(List<FeedbackDetailDto> Items, int TotalCount)>(result, "Geri bildirimler listelendi.");
+    }
 }

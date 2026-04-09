@@ -1,4 +1,4 @@
-﻿using Core.Utilities.Results;
+using Core.Utilities.Results;
 using Entities.Concrete;
 using Entities.DTOs;
 
@@ -21,7 +21,7 @@ public interface IProblemService
     IResult ReportProblem(int id);
     IResult UnReportProblem(int id);
     IResult ToggleHighlight(int id);
-    IResult IncrementView(int id);
+    IResult IncrementView(int id, string ipAddress);
     IResult ToggleResolved(int id);
     IResult ResolveProblem(int id);
     IDataResult<List<ProblemDetailDto>> GetAllForAdmin();

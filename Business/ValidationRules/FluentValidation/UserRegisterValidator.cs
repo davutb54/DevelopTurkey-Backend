@@ -1,4 +1,4 @@
-﻿using Entities.DTOs.User;
+using Entities.DTOs.User;
 using FluentValidation;
 
 namespace Business.ValidationRules.FluentValidation;
@@ -18,8 +18,6 @@ public class UserRegisterValidator : AbstractValidator<UserForRegisterDto>
             .NotEmpty().WithMessage("Email adresi zorunludur.")
             .EmailAddress().WithMessage("Geçerli bir email adresi giriniz.");
 
-        RuleFor(u => u.Password)
-            .NotEmpty().WithMessage("Şifre boş olamaz.")
-            .MinimumLength(6).WithMessage("Şifre en az 6 karakter olmalıdır.");
+        RuleFor(u => u.Password).StrongPassword();
     }
 }

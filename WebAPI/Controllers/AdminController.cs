@@ -1,6 +1,12 @@
-﻿using Business.Abstract;
+using Business.Abstract;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+using System.Linq;
+using Entities.DTOs;
+using System;
 
 namespace WebAPI.Controllers
 {
@@ -14,15 +20,19 @@ namespace WebAPI.Controllers
         private readonly ISolutionService _solutionService;
         private readonly ILogService _logService;
         private readonly ITopicService _topicService;
+        private readonly IAdminService _adminService;
+        private readonly IWebHostEnvironment _webHostEnvironment;
 
         public AdminController(IUserService userService, IProblemService problemService,
-            ISolutionService solutionService, ILogService logService, ITopicService topicService)
+            ISolutionService solutionService, ILogService logService, ITopicService topicService, IAdminService adminService, IWebHostEnvironment webHostEnvironment)
         {
             _userService = userService;
             _problemService = problemService;
             _solutionService = solutionService;
             _logService = logService;
             _topicService = topicService;
+            _adminService = adminService;
+            _webHostEnvironment = webHostEnvironment;
         }
 
         [HttpPost("banuser")]
@@ -50,17 +60,22 @@ namespace WebAPI.Controllers
         [HttpGet("dashboard")]
         public IActionResult GetDashboardStats()
         {
-            var stats = new Entities.DTOs.AdminDashboardDto
-            {
-                TotalUsers = _userService.GetUserCount(),
-                BannedUsers = _userService.GetBannedUserCount(),
-                TotalProblems = _problemService.GetTotalCount(),
-                ReportedProblems = _problemService.GetReportedCount(),
-                TotalSolutions = _solutionService.GetTotalCount()
-            };
+            var result = _adminService.GetDashboardStats();
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
 
-            return Ok(new Core.Utilities.Results.SuccessDataResult<Entities.DTOs.AdminDashboardDto>(stats,
-                "İstatistikler getirildi."));
+        [HttpGet("analytics")]
+        public IActionResult GetDashboardAnalytics()
+        {
+            var result = _adminService.GetDashboardAnalytics();
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpGet("health")]
+        public IActionResult GetSystemHealthStatus()
+        {
+            var result = _adminService.GetSystemHealthStatus();
+            return result.Success ? Ok(result) : BadRequest(result);
         }
 
         [HttpPost("unbanuser")]
@@ -68,6 +83,63 @@ namespace WebAPI.Controllers
         {
             var result = _userService.UnbanUser(userId);
             return result.Success ? Ok(result.Message) : BadRequest(result.Message);
+        }
+
+        [HttpPost("impersonate")]
+        [Authorize(Roles = "Admin")]
+        public IActionResult ImpersonateUser([FromBody] ImpersonateDto impersonateDto)
+        {
+            var adminIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
+            var actorClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Actor);
+
+            if (adminIdClaim == null) return Unauthorized("Admin kimliği okunamadı.");
+            int adminId = int.Parse(adminIdClaim.Value);
+
+            // Güvenlik: Zaten başkasının rolündeyse zincirleme engelle (Recursive Impersonate Block)
+            if (actorClaim != null)
+            {
+                _logService.LogWarning("Security", "Impersonate", $"Recursive (zincirleme) geçiş girişimi engellendi - AdminID: {adminId}");
+                return BadRequest("Halihazırda başka bir kullanıcı olarak işlem yapıyorsunuz. Başka bir geçiş daha yapamazsınız.");
+            }
+
+            // Güvenlik: Admin şifre onayı (Sudo Mode)
+            if (!_userService.VerifyPassword(adminId, impersonateDto.AdminPassword))
+            {
+                _logService.LogWarning("Security", "Impersonate", $"Hatalı sudo şifresi - AdminID: {adminId}, Hedef UID: {impersonateDto.TargetUserId}");
+                return BadRequest("Hatalı güvenlik şifresi.");
+            }
+
+            var targetUserRes = _userService.GetById(impersonateDto.TargetUserId);
+            if (!targetUserRes.Success || targetUserRes.Data == null) return BadRequest(targetUserRes.Message);
+
+            // Güvenlik: Admin'den Admin'e geçiş yasak
+            if (targetUserRes.Data.IsAdmin)
+            {
+                _logService.LogWarning("Security", "Impersonate", $"Admin'den Admin'e geçiş engellendi - AdminID: {adminId}, Hedef UID: {impersonateDto.TargetUserId}");
+                return BadRequest("Güvenlik ihlali: Başka bir Sistem Yöneticisi hesabına geçiş yapamazsınız.");
+            }
+
+            var targetUserEntity = _userService.GetByUserName(targetUserRes.Data.UserName);
+            if (targetUserEntity.IsBanned) return BadRequest("Hedef kullanıcı sistemden engellenmiş.");
+
+            // Token'ı üret ve içerisine "Actor=adminId" claim'ini göm
+            var tokenResult = _userService.CreateAccessToken(targetUserEntity, adminId);
+            if (!tokenResult.Success) return BadRequest(tokenResult.Message);
+
+            _logService.LogInfo("Security", "Impersonate", $"Admin (ID:{adminId}) -> User (ID:{targetUserEntity.Id}, {targetUserEntity.UserName}) hesabına sudo geçişi sağladı.");
+
+            var cookieOptions = new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = Microsoft.Extensions.Hosting.HostEnvironmentEnvExtensions.IsDevelopment(_webHostEnvironment) ? SameSiteMode.None : SameSiteMode.Strict,
+                Expires = tokenResult.Data.Expiration
+            };
+
+            Response.Cookies.Append("token", tokenResult.Data.Token, cookieOptions);
+            Response.Cookies.Append("userId", tokenResult.Data.UserId.ToString(), cookieOptions);
+
+            return Ok(new { success = true, data = tokenResult.Data, message = "Kullanıcı hesabına geçiş başarılı." });
         }
 
         [HttpGet("getlogs")]
