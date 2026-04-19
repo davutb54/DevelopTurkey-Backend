@@ -8,6 +8,7 @@ using DataAccess.Concrete.EntityFramework;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using System.Net; // IPAddress için
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -66,6 +67,9 @@ builder.Services.AddScoped<IProblemTopicDal, EfProblemTopicDal>();
 
 builder.Services.AddScoped<IFeedbackDal, EfFeedbackDal>();
 builder.Services.AddScoped<IFeedbackService, FeedbackManager>();
+
+builder.Services.AddScoped<ISystemSettingsDal, EfSystemSettingsDal>();
+builder.Services.AddScoped<ISystemSettingsService, SystemSettingsManager>();
 
 builder.Services.AddHttpClient<ICaptchaService, CaptchaManager>();
 
@@ -139,10 +143,10 @@ builder.Services.AddRateLimiter(options =>
     {
         var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown_ip";
         var userAgent = context.Request.Headers["User-Agent"].ToString();
-        var userId = context.User.Identity?.IsAuthenticated == true 
-            ? context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+        var userId = context.User.Identity?.IsAuthenticated == true
+            ? context.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
             : "guest";
-            
+
         // Benzersiz cihaz kimliği: IP + UserAgent + Kullanıcı Kimliği
         return $"{ip}_{userAgent}_{userId}";
     }
@@ -174,9 +178,45 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
+// === CLOUDFLARE GERÇEK IP ÇÖZÜMÜ ===
+// Cloudflare, kullanıcının gerçek IP'sini CF-Connecting-IP header'ına yazar.
+// Bu middleware onu okuyarak RemoteIpAddress'i günceller.
+// KnownNetworks listesi sayesinde yalnızca Cloudflare'den gelen header'lar kabul edilir.
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    // Cloudflare IPv4 aralıkları (https://www.cloudflare.com/ips/)
+    KnownNetworks =
+    {
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("173.245.48.0"),  20),
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("103.21.244.0"),  22),
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("103.22.200.0"),  22),
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("103.31.4.0"),    22),
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("141.101.64.0"),  18),
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("108.162.192.0"), 18),
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("190.93.240.0"),  20),
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("188.114.96.0"),  20),
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("197.234.240.0"), 22),
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("198.41.128.0"),  17),
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("162.158.0.0"),   15),
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("104.16.0.0"),    13),
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("104.24.0.0"),    14),
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("172.64.0.0"),    13),
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("131.0.72.0"),    22),
+    }
+});
+
+// CF-Connecting-IP → RemoteIpAddress override
+// X-Forwarded-For bazen birden fazla IP içerdiğinden, Cloudflare'in
+// özel header'ı daha güvenilirdir ve tek bir IP döndürür.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Headers.TryGetValue("CF-Connecting-IP", out var cfIp)
+        && IPAddress.TryParse(cfIp, out var realIp))
+    {
+        context.Connection.RemoteIpAddress = realIp;
+    }
+    await next();
 });
 
 app.Use(async (context, next) =>
@@ -214,32 +254,37 @@ else
 
 app.UseMiddleware<WebAPI.Middlewares.ExceptionMiddleware>();
 app.UseMiddleware<WebAPI.Middlewares.SystemMonitorMiddleware>();
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 app.UseStaticFiles();
 
 app.UseRouting();
 
-//app.Use(async (context, next) =>
-//{
-//    if (context.Request.Path.Value.StartsWith("/api"))
-//    {
-//        var expectedToken = builder.Configuration["ApiSettings:SiteToken"];
-//        var hasHeader = context.Request.Headers.TryGetValue("X-Site-Token", out var token);
+if (!app.Environment.IsDevelopment())
+{
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.Value.StartsWith("/api"))
+        {
+            var expectedToken = builder.Configuration["ApiSettings:SiteToken"];
+            var hasHeader = context.Request.Headers.TryGetValue("X-Site-Token", out var token);
 
-//        if (!hasHeader || token != expectedToken)
-//        {
-//            context.Response.StatusCode = 403;
-//            context.Response.ContentType = "application/json";
-//            await context.Response.WriteAsync("{\"message\": \"Erisim reddedildi. Bu API'ye sadece site uzerinden erisim saglanabilir.\"}");
-//            return;
-//        }
-//    }
-//    await next();
-//});
+            if (!hasHeader || token != expectedToken)
+            {
+                context.Response.StatusCode = 403;
+                context.Response.ContentType = "application/json";
+                await context.Response.WriteAsync("{\"message\": \"Erisim reddedildi. Bu API'ye sadece site uzerinden erisim saglanabilir.\"}");
+                return;
+            }
+        }
+        await next();
+    });
+}
+
 
 app.UseCors("AllowOrigin");
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UseMiddleware<WebAPI.Middlewares.MaintenanceMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

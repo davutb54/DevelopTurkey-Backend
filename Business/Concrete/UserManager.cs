@@ -20,14 +20,16 @@ public class UserManager : IUserService
     private readonly ITokenHelper _tokenHelper;
     private readonly IInstitutionService _institutionService;
     private readonly IClientContext _clientContext;
+    private readonly ISystemSettingsService _systemSettingsService;
 
-    public UserManager(IUserDal userDal, ILogService logService, ITokenHelper tokenHelper, IInstitutionService institutionService, IClientContext clientContext)
+    public UserManager(IUserDal userDal, ILogService logService, ITokenHelper tokenHelper, IInstitutionService institutionService, IClientContext clientContext, ISystemSettingsService systemSettingsService)
     {
         _userDal = userDal;
         _logService = logService;
         _tokenHelper = tokenHelper;
         _institutionService = institutionService;
         _clientContext = clientContext;
+        _systemSettingsService = systemSettingsService;
     }
 
     public IDataResult<UserDetailDto?> GetById(int id)
@@ -134,6 +136,15 @@ public class UserManager : IUserService
 
     public IResult Register(UserForRegisterDto userForRegisterDto)
     {
+        var systemSettings = _systemSettingsService.Get();
+        if (systemSettings.Success && (systemSettings.Data.DisableNewRegistrations || systemSettings.Data.IsMaintenanceMode))
+        {
+            string message = systemSettings.Data.IsMaintenanceMode 
+                ? "Sistem şu anda bakım aşamasında olduğu için yeni üye kaydı yapılamamaktadır." 
+                : "Sistem yöneticileri yeni üye alımını geçici olarak durdurmuştur. Lütfen daha sonra tekrar deneyiniz.";
+            return new ErrorResult(message);
+        }
+
         byte[] passwordHash, passwordSalt;
         HashingHelper.CreatePasswordHash(userForRegisterDto.Password, out passwordHash, out passwordSalt);
 

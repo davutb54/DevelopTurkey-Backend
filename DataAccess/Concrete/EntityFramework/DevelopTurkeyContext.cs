@@ -11,7 +11,7 @@ public class DevelopTurkeyContext : DbContext
     {
         if (!optionsBuilder.IsConfigured)
         {
-            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
 
             IConfigurationRoot configuration = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
@@ -44,4 +44,5 @@ public class DevelopTurkeyContext : DbContext
     public DbSet<Institution> Institutions { get; set; }
     public DbSet<ProblemTopic> ProblemTopics { get; set; }
     public DbSet<Feedback> Feedbacks { get; set; }
+    public DbSet<SystemSettings> SystemSettings { get; set; }
 }

@@ -1,4 +1,5 @@
 using Business.Abstract;
+using Entities.Concrete;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -22,9 +23,12 @@ namespace WebAPI.Controllers
         private readonly ITopicService _topicService;
         private readonly IAdminService _adminService;
         private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly ISystemSettingsService _systemSettingsService;
 
         public AdminController(IUserService userService, IProblemService problemService,
-            ISolutionService solutionService, ILogService logService, ITopicService topicService, IAdminService adminService, IWebHostEnvironment webHostEnvironment)
+            ISolutionService solutionService, ILogService logService, ITopicService topicService,
+            IAdminService adminService, IWebHostEnvironment webHostEnvironment,
+            ISystemSettingsService systemSettingsService)
         {
             _userService = userService;
             _problemService = problemService;
@@ -33,6 +37,7 @@ namespace WebAPI.Controllers
             _topicService = topicService;
             _adminService = adminService;
             _webHostEnvironment = webHostEnvironment;
+            _systemSettingsService = systemSettingsService;
         }
 
         [HttpPost("banuser")]
@@ -237,6 +242,21 @@ namespace WebAPI.Controllers
         public IActionResult GetAllTopics()
         {
             var result = _topicService.GetAllForAdmin();
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpGet("systemsettings/get")]
+        public IActionResult GetSystemSettings()
+        {
+            var result = _systemSettingsService.Get();
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpPost("systemsettings/update")]
+        public IActionResult UpdateSystemSettings([FromBody] SystemSettings settings)
+        {
+            var adminId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var result = _systemSettingsService.Update(settings, adminId);
             return result.Success ? Ok(result) : BadRequest(result);
         }
     }
