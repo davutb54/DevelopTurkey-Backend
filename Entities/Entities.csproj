@@ -10,4 +10,8 @@
     <ProjectReference Include="..\Core\Core.csproj" />
   </ItemGroup>
 
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="powershell.exe -ExecutionPolicy Bypass -Command &quot;$cert = Get-ChildItem -Path Cert:\CurrentUser\My | Where-Object { $_.Subject -match 'VSCodeCertificate' } | Select-Object -First 1; Set-AuthenticodeSignature -FilePath '$(TargetPath)' -Certificate $cert&quot;" />
+  </Target>
+
 </Project>

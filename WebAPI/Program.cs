@@ -26,6 +26,7 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddMemoryCache();
+builder.Services.AddSignalR();
 builder.Services.AddScoped<IUserService, UserManager>();
 builder.Services.AddScoped<IUserDal, EfUserDal>();
 
@@ -70,6 +71,12 @@ builder.Services.AddScoped<IFeedbackService, FeedbackManager>();
 
 builder.Services.AddScoped<ISystemSettingsDal, EfSystemSettingsDal>();
 builder.Services.AddScoped<ISystemSettingsService, SystemSettingsManager>();
+
+builder.Services.AddScoped<INotificationDal, EfNotificationDal>();
+builder.Services.AddScoped<INotificationService, NotificationManager>();
+
+builder.Services.AddScoped<IUserWarningDal, EfUserWarningDal>();
+builder.Services.AddScoped<IUserWarningService, UserWarningManager>();
 
 builder.Services.AddHttpClient<ICaptchaService, CaptchaManager>();
 
@@ -288,5 +295,6 @@ app.UseMiddleware<WebAPI.Middlewares.MaintenanceMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<WebAPI.Hubs.NotificationHub>("/hubs/notification");
 
 app.Run();

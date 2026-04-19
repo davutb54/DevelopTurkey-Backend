@@ -1,5 +1,6 @@
 using System.Linq;
 using Business.Abstract;
+using Core.Entities.Concrete;
 using Core.Utilities.Context;
 using Business.Constants;
 using Core.Utilities.Results;
@@ -19,8 +20,9 @@ public class ProblemManager : IProblemService
     private readonly IProblemTopicDal _problemTopicDal;
     private readonly IClientContext _clientContext;
     private readonly IMemoryCache _cache;
+    private readonly INotificationService _notificationService;
 
-    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal, IClientContext clientContext, IMemoryCache cache)
+    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal, IClientContext clientContext, IMemoryCache cache, INotificationService notificationService)
     {
         _problemDal = problemDal;
         _logService = logService;
@@ -29,6 +31,7 @@ public class ProblemManager : IProblemService
         _problemTopicDal = problemTopicDal;
         _clientContext = clientContext;
         _cache = cache;
+        _notificationService = notificationService;
     }
 
     public IDataResult<ProblemDetailDto> GetById(int id)
@@ -192,7 +195,27 @@ public class ProblemManager : IProblemService
             }
         }
 
-        _logService.LogWarning("Content", "Delete", $"Problem silindi - ID: {id} (Alt Çözüm ve Yorumlarıyla Birlikte)");
+        if (isAdmin && problem.SenderId != currentUserId)
+        {
+            _logService.LogWarning("AdminAction", "Delete", $"Problem GÖREVLİ tarafından silindi - ID: {id} (Alt Çözüm ve Yorumlarıyla Birlikte)");
+            try
+            {
+                _notificationService.Add(new Notification
+                {
+                    UserId = problem.SenderId,
+                    Title = "Bir içeriğiniz kaldırıldı",
+                    Message = $"\"{problem.Title}\" başlıklı sorunuz platform kurallarına aykırı olduğu için kaldırıldı.",
+                    Type = "ContentRemoved",
+                    ReferenceLink = null
+                });
+            }
+            catch { /* Bildirim hatası ana işlemi etkilemesin */ }
+        }
+        else
+        {
+            _logService.LogWarning("Content", "Delete", $"Problem kullanıcı tarafından silindi - ID: {id} (Alt Çözüm ve Yorumlarıyla Birlikte)");
+        }
+
         return new SuccessResult(Messages.ProblemDeleted);
     }
 
@@ -268,7 +291,7 @@ public class ProblemManager : IProblemService
         if (problem == null) return new ErrorResult("Kayıt bulunamadı");
         problem.IsHighlighted = !problem.IsHighlighted;
         _problemDal.Update(problem);
-        _logService.LogInfo("Content", "Highlight", $"Problem {(problem.IsHighlighted ? "vurgulandı" : "vurgulama kaldırıldı")} - ID: {problem.Id}");
+        _logService.LogInfo("AdminAction", "Highlight", $"Problem {(problem.IsHighlighted ? "vurgulandı" : "vurgulama kaldırıldı")} - ID: {problem.Id}");
         return new SuccessResult($"Problem (ID: {problem.Id}) {(problem.IsHighlighted ? "vurgulandı" : "vurgulama kaldırıldı")}.");
     }
 
@@ -300,7 +323,7 @@ public class ProblemManager : IProblemService
         if (problem == null) return new ErrorResult("Kayıt bulunamadı");
         problem.IsResolved = !problem.IsResolved;
         _problemDal.Update(problem);
-        _logService.LogInfo("Content", "ToggleResolved", $"Problem {(problem.IsResolved ? "çözüldü" : "çözülmedi olarak işaretlendi")} - ID: {problem.Id}");
+        _logService.LogInfo("AdminAction", "ToggleResolved", $"Problem {(problem.IsResolved ? "çözüldü" : "çözülmedi olarak işaretlendi")} - ID: {problem.Id}");
         return new SuccessResult($"Problem (ID: {problem.Id}) {(problem.IsResolved ? "çözüldü" : "çözülmedi olarak işaretlendi")}.");
     }
 
@@ -325,7 +348,25 @@ public class ProblemManager : IProblemService
         if (problemTopic != null)
         {
             _problemTopicDal.Delete(problemTopic);
-            _logService.LogInfo("Moderation", "RemoveTopic", $"Problemden kategori silindi - ProblemID: {problemId}, TopicID: {topicId}");
+            _logService.LogInfo("AdminAction", "RemoveTopic", $"Problemden kategori silindi - ProblemID: {problemId}, TopicID: {topicId}");
+
+            try
+            {
+                var problem = _problemDal.Get(p => p.Id == problemId);
+                if (problem != null)
+                {
+                    _notificationService.Add(new Notification
+                    {
+                        UserId = problem.SenderId,
+                        Title = "Sorunuzdan bir kategori kaldırıldı",
+                        Message = "Yöneticiler, paylaştığınız sorundan uygunsuz bir kategoriyi kaldırdı.",
+                        Type = "ContentModified",
+                        ReferenceLink = $"/problem/{problemId}"
+                    });
+                }
+            }
+            catch { /* Bildirim hatası ana işlemi etkilemesin */ }
+
             return new SuccessResult("Kategori sorundan başarıyla kaldırıldı.");
         }
         return new ErrorResult("Bu sorunda böyle bir kategori bulunamadı.");

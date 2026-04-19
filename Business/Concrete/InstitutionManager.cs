@@ -46,7 +46,7 @@ public class InstitutionManager : IInstitutionService
     {
         _institutionDal.Add(institution);
 
-        _logService.LogInfo("Institution", "Add", $"Kurum eklendi - İsim: {institution.Name}");
+        _logService.LogInfo("AdminAction", "Add", $"Kurum eklendi - İsim: {institution.Name}");
 
         return new SuccessResult("Kurum başarıyla eklendi");
     }
@@ -55,7 +55,7 @@ public class InstitutionManager : IInstitutionService
     {
         _institutionDal.Update(institution);
 
-        _logService.LogInfo("Institution", "Update", $"Kurum güncellendi - ID: {institution.Id}, İsim: {institution.Name}");
+        _logService.LogInfo("AdminAction", "Update", $"Kurum güncellendi - ID: {institution.Id}, İsim: {institution.Name}");
 
         return new SuccessResult("Kurum başarıyla güncellendi");
     }
@@ -71,8 +71,8 @@ public class InstitutionManager : IInstitutionService
         institution.Status = false;
         _institutionDal.Update(institution);
 
-        _logService.LogWarning("Institution", "Delete", $"Kurum pasife alındı - ID: {id}, İsim: {institution.Name}");
+        _logService.LogWarning("AdminAction", "Delete", $"Kurum pasife alındı - ID: {id}, İsim: {institution.Name}");
 
-        return new SuccessResult("Kurum başarıyla silindi");
+        return new SuccessResult("Kurum başarıyla pasif duruma alındı");
     }
 }

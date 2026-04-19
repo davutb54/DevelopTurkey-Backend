@@ -1,4 +1,5 @@
 using Business.Abstract;
+using Core.Entities.Concrete;
 using Entities.Concrete;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
@@ -24,11 +25,14 @@ namespace WebAPI.Controllers
         private readonly IAdminService _adminService;
         private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly ISystemSettingsService _systemSettingsService;
+        private readonly IUserWarningService _userWarningService;
+        private readonly INotificationService _notificationService;
 
         public AdminController(IUserService userService, IProblemService problemService,
             ISolutionService solutionService, ILogService logService, ITopicService topicService,
             IAdminService adminService, IWebHostEnvironment webHostEnvironment,
-            ISystemSettingsService systemSettingsService)
+            ISystemSettingsService systemSettingsService,
+            IUserWarningService userWarningService, INotificationService notificationService)
         {
             _userService = userService;
             _problemService = problemService;
@@ -38,6 +42,8 @@ namespace WebAPI.Controllers
             _adminService = adminService;
             _webHostEnvironment = webHostEnvironment;
             _systemSettingsService = systemSettingsService;
+            _userWarningService = userWarningService;
+            _notificationService = notificationService;
         }
 
         [HttpPost("banuser")]
@@ -257,6 +263,53 @@ namespace WebAPI.Controllers
         {
             var adminId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
             var result = _systemSettingsService.Update(settings, adminId);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        // --- KULLANICI UYARI YÖNETİMİ ---
+
+        [HttpPost("issue-warning")]
+        public IActionResult IssueWarning([FromBody] IssueWarningDto dto)
+        {
+            var adminId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var warning = new UserWarning
+            {
+                UserId = dto.UserId,
+                IssuedByAdminId = adminId,
+                Title = dto.Title,
+                Message = dto.Message,
+                Severity = dto.Severity
+            };
+            var result = _userWarningService.Issue(warning);
+            if (!result.Success) return BadRequest(result);
+
+            try
+            {
+                _notificationService.Add(new Notification
+                {
+                    UserId = dto.UserId,
+                    Title = $"⚠️ {dto.Title}",
+                    Message = dto.Message,
+                    Type = "AdminWarning",
+                    ReferenceLink = null
+                });
+            }
+            catch { /* Bildirim hatası uyarı işlemini etkilemesin */ }
+
+            return Ok(result);
+        }
+
+        [HttpPost("revoke-warning")]
+        public IActionResult RevokeWarning(int warningId)
+        {
+            var result = _userWarningService.Revoke(warningId);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpGet("user-warnings")]
+        public IActionResult GetUserWarnings(int userId)
+        {
+            var result = _userWarningService.GetByUserId(userId);
             return result.Success ? Ok(result) : BadRequest(result);
         }
     }

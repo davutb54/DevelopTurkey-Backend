@@ -21,8 +21,9 @@ public class UserManager : IUserService
     private readonly IInstitutionService _institutionService;
     private readonly IClientContext _clientContext;
     private readonly ISystemSettingsService _systemSettingsService;
+    private readonly INotificationService _notificationService;
 
-    public UserManager(IUserDal userDal, ILogService logService, ITokenHelper tokenHelper, IInstitutionService institutionService, IClientContext clientContext, ISystemSettingsService systemSettingsService)
+    public UserManager(IUserDal userDal, ILogService logService, ITokenHelper tokenHelper, IInstitutionService institutionService, IClientContext clientContext, ISystemSettingsService systemSettingsService, INotificationService notificationService)
     {
         _userDal = userDal;
         _logService = logService;
@@ -30,6 +31,7 @@ public class UserManager : IUserService
         _institutionService = institutionService;
         _clientContext = clientContext;
         _systemSettingsService = systemSettingsService;
+        _notificationService = notificationService;
     }
 
     public IDataResult<UserDetailDto?> GetById(int id)
@@ -276,8 +278,13 @@ public class UserManager : IUserService
         user.DeleteDate = DateTime.Now;
         _userDal.Update(user);
 
-        _logService.LogWarning("Security", "Delete", $"Kullanıcı silindi - ID: {user.Id}, Kullanıcı: {user.UserName}");
+        var currentUserId = _clientContext.GetUserId();
 
+        if (currentUserId.HasValue && currentUserId.Value != id) {
+            _logService.LogWarning("AdminAction", "Delete", $"Kullanıcı hesabı GÖREVLİ tarafından silindi - ID: {user.Id}, Kullanıcı: {user.UserName}");
+        } else {
+            _logService.LogWarning("Security", "Delete", $"Kullanıcı kendi hesabını kalıcı olarak sildi - ID: {user.Id}, Kullanıcı: {user.UserName}");
+        }
         return new SuccessResult(Messages.UserDeleteOk);
     }
 
@@ -323,7 +330,20 @@ public class UserManager : IUserService
         user.IsBanned = true;
         _userDal.Update(user);
 
-        _logService.LogWarning("Moderation", "Ban", $"Kullanıcı yasaklandı - ID: {user.Id}, Kullanıcı: {user.UserName}");
+        _logService.LogWarning("AdminAction", "Ban", $"Kullanıcı yasaklandı - ID: {user.Id}, Kullanıcı: {user.UserName}");
+
+        try
+        {
+            _notificationService.Add(new Notification
+            {
+                UserId = userId,
+                Title = "Hesabınız askıya alındı",
+                Message = "Hesabınız platform kurallarını ihlal ettiği için yöneticiler tarafından askıya alınmıştır.",
+                Type = "AdminWarning",
+                ReferenceLink = null
+            });
+        }
+        catch { /* Bildirim hatası ana işlemi etkilemesin */ }
 
         return new SuccessResult($"Kullanıcı (ID: {user.Id}) yasaklandı.");
     }
@@ -336,7 +356,20 @@ public class UserManager : IUserService
         user.IsBanned = false;
         _userDal.Update(user);
 
-        _logService.LogInfo("Moderation", "Unban", $"Kullanıcı yasağı kaldırıldı - ID: {user.Id}, Kullanıcı: {user.UserName}");
+        _logService.LogInfo("AdminAction", "Unban", $"Kullanıcı yasağı kaldırıldı - ID: {user.Id}, Kullanıcı: {user.UserName}");
+
+        try
+        {
+            _notificationService.Add(new Notification
+            {
+                UserId = userId,
+                Title = "Hesabınız yeniden aktif edildi",
+                Message = "Hesabınıza uygulanan kısıtlama yöneticiler tarafından kaldırıldı.",
+                Type = "AdminInfo",
+                ReferenceLink = null
+            });
+        }
+        catch { /* Bildirim hatası ana işlemi etkilemesin */ }
 
         return new SuccessResult($"Kullanıcı (ID: {user.Id}) yasağı kaldırıldı.");
     }
@@ -377,8 +410,22 @@ public class UserManager : IUserService
         var user = _userDal.Get(u => u.Id == userId);
         if (user == null) return new ErrorResult(Messages.UserNotFound);
         user.IsAdmin = !user.IsAdmin;
-        _logService.LogWarning("Security", "ToggleAdminRole", $"Admin rolü {(user.IsAdmin ? "verildi" : "kaldırıldı")} - ID: {user.Id}, Kullanıcı: {user.UserName}");
+        _logService.LogWarning("AdminAction", "ToggleAdminRole", $"Admin rolü {(user.IsAdmin ? "verildi" : "kaldırıldı")} - ID: {user.Id}, Kullanıcı: {user.UserName}");
         _userDal.Update(user);
+        try
+        {
+            _notificationService.Add(new Notification
+            {
+                UserId = userId,
+                Title = $"Admin rolü {(user.IsAdmin ? "verildi" : "kaldırıldı")}",
+                Message = user.IsAdmin
+                    ? "Hesabınıza bir yönetici tarafından Admin yetkisi verildi."
+                    : "Hesabınızdan Admin yetkisi kaldırıldı.",
+                Type = "RoleChanged",
+                ReferenceLink = null
+            });
+        }
+        catch { /* Bildirim hatası ana işlemi etkilemesin */ }
         string action = user.IsAdmin ? "Admin rolü verildi" : "Admin rolü kaldırıldı";
         return new SuccessResult($"{action} (ID: {user.Id})");
     }
@@ -388,8 +435,22 @@ public class UserManager : IUserService
         var user = _userDal.Get(u => u.Id == userId);
         if (user == null) return new ErrorResult(Messages.UserNotFound);
         user.IsExpert = !user.IsExpert;
-        _logService.LogWarning("Security", "ToggleExpertRole", $"Uzman rolü {(user.IsExpert ? "verildi" : "kaldırıldı")} - ID: {user.Id}, Kullanıcı: {user.UserName}");
+        _logService.LogWarning("AdminAction", "ToggleExpertRole", $"Uzman rolü {(user.IsExpert ? "verildi" : "kaldırıldı")} - ID: {user.Id}, Kullanıcı: {user.UserName}");
         _userDal.Update(user);
+        try
+        {
+            _notificationService.Add(new Notification
+            {
+                UserId = userId,
+                Title = $"Uzman rolü {(user.IsExpert ? "verildi" : "kaldırıldı")}",
+                Message = user.IsExpert
+                    ? "Hesabınıza bir yönetici tarafından Uzman yetkisi verildi."
+                    : "Hesabınızdan Uzman yetkisi kaldırıldı.",
+                Type = "RoleChanged",
+                ReferenceLink = null
+            });
+        }
+        catch { /* Bildirim hatası ana işlemi etkilemesin */ }
         string action = user.IsExpert ? "Uzman rolü verildi" : "Uzman rolü kaldırıldı";
         return new SuccessResult($"{action} (ID: {user.Id})");
     }
@@ -399,8 +460,22 @@ public class UserManager : IUserService
         var user = _userDal.Get(u => u.Id == userId);
         if (user == null) return new ErrorResult(Messages.UserNotFound);
         user.IsOfficial = !user.IsOfficial;
-        _logService.LogWarning("Security", "ToggleOfficialRole", $"Resmi rolü {(user.IsOfficial ? "verildi" : "kaldırıldı")} - ID: {user.Id}, Kullanıcı: {user.UserName}");
+        _logService.LogWarning("AdminAction", "ToggleOfficialRole", $"Resmi rolü {(user.IsOfficial ? "verildi" : "kaldırıldı")} - ID: {user.Id}, Kullanıcı: {user.UserName}");
         _userDal.Update(user);
+        try
+        {
+            _notificationService.Add(new Notification
+            {
+                UserId = userId,
+                Title = $"Resmi Kurum yetkisi {(user.IsOfficial ? "verildi" : "kaldırıldı")}",
+                Message = user.IsOfficial
+                    ? "Hesabınıza bir yönetici tarafından Resmi Kurum yetkisi verildi."
+                    : "Hesabınızdan Resmi Kurum yetkisi kaldırıldı.",
+                Type = "RoleChanged",
+                ReferenceLink = null
+            });
+        }
+        catch { /* Bildirim hatası ana işlemi etkilemesin */ }
         string action = user.IsOfficial ? "Resmi rolü verildi" : "Resmi rolü kaldırıldı";
         return new SuccessResult($"{action} (ID: {user.Id})");
     }

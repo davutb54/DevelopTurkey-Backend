@@ -66,8 +66,8 @@ public class SystemSettingsManager : ISystemSettingsService
         _memoryCache.Remove(CacheKey);
 
         _logService.LogInfo(
-            "SystemSettings",
-            "Update",
+            "AdminAction",
+            "SystemSettingsUpdate",
             $"Sistem ayarları güncellendi. AdminUserId: {adminUserId}",
             $"MaintenanceMode: {settings.IsMaintenanceMode}, DisableRegistrations: {settings.DisableNewRegistrations}");
 

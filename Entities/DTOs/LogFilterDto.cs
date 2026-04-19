@@ -1,4 +1,4 @@
-﻿namespace Entities.DTOs;
+namespace Entities.DTOs;
 
 public class LogFilterDto
 {
@@ -11,4 +11,6 @@ public class LogFilterDto
 
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 20;
+
+    public bool? IsActivityLog { get; set; }
 }

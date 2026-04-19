@@ -17,14 +17,16 @@ public class SolutionManager : ISolutionService
     private readonly IProblemService _problemService;
     private readonly ICommentDal _commentDal;
     private readonly IClientContext _clientContext;
+    private readonly INotificationService _notificationService;
 
-    public SolutionManager(ISolutionDal solutionDal, ILogService logService, IProblemService problemService, ICommentDal commentDal, IClientContext clientContext)
+    public SolutionManager(ISolutionDal solutionDal, ILogService logService, IProblemService problemService, ICommentDal commentDal, IClientContext clientContext, INotificationService notificationService)
     {
         _solutionDal = solutionDal;
         _logService = logService;
         _problemService = problemService;
         _commentDal = commentDal;
         _clientContext = clientContext;
+        _notificationService = notificationService;
     }
 
     public IDataResult<Solution?> GetById(int id)
@@ -59,6 +61,25 @@ public class SolutionManager : ISolutionService
         _solutionDal.Add(solution);
 
         _logService.LogInfo("Content", "Add", $"Çözüm eklendi - ProblemID: {solution.ProblemId}");
+
+        // Bildirim: Problem sahibine, kendi çözümü değilse bildirim gönder
+        try
+        {
+            var problem = _problemService.GetById(solution.ProblemId);
+            if (problem.Success && problem.Data != null && problem.Data.SenderId != solution.SenderId)
+            {
+                _notificationService.Add(new Notification
+                {
+                    UserId = problem.Data.SenderId,
+                    Title = "Sorununa yeni bir çözüm eklendi",
+                    Message = $"Birileri \"{problem.Data.Title}\" sorununa bir çözüm paylaştı.",
+                    Type = "SolutionAdded",
+                    ReferenceLink = $"/problem/{solution.ProblemId}"
+                });
+            }
+        }
+        catch { /* Bildirim hatası ana işlemi etkilemesin */ }
+
         return new SuccessResult(Messages.SolutionAdded);
     }
 
@@ -124,8 +145,27 @@ public class SolutionManager : ISolutionService
                 _commentDal.Update(childCom);
             }
         }
-
-        _logService.LogWarning("Content", "Delete", $"Çözüm silindi - ID: {id} (Alt Yorumlarıyla Birlikte)");
+        
+        if (isAdmin && solution.SenderId != currentUserId)
+        {
+            _logService.LogWarning("AdminAction", "Delete", $"Çözüm GÖREVLİ tarafından silindi - ID: {id} (Alt Yorumlarıyla Birlikte)");
+            try
+            {
+                _notificationService.Add(new Notification
+                {
+                    UserId = solution.SenderId,
+                    Title = "Bir içeriğiniz kaldırıldı",
+                    Message = "Paylaştığınız bir çözüm platform kurallarına aykırı olduğu için kaldırıldı.",
+                    Type = "ContentRemoved",
+                    ReferenceLink = null
+                });
+            }
+            catch { /* Bildirim hatası ana işlemi etkilemesin */ }
+        }
+        else
+        {
+            _logService.LogWarning("Content", "Delete", $"Çözüm kullanıcı tarafından silindi - ID: {id} (Alt Yorumlarıyla Birlikte)");
+        }
 
         return new SuccessResult(Messages.SolutionDeleted);
     }
@@ -163,7 +203,25 @@ public class SolutionManager : ISolutionService
         solution.IsHighlighted = !solution.IsHighlighted;
         _solutionDal.Update(solution);
         string action = solution.IsHighlighted ? "vurgulandı" : "vurgulama kaldırıldı";
-        _logService.LogInfo("Content", "Highlight", $"Çözüm {action} - ID: {solution.Id}");
+        _logService.LogInfo("AdminAction", "Highlight", $"Çözüm {action} - ID: {solution.Id}");
+
+        // Bildirim: sadece highlight açılıyorsa gönder
+        if (solution.IsHighlighted)
+        {
+            try
+            {
+                _notificationService.Add(new Notification
+                {
+                    UserId = solution.SenderId,
+                    Title = "Çözümünüz öne çıkarıldı ⭐",
+                    Message = "Paylaştığınız çözüm editörler tarafından öne çıkarıldı.",
+                    Type = "SolutionHighlighted",
+                    ReferenceLink = $"/problem/{solution.ProblemId}"
+                });
+            }
+            catch { /* Bildirim hatası ana işlemi etkilemesin */ }
+        }
+
         return new SuccessResult($"Çözüm (ID: {solution.Id}) {action}.");
     }
 
@@ -181,7 +239,21 @@ public class SolutionManager : ISolutionService
 
         _problemService.ResolveProblem(solution.ProblemId);
 
-        _logService.LogInfo("Moderation", "Approve", $"Çözüm onaylandı - ID: {solution.Id}");
+        _logService.LogInfo("AdminAction", "Approve", $"Çözüm onaylandı - ID: {solution.Id}");
+
+        try
+        {
+            _notificationService.Add(new Notification
+            {
+                UserId = solution.SenderId,
+                Title = "Çözümünüz onaylandı! 🎉",
+                Message = "Paylaştığınız çözüm yetkili tarafından incelendi ve onaylandı.",
+                Type = "SolutionApproved",
+                ReferenceLink = $"/problem/{solution.ProblemId}"
+            });
+        }
+        catch { /* Bildirim hatası ana işlemi etkilemesin */ }
+
         return new SuccessResult($"Çözüm (ID: {solution.Id}) admin tarafından onaylandı.");
     }
 
@@ -191,7 +263,21 @@ public class SolutionManager : ISolutionService
         if (solution == null) return new ErrorResult("Çözüm bulunamadı");
         solution.ExpertApprovalStatus = 2;
         _solutionDal.Update(solution);
-        _logService.LogInfo("Moderation", "Reject", $"Çözüm reddedildi - ID: {solution.Id}");
+        _logService.LogInfo("AdminAction", "Reject", $"Çözüm reddedildi - ID: {solution.Id}");
+
+        try
+        {
+            _notificationService.Add(new Notification
+            {
+                UserId = solution.SenderId,
+                Title = "Çözümünüz reddedildi",
+                Message = "Paylaştığınız çözüm yetkili incelemesinden geçemedi.",
+                Type = "SolutionRejected",
+                ReferenceLink = $"/problem/{solution.ProblemId}"
+            });
+        }
+        catch { /* Bildirim hatası ana işlemi etkilemesin */ }
+
         return new SuccessResult($"Çözüm (ID: {solution.Id}) admin tarafından reddedildi.");
     }
     public IDataResult<List<SolutionDetailDto>> GetAllForAdmin()

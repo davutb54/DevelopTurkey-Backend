@@ -1,4 +1,4 @@
-﻿using Core.DataAccess.EntityFramework;
+using Core.DataAccess.EntityFramework;
 using DataAccess.Abstract;
 using Entities.Concrete;
 using Entities.DTOs;
@@ -12,6 +12,11 @@ public class EfLogDal : EfEntityRepositoryBase<Log, DevelopTurkeyContext>, ILogD
         using (var context = new DevelopTurkeyContext())
         {
             var query = context.Logs.AsQueryable();
+
+            if (filter.IsActivityLog == true)
+            {
+                query = query.Where(l => l.Category == "AdminAction" || l.Category == "Security");
+            }
 
             if (!string.IsNullOrEmpty(filter.Category))
                 query = query.Where(l => l.Category == filter.Category);

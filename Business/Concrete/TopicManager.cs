@@ -42,21 +42,21 @@ public class TopicManager : ITopicService
     {
         _topicDal.Add(topic);
 
-        _logService.LogInfo("Content", "Add", $"Yeni konu eklendi: {topic.Name}");
+        _logService.LogInfo("AdminAction", "Add", $"Yeni konu eklendi: {topic.Name}");
         return new SuccessResult(Messages.TopicAdded);
     }
 
     public IResult Update(Topic topic)
     {
         _topicDal.Update(topic);
-        _logService.LogInfo("Content", "Update", $"Konu güncellendi: {topic.Name}");
+        _logService.LogInfo("AdminAction", "Update", $"Kategori güncellendi: {topic.Name}");
         return new SuccessResult(Messages.TopicUpdated);
     }
 
     public IResult Delete(Topic topic)
     {
         _topicDal.Delete(topic);
-        _logService.LogWarning("Content", "Delete", $"Konu silindi: {topic.Name}");
+        _logService.LogWarning("AdminAction", "Delete", $"Kategori silindi: {topic.Name}");
         return new SuccessResult(Messages.TopicDeleted);
     }
 }

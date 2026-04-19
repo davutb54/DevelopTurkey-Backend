@@ -1,5 +1,6 @@
 using Business.Abstract;
 using Business.Constants;
+using Core.Entities.Concrete;
 using Core.Utilities.Context;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
@@ -14,12 +15,16 @@ public class CommentManager : ICommentService
     private readonly ICommentDal _commentDal;
     private readonly ILogService _logService;
     private readonly IClientContext _clientContext;
+    private readonly ISolutionDal _solutionDal;
+    private readonly INotificationService _notificationService;
 
-    public CommentManager(ICommentDal commentDal, ILogService logService, IClientContext clientContext)
+    public CommentManager(ICommentDal commentDal, ILogService logService, IClientContext clientContext, ISolutionDal solutionDal, INotificationService notificationService)
     {
         _commentDal = commentDal;
         _logService = logService;
         _clientContext = clientContext;
+        _solutionDal = solutionDal;
+        _notificationService = notificationService;
     }
 
 
@@ -49,6 +54,25 @@ public class CommentManager : ICommentService
         comment.SendDate = DateTime.Now;
         _commentDal.Add(comment);
         _logService.LogInfo("Content", "Add", $"Yorum eklendi - SolutionId: {comment.SolutionId}");
+
+        // Bildirim: Çözüm sahibine, kendi yorumu değilse bildirim gönder
+        try
+        {
+            var solution = _solutionDal.Get(s => s.Id == comment.SolutionId);
+            if (solution != null && solution.SenderId != comment.SenderId)
+            {
+                _notificationService.Add(new Notification
+                {
+                    UserId = solution.SenderId,
+                    Title = "Çözümünüze yorum yapıldı",
+                    Message = "Paylaştığınız bir çözüme yeni bir yorum eklendi.",
+                    Type = "CommentAdded",
+                    ReferenceLink = $"/problem/{solution.ProblemId}"
+                });
+            }
+        }
+        catch { /* Bildirim hatası ana işlemi etkilemesin */ }
+
         return new SuccessResult(Messages.CommentAdded);
     }
 
