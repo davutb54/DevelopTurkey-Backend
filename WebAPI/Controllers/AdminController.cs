@@ -266,6 +266,27 @@ namespace WebAPI.Controllers
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
+        [HttpGet("systemsettings/public")]
+        [AllowAnonymous]
+        public IActionResult GetPublicSettings()
+        {
+            var result = _systemSettingsService.Get();
+            if (!result.Success) return BadRequest();
+            return Ok(new
+            {
+                siteName         = result.Data.SiteName,
+                siteDescription  = result.Data.SiteDescription,
+                organizationName = result.Data.OrganizationName,
+                contactFullName  = result.Data.ContactFullName,
+                contactAddress   = result.Data.ContactAddress,
+                contactEmail     = result.Data.ContactEmail,
+                contactPhone     = result.Data.ContactPhone,
+                socialTwitter    = result.Data.SocialTwitter,
+                socialInstagram  = result.Data.SocialInstagram,
+                socialLinkedIn   = result.Data.SocialLinkedIn,
+            });
+        }
+
         // --- KULLANICI UYARI YÖNETİMİ ---
 
         [HttpPost("issue-warning")]
