@@ -10,6 +10,8 @@ using DataAccess.Concrete.EntityFramework;
 using Entities.Concrete;
 using Entities.DTOs;
 using Entities.DTOs.User;
+using Google.Apis.Auth;
+using Microsoft.Extensions.Configuration;
 
 namespace Business.Concrete;
 
@@ -22,8 +24,9 @@ public class UserManager : IUserService
     private readonly IClientContext _clientContext;
     private readonly ISystemSettingsService _systemSettingsService;
     private readonly INotificationService _notificationService;
+    private readonly IConfiguration _configuration;
 
-    public UserManager(IUserDal userDal, ILogService logService, ITokenHelper tokenHelper, IInstitutionService institutionService, IClientContext clientContext, ISystemSettingsService systemSettingsService, INotificationService notificationService)
+    public UserManager(IUserDal userDal, ILogService logService, ITokenHelper tokenHelper, IInstitutionService institutionService, IClientContext clientContext, ISystemSettingsService systemSettingsService, INotificationService notificationService, IConfiguration configuration)
     {
         _userDal = userDal;
         _logService = logService;
@@ -32,6 +35,7 @@ public class UserManager : IUserService
         _clientContext = clientContext;
         _systemSettingsService = systemSettingsService;
         _notificationService = notificationService;
+        _configuration = configuration;
     }
 
     public IDataResult<UserDetailDto?> GetById(int id)
@@ -118,6 +122,66 @@ public class UserManager : IUserService
 
         _logService.LogInfo("Auth", "Login", $"Başarılı giriş - ID: {user.Id}, Kullanıcı: {user.UserName}");
         return new SuccessResult(Messages.UserLoginOk);
+    }
+
+    public IDataResult<AccessToken> GoogleLogin(UserForGoogleLoginDto googleLoginDto)
+    {
+        GoogleJsonWebSignature.Payload payload;
+        try {
+            var validationSettings = new GoogleJsonWebSignature.ValidationSettings
+            {
+                Audience = new[] { _configuration["GoogleAuth:ClientId"] }
+            };
+            // Token doğrulaması
+            payload = GoogleJsonWebSignature.ValidateAsync(googleLoginDto.Credential, validationSettings).Result;
+        } catch {
+            return new ErrorDataResult<AccessToken>(null, "Google yetkilendirmesi geçersiz veya bu uygulama için üretilmemiş.");
+        }
+
+        var user = _userDal.Get(u => u.Email == payload.Email);
+
+        if (user == null)
+        {
+            // YENİ KAYIT: Mevcut Register metodundaki Institution atama mantığını kullan
+            string emailDomain = payload.Email.Split('@')[1].ToLower();
+            var institutionResult = _institutionService.GetByDomain(emailDomain);
+            int assignedInstitutionId = (institutionResult.Success && institutionResult.Data != null && institutionResult.Data.Status)
+                ? institutionResult.Data.Id : 1;
+
+            // Benzersiz Username üret (Örn: isim.soyisim veya email prefixi)
+            string baseUsername = payload.Email.Split('@')[0];
+            string uniqueUsername = baseUsername;
+            int counter = 1;
+            while (_userDal.Get(u => u.UserName == uniqueUsername) != null) {
+                uniqueUsername = $"{baseUsername}{counter++}";
+            }
+
+            user = new User {
+                UserName = uniqueUsername,
+                Name = payload.GivenName ?? "Kullanıcı",
+                Surname = payload.FamilyName ?? "",
+                Email = payload.Email,
+                ProfileImageUrl = payload.Picture,
+                PasswordHash = null,
+                PasswordSalt = null,
+                AuthType = "Google",
+                IsEmailVerified = true, // Google'dan geldiği için doğrulanmış kabul edilir
+                InstitutionId = assignedInstitutionId,
+                RegisterDate = DateTime.Now,
+                CityCode = 0,
+                Gender = 0
+            };
+            _userDal.Add(user);
+            _logService.LogInfo("Auth", "GoogleRegister", $"Google ile yeni kayıt: {user.Email}");
+        }
+
+        // GİRİŞ İŞLEMİ (Hesap birleştirilmiş veya yeni açılmış fark etmez)
+        if (user.IsBanned) return new ErrorDataResult<AccessToken>(null, "Hesabınız askıya alınmıştır.");
+        
+        _logService.LogInfo("Auth", "GoogleLogin", $"Google ile giriş: {user.Email}");
+        var accessToken = _tokenHelper.CreateToken(user, null);
+        accessToken.UserId = user.Id;
+        return new SuccessDataResult<AccessToken>(accessToken, "Giriş başarılı.");
     }
 
     public IDataResult<AccessToken> CreateAccessToken(User user, int? impersonatedById = null)

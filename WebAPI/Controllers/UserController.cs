@@ -156,6 +156,25 @@ namespace WebAPI.Controllers
             return BadRequest(result.Message);
         }
 
+        [HttpPost("google-login")]
+        [EnableRateLimiting("AuthLimit")]
+        public IActionResult GoogleLogin([FromBody] UserForGoogleLoginDto dto)
+        {
+            var result = _userService.GoogleLogin(dto);
+            if (result.Success)
+            {
+                var cookieOptions = new CookieOptions {
+                    HttpOnly = true, Secure = true, 
+                    SameSite = _webHostEnvironment.IsDevelopment() ? SameSiteMode.None : SameSiteMode.Strict,
+                    Expires = result.Data.Expiration
+                };
+                Response.Cookies.Append("token", result.Data.Token, cookieOptions);
+                Response.Cookies.Append("userId", result.Data.UserId.ToString(), cookieOptions);
+                return Ok(new { success = true, message = "Google ile giriş başarılı." });
+            }
+            return BadRequest(result.Message);
+        }
+
         [HttpPost("updatepassword")]
         [EnableRateLimiting("AuthLimit")]
         [Microsoft.AspNetCore.Authorization.Authorize]

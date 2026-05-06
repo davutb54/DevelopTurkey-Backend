@@ -13,6 +13,7 @@ public interface IUserService
     IDataResult<List<UserDetailDto>> GetAll();
     IDataResult<(List<UserDetailDto> Items, int TotalCount)> GetAllPaged(UserFilterDto filter);
     IResult Login(UserForLoginDto userForLoginDto);
+    IDataResult<AccessToken> GoogleLogin(UserForGoogleLoginDto googleLoginDto);
     IResult Register(UserForRegisterDto userForRegisterDto);
     IDataResult<AccessToken> CreateAccessToken(User user, int? impersonatedById = null);
     bool VerifyPassword(int userId, string password);

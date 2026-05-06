@@ -1,4 +1,4 @@
-﻿namespace Core.Entities.Concrete;
+namespace Core.Entities.Concrete;
 
 public class User : IEntity
 {
@@ -9,8 +9,9 @@ public class User : IEntity
     public string Email { get; set; }
     public string? ProfileImageUrl { get; set; }
 
-    public byte[] PasswordHash { get; set; }
-    public byte[] PasswordSalt { get; set; }
+    public byte[]? PasswordHash { get; set; }
+    public byte[]? PasswordSalt { get; set; }
+    public string AuthType { get; set; } = "Local";
 
     public int CityCode { get; set; }
     public int Gender { get; set; }
