@@ -1,4 +1,6 @@
-﻿namespace Entities.DTOs;
+﻿using Microsoft.AspNetCore.Http;
+
+namespace Entities.DTOs;
 
 public class ProblemUpdateDto
 {
@@ -7,7 +9,16 @@ public class ProblemUpdateDto
     public string Title { get; set; }
     public string Description { get; set; }
     public int CityCode { get; set; }
+
+    public string? Address { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+
     public string? ImageUrl { get; set; }
+    public IFormFile? Image { get; set; }
+
+    public bool ClearLocation { get; set; }
+
     public DateTime SendDate { get; set; }
     public bool IsHighlighted { get; set; }
     public bool IsReported { get; set; }
@@ -16,5 +27,5 @@ public class ProblemUpdateDto
     public int InstitutionId { get; set; }
     public int ViewCount { get; set; }
 
-    public List<int> TopicIds { get; set; }
+    public List<int> TopicIds { get; set; } = new();
 }

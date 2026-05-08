@@ -125,7 +125,9 @@ public class AdminManager : IAdminService
                 {
                     CityCode = g.Key,
                     UserCount = g.Count(),
-                    ProblemCount = problems.Count(p => p.CityCode == g.Key)
+                    ProblemCount = problems.Count(p => p.CityCode == g.Key),
+                    ProblemWithLocationCount = problems.Count(p => p.CityCode == g.Key &&
+                        ((p.Latitude != null && p.Longitude != null) || !string.IsNullOrWhiteSpace(p.Address)))
                 })
                 .Where(c => c.CityCode > 0 && c.CityCode <= 81)
                 .ToList();

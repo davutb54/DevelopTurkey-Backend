@@ -18,8 +18,9 @@ public class SolutionManager : ISolutionService
     private readonly ICommentDal _commentDal;
     private readonly IClientContext _clientContext;
     private readonly INotificationService _notificationService;
+    private readonly IProblemFollowService _problemFollowService;
 
-    public SolutionManager(ISolutionDal solutionDal, ILogService logService, IProblemService problemService, ICommentDal commentDal, IClientContext clientContext, INotificationService notificationService)
+    public SolutionManager(ISolutionDal solutionDal, ILogService logService, IProblemService problemService, ICommentDal commentDal, IClientContext clientContext, INotificationService notificationService, IProblemFollowService problemFollowService)
     {
         _solutionDal = solutionDal;
         _logService = logService;
@@ -27,6 +28,7 @@ public class SolutionManager : ISolutionService
         _commentDal = commentDal;
         _clientContext = clientContext;
         _notificationService = notificationService;
+        _problemFollowService = problemFollowService;
     }
 
     public IDataResult<Solution?> GetById(int id)
@@ -74,6 +76,25 @@ public class SolutionManager : ISolutionService
                     Title = "Sorununa yeni bir çözüm eklendi",
                     Message = $"Birileri \"{problem.Data.Title}\" sorununa bir çözüm paylaştı.",
                     Type = "SolutionAdded",
+                    ReferenceLink = $"/problem/{solution.ProblemId}"
+                });
+            }
+
+            // Bildirim: Problemi takip edenlere bildirim gönder
+            var followerIds = _problemFollowService.GetFollowerIds(solution.ProblemId);
+            foreach (var fId in followerIds)
+            {
+                if (fId == solution.SenderId) continue; // Kendine bildirim atma
+                
+                // Problem sahibine zaten üstte bildirim attık, tekrar atmayalım
+                if (problem.Success && problem.Data != null && fId == problem.Data.SenderId) continue;
+
+                _notificationService.Add(new Notification
+                {
+                    UserId = fId,
+                    Title = "Takip ettiğiniz soruna yeni çözüm eklendi",
+                    Message = "Takip ettiğiniz bir soruna yeni bir çözüm eklendi.",
+                    Type = "FollowedProblemNewSolution",
                     ReferenceLink = $"/problem/{solution.ProblemId}"
                 });
             }
@@ -251,6 +272,22 @@ public class SolutionManager : ISolutionService
                 Type = "SolutionApproved",
                 ReferenceLink = $"/problem/{solution.ProblemId}"
             });
+
+            // Bildirim: Problemi takip edenlere "Çözüm yetkili tarafından onaylandı!" diye bildir
+            var followerIds = _problemFollowService.GetFollowerIds(solution.ProblemId);
+            foreach (var fId in followerIds)
+            {
+                if (fId == solution.SenderId) continue;
+
+                _notificationService.Add(new Notification
+                {
+                    UserId = fId,
+                    Title = "Takip ettiğiniz soruna onaylı çözüm!",
+                    Message = "Takip ettiğiniz bir sorundaki çözüm yetkililer tarafından onaylandı.",
+                    Type = "FollowedProblemSolutionApproved",
+                    ReferenceLink = $"/problem/{solution.ProblemId}"
+                });
+            }
         }
         catch { /* Bildirim hatası ana işlemi etkilemesin */ }
 

@@ -9,6 +9,9 @@ public class Problem : IEntity
 	public string Title { get; set; }
 	public string Description { get; set; }
 	public int CityCode { get; set; }
+	public string? Address { get; set; }
+	public double? Latitude { get; set; }
+	public double? Longitude { get; set; }
 	public bool IsHighlighted { get; set; } = false;
 	public bool IsReported { get; set; } = false;
 	public bool IsDeleted { get; set; } = false;

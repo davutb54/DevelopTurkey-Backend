@@ -21,8 +21,9 @@ public class ProblemManager : IProblemService
     private readonly IClientContext _clientContext;
     private readonly IMemoryCache _cache;
     private readonly INotificationService _notificationService;
+    private readonly IProblemFollowService _problemFollowService;
 
-    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal, IClientContext clientContext, IMemoryCache cache, INotificationService notificationService)
+    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal, IClientContext clientContext, IMemoryCache cache, INotificationService notificationService, IProblemFollowService problemFollowService)
     {
         _problemDal = problemDal;
         _logService = logService;
@@ -32,6 +33,7 @@ public class ProblemManager : IProblemService
         _clientContext = clientContext;
         _cache = cache;
         _notificationService = notificationService;
+        _problemFollowService = problemFollowService;
     }
 
     public IDataResult<ProblemDetailDto> GetById(int id)
@@ -292,6 +294,27 @@ public class ProblemManager : IProblemService
         problem.IsHighlighted = !problem.IsHighlighted;
         _problemDal.Update(problem);
         _logService.LogInfo("AdminAction", "Highlight", $"Problem {(problem.IsHighlighted ? "vurgulandı" : "vurgulama kaldırıldı")} - ID: {problem.Id}");
+        
+        if (problem.IsHighlighted)
+        {
+            try
+            {
+                var followerIds = _problemFollowService.GetFollowerIds(problem.Id);
+                foreach (var fId in followerIds)
+                {
+                    _notificationService.Add(new Notification
+                    {
+                        UserId = fId,
+                        Title = "Takip ettiğiniz sorun öne çıkarıldı!",
+                        Message = $"\"{problem.Title}\" başlıklı sorun editörler tarafından öne çıkarıldı.",
+                        Type = "FollowedProblemHighlighted",
+                        ReferenceLink = $"/problem/{problem.Id}"
+                    });
+                }
+            }
+            catch { /* Bildirim hatası ana işlemi etkilemesin */ }
+        }
+
         return new SuccessResult($"Problem (ID: {problem.Id}) {(problem.IsHighlighted ? "vurgulandı" : "vurgulama kaldırıldı")}.");
     }
 

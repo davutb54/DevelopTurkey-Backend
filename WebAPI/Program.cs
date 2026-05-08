@@ -8,9 +8,14 @@ using DataAccess.Concrete.EntityFramework;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using System.Globalization;
 using System.Net; // IPAddress için
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+
+// WebAPI: request parsing should be culture-invariant (e.g., multipart/form-data doubles from JS use '.' decimal)
+CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,6 +32,7 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddMemoryCache();
 builder.Services.AddSignalR();
+
 builder.Services.AddScoped<IUserService, UserManager>();
 builder.Services.AddScoped<IUserDal, EfUserDal>();
 
@@ -78,7 +84,23 @@ builder.Services.AddScoped<INotificationService, NotificationManager>();
 builder.Services.AddScoped<IUserWarningDal, EfUserWarningDal>();
 builder.Services.AddScoped<IUserWarningService, UserWarningManager>();
 
+builder.Services.AddScoped<IProblemFollowDal, EfProblemFollowDal>();
+builder.Services.AddScoped<IProblemFollowService, ProblemFollowManager>();
+
+builder.Services.AddScoped<ITopicFollowDal, EfTopicFollowDal>();
+builder.Services.AddScoped<ITopicFollowService, TopicFollowManager>();
+
+builder.Services.AddScoped<ISavedSolutionDal, EfSavedSolutionDal>();
+builder.Services.AddScoped<ISavedSolutionService, SavedSolutionManager>();
+
+builder.Services.AddScoped<ILegalAgreementDal, EfLegalAgreementDal>();
+builder.Services.AddScoped<IUserAgreementAcceptanceDal, EfUserAgreementAcceptanceDal>();
+builder.Services.AddScoped<ILegalAgreementService, LegalAgreementManager>();
+
+builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<ICaptchaService, CaptchaManager>();
+
+builder.Services.AddScoped<WebAPI.Services.IGeoLocationService, WebAPI.Services.GeoLocationService>();
 
 var tokenOptions = builder.Configuration.GetSection("TokenOptions").Get<TokenOptions>();
 
@@ -182,6 +204,7 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(1)
             }));
 });
+
 
 var app = builder.Build();
 
@@ -295,6 +318,6 @@ app.UseMiddleware<WebAPI.Middlewares.MaintenanceMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHub<WebAPI.Hubs.NotificationHub>("/hubs/notification");
+app.MapHub<WebAPI.Hubs.NotificationHub>("/api/hubs/notification");
 
 app.Run();

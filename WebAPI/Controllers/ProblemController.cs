@@ -5,6 +5,7 @@ using Entities.Concrete;
 using Entities.DTOs;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using WebAPI.Services;
 
 namespace WebAPI.Controllers
 {
@@ -16,17 +17,20 @@ namespace WebAPI.Controllers
         private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly IValidator<ProblemAddDto> _validator;
         private readonly ISolutionService _solutionService;
+        private readonly IGeoLocationService _geoLocationService;
 
         public ProblemController(
             IProblemService problemService,
             IWebHostEnvironment webHostEnvironment,
             IValidator<ProblemAddDto> validator,
-            ISolutionService solutionService)
+            ISolutionService solutionService,
+            IGeoLocationService geoLocationService)
         {
             _problemService = problemService;
             _webHostEnvironment = webHostEnvironment;
             _validator = validator;
             _solutionService = solutionService;
+            _geoLocationService = geoLocationService;
         }
 
         [HttpGet("getbyid")]
@@ -66,7 +70,7 @@ namespace WebAPI.Controllers
 
         [HttpPost("add")]
         [Microsoft.AspNetCore.Authorization.Authorize]
-        public IActionResult Add([FromForm] ProblemAddDto problemAddDto)
+        public async Task<IActionResult> Add([FromForm] ProblemAddDto problemAddDto, CancellationToken cancellationToken)
         {
             if (User.Identity == null || !User.Identity.IsAuthenticated)
             {
@@ -95,7 +99,24 @@ namespace WebAPI.Controllers
                 return BadRequest(validationResult.Errors);
             }
 
-            string imagePath = null;
+            // Güvenlik/Doğruluk: Koordinat geldiyse şehir bilgisi otomatik tespit edilir ve kullanıcının gönderdiği CityCode yok sayılır.
+            int finalCityCode = problemAddDto.CityCode;
+            if (problemAddDto.Latitude.HasValue && problemAddDto.Longitude.HasValue)
+            {
+                var resolved = await _geoLocationService.ReverseGeocodeCityAsync(
+                    problemAddDto.Latitude.Value,
+                    problemAddDto.Longitude.Value,
+                    cancellationToken);
+
+                if (resolved == null)
+                {
+                    return BadRequest("Konumdan şehir tespit edilemedi. Lütfen pini doğru konuma taşıyın.");
+                }
+
+                finalCityCode = resolved.CityCode;
+            }
+
+            string? imagePath = null;
             if (problemAddDto.Image != null)
             {
                 string uploadPath = Path.Combine(_webHostEnvironment.WebRootPath, "uploads", "problems");
@@ -119,7 +140,10 @@ namespace WebAPI.Controllers
                 SenderId = senderId,
                 Title = problemAddDto.Title,
                 Description = problemAddDto.Description,
-                CityCode = problemAddDto.CityCode,
+                CityCode = finalCityCode,
+                Address = problemAddDto.Address,
+                Latitude = problemAddDto.Latitude,
+                Longitude = problemAddDto.Longitude,
                 ImageUrl = imagePath,
                 SendDate = DateTime.Now,
                 IsHighlighted = false,
@@ -155,11 +179,51 @@ namespace WebAPI.Controllers
 
         [HttpPost("update")]
         [Microsoft.AspNetCore.Authorization.Authorize]
-        public IActionResult Update([FromBody] ProblemUpdateDto updateDto)
+        public async Task<IActionResult> Update([FromForm] ProblemUpdateDto updateDto, CancellationToken cancellationToken)
         {
             if (User.Identity == null || !User.Identity.IsAuthenticated)
             {
                 return Unauthorized("Kullanıcı girişi gereklidir.");
+            }
+
+            string? finalAddress = updateDto.ClearLocation ? null : updateDto.Address;
+            double? finalLatitude = updateDto.ClearLocation ? null : updateDto.Latitude;
+            double? finalLongitude = updateDto.ClearLocation ? null : updateDto.Longitude;
+
+            // Koordinat geldiyse şehir bilgisi otomatik tespit edilir.
+            int finalCityCode = updateDto.CityCode;
+            if (finalLatitude.HasValue && finalLongitude.HasValue)
+            {
+                var resolved = await _geoLocationService.ReverseGeocodeCityAsync(
+                    finalLatitude.Value,
+                    finalLongitude.Value,
+                    cancellationToken);
+
+                if (resolved == null)
+                {
+                    return BadRequest("Konumdan şehir tespit edilemedi. Lütfen pini doğru konuma taşıyın.");
+                }
+
+                finalCityCode = resolved.CityCode;
+            }
+
+            string? imagePath = updateDto.ImageUrl;
+            if (updateDto.Image != null)
+            {
+                string uploadPath = Path.Combine(_webHostEnvironment.WebRootPath, "uploads", "problems");
+
+                try
+                {
+                    imagePath = Core.Utilities.Helpers.FileHelper.FileHelper.Add(updateDto.Image, uploadPath);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return BadRequest(ex.Message);
+                }
+                catch (Exception)
+                {
+                    return StatusCode(500, "Dosya yüklenirken bir hata oluştu.");
+                }
             }
 
             var problem = new Problem
@@ -168,8 +232,11 @@ namespace WebAPI.Controllers
                 SenderId = updateDto.SenderId,
                 Title = updateDto.Title,
                 Description = updateDto.Description,
-                CityCode = updateDto.CityCode,
-                ImageUrl = updateDto.ImageUrl,
+                CityCode = finalCityCode,
+                Address = finalAddress,
+                Latitude = finalLatitude,
+                Longitude = finalLongitude,
+                ImageUrl = imagePath,
                 SendDate = updateDto.SendDate,
                 IsHighlighted = updateDto.IsHighlighted,
                 IsReported = updateDto.IsReported,

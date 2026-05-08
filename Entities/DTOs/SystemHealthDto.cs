@@ -18,5 +18,6 @@ public class CityProblemDensityDto
 {
     public int CityCode { get; set; }
     public int ProblemCount { get; set; }
+    public int ProblemWithLocationCount { get; set; }
     public int UserCount { get; set; }
 }

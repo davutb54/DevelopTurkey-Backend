@@ -27,12 +27,14 @@ namespace WebAPI.Controllers
         private readonly ISystemSettingsService _systemSettingsService;
         private readonly IUserWarningService _userWarningService;
         private readonly INotificationService _notificationService;
+        private readonly ILegalAgreementService _legalAgreementService;
 
         public AdminController(IUserService userService, IProblemService problemService,
             ISolutionService solutionService, ILogService logService, ITopicService topicService,
             IAdminService adminService, IWebHostEnvironment webHostEnvironment,
             ISystemSettingsService systemSettingsService,
-            IUserWarningService userWarningService, INotificationService notificationService)
+            IUserWarningService userWarningService, INotificationService notificationService,
+            ILegalAgreementService legalAgreementService)
         {
             _userService = userService;
             _problemService = problemService;
@@ -44,6 +46,7 @@ namespace WebAPI.Controllers
             _systemSettingsService = systemSettingsService;
             _userWarningService = userWarningService;
             _notificationService = notificationService;
+            _legalAgreementService = legalAgreementService;
         }
 
         [HttpPost("banuser")]
@@ -332,6 +335,61 @@ namespace WebAPI.Controllers
         {
             var result = _userWarningService.GetByUserId(userId);
             return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        // ─── SÖZLEŞME YÖNETİMİ ───────────────────────────────────────────────────
+
+        [HttpGet("agreements")]
+        public IActionResult GetAllAgreements()
+        {
+            var result = _legalAgreementService.GetAll();
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpGet("agreements/{id}")]
+        public IActionResult GetAgreementById(int id)
+        {
+            var result = _legalAgreementService.GetById(id);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpPost("agreements")]
+        public IActionResult CreateAgreement([FromBody] Entities.DTOs.CreateAgreementDto dto)
+        {
+            var adminId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var result = _legalAgreementService.Create(dto, adminId);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpPut("agreements/activate/{id}")]
+        public IActionResult ActivateAgreement(int id)
+        {
+            var result = _legalAgreementService.Activate(id);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpDelete("agreements/{id}")]
+        public IActionResult DeleteAgreement(int id)
+        {
+            var result = _legalAgreementService.Delete(id);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpGet("agreements/{id}/stats")]
+        public IActionResult GetAgreementStats(int id)
+        {
+            var countResult = _legalAgreementService.GetAcceptanceCount(id);
+            var rateResult = _legalAgreementService.GetAcceptanceRate(id);
+
+            if (!countResult.Success || !rateResult.Success)
+                return BadRequest("İstatistikler alınırken bir hata oluştu.");
+
+            return Ok(new Entities.DTOs.AgreementStatsDto
+            {
+                AgreementId = id,
+                AcceptanceCount = countResult.Data,
+                AcceptanceRate = rateResult.Data
+            });
         }
     }
 }

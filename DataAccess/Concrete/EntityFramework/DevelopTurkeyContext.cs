@@ -47,4 +47,9 @@ public class DevelopTurkeyContext : DbContext
     public DbSet<SystemSettings> SystemSettings { get; set; }
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<UserWarning> UserWarnings { get; set; }
+    public DbSet<ProblemFollow> ProblemFollowers { get; set; }
+    public DbSet<TopicFollow> TopicFollowers { get; set; }
+    public DbSet<SavedSolution> SavedSolutions { get; set; }
+    public DbSet<LegalAgreement> LegalAgreements { get; set; }
+    public DbSet<UserAgreementAcceptance> UserAgreementAcceptances { get; set; }
 }
