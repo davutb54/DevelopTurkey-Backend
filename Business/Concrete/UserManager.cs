@@ -25,8 +25,9 @@ public class UserManager : IUserService
     private readonly ISystemSettingsService _systemSettingsService;
     private readonly INotificationService _notificationService;
     private readonly IConfiguration _configuration;
+    private readonly IEmailVerificationService _emailVerificationService;
 
-    public UserManager(IUserDal userDal, ILogService logService, ITokenHelper tokenHelper, IInstitutionService institutionService, IClientContext clientContext, ISystemSettingsService systemSettingsService, INotificationService notificationService, IConfiguration configuration)
+    public UserManager(IUserDal userDal, ILogService logService, ITokenHelper tokenHelper, IInstitutionService institutionService, IClientContext clientContext, ISystemSettingsService systemSettingsService, INotificationService notificationService, IConfiguration configuration, IEmailVerificationService emailVerificationService)
     {
         _userDal = userDal;
         _logService = logService;
@@ -36,6 +37,7 @@ public class UserManager : IUserService
         _systemSettingsService = systemSettingsService;
         _notificationService = notificationService;
         _configuration = configuration;
+        _emailVerificationService = emailVerificationService;
     }
 
     public IDataResult<UserDetailDto?> GetById(int id)
@@ -89,7 +91,8 @@ public class UserManager : IUserService
     }
     public IResult Login(UserForLoginDto userForLoginDto)
     {
-        var user = _userDal.Get(u => u.UserName == userForLoginDto.UserName);
+        // Username veya e-posta ile giriş desteklenir
+        var user = _userDal.Get(u => u.UserName == userForLoginDto.UserName || u.Email == userForLoginDto.UserName);
 
         if (user == null || user.IsDeleted)
         {
@@ -270,10 +273,15 @@ public class UserManager : IUserService
             return new ErrorResult(Messages.UserNotFound);
         }
 
-        if (!HashingHelper.VerifyPasswordHash(userForPasswordUpdateDto.OldPassword, user.PasswordHash, user.PasswordSalt))
+        // Google OAuth kullanıcısı ve henüz şifresi yoksa eski şifre kontrolünü atla
+        bool isGoogleUserWithNoPassword = user.AuthType == "Google" && user.PasswordHash == null;
+        if (!isGoogleUserWithNoPassword)
         {
-            _logService.LogWarning("Security", "UpdatePassword", $"Hatalı eski şifre girişi - ID: {user.Id}, Kullanıcı: {user.UserName}");
-            return new ErrorResult(Messages.UserPasswordError);
+            if (!HashingHelper.VerifyPasswordHash(userForPasswordUpdateDto.OldPassword, user.PasswordHash, user.PasswordSalt))
+            {
+                _logService.LogWarning("Security", "UpdatePassword", $"Hatalı eski şifre girişi - ID: {user.Id}, Kullanıcı: {user.UserName}");
+                return new ErrorResult(Messages.UserPasswordError);
+            }
         }
 
         byte[] newHash, newSalt;
@@ -316,13 +324,26 @@ public class UserManager : IUserService
             return new ErrorResult(Messages.UserNotFound);
         }
 
+        // E-posta adresi değiştiyse doğrulama sıfırla ve yeniden gönder
+        bool emailChanged = !string.Equals(user.Email, userForUpdateDto.Email, StringComparison.OrdinalIgnoreCase);
+
         user.Name = userForUpdateDto.Name;
         user.Surname = userForUpdateDto.Surname;
         user.Email = userForUpdateDto.Email;
         user.CityCode = userForUpdateDto.CityCode;
         user.Gender = userForUpdateDto.GenderCode;
 
-        _userDal.Update(user);
+        if (emailChanged)
+        {
+            user.IsEmailVerified = false;
+            _userDal.Update(user);
+            _emailVerificationService.SendVerificationCode(user);
+            _logService.LogWarning("Auth", "UpdateDetails", $"E-posta değiştirildi, doğrulama sıfırlandı - ID: {user.Id}, Yeni E-posta: {user.Email}");
+        }
+        else
+        {
+            _userDal.Update(user);
+        }
 
         _logService.LogInfo("Auth", "UpdateDetails", $"Kullanıcı bilgileri güncellendi - ID: {user.Id}, Kullanıcı: {user.UserName}");
 
@@ -542,5 +563,36 @@ public class UserManager : IUserService
         catch { /* Bildirim hatası ana işlemi etkilemesin */ }
         string action = user.IsOfficial ? "Resmi rolü verildi" : "Resmi rolü kaldırıldı";
         return new SuccessResult($"{action} (ID: {user.Id})");
+    }
+
+    public IResult UpdateUsername(int userId, string newUsername)
+    {
+        var user = _userDal.Get(u => u.Id == userId);
+        if (user == null) return new ErrorResult(Messages.UserNotFound);
+
+        // Mevcut kullanıcı adıyla aynıysa başarılı dön
+        if (string.Equals(user.UserName, newUsername, StringComparison.OrdinalIgnoreCase))
+            return new SuccessResult("Kullanıcı adınız zaten bu.");
+
+        // Başkası bu kullanıcı adını kullanıyor mu?
+        var existing = _userDal.Get(u => u.UserName == newUsername);
+        if (existing != null)
+            return new ErrorResult("Bu kullanıcı adı zaten kullanılmaktadır.");
+
+        // 30 günlük bekleme süresi kontrolü
+        if (user.LastUsernameChangeDate.HasValue &&
+            (DateTime.Now - user.LastUsernameChangeDate.Value).TotalDays < 30)
+        {
+            int remainingDays = 30 - (int)(DateTime.Now - user.LastUsernameChangeDate.Value).TotalDays;
+            return new ErrorResult($"Kullanıcı adınızı 30 günde bir değiştirebilirsiniz. {remainingDays} gün daha beklemeniz gerekmektedir.");
+        }
+
+        string oldUsername = user.UserName;
+        user.UserName = newUsername;
+        user.LastUsernameChangeDate = DateTime.Now;
+        _userDal.Update(user);
+
+        _logService.LogInfo("Auth", "UpdateUsername", $"Kullanıcı adı güncellendi - ID: {user.Id}, Eski: {oldUsername}, Yeni: {newUsername}");
+        return new SuccessResult("Kullanıcı adınız başarıyla güncellendi.");
     }
 }

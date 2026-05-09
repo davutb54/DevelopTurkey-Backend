@@ -22,8 +22,11 @@ public class ProblemManager : IProblemService
     private readonly IMemoryCache _cache;
     private readonly INotificationService _notificationService;
     private readonly IProblemFollowService _problemFollowService;
+    private readonly ITopicFollowService _topicFollowService;
+    private readonly IUserService _userService;
+    private readonly ITopicFollowDal _topicFollowDal;
 
-    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal, IClientContext clientContext, IMemoryCache cache, INotificationService notificationService, IProblemFollowService problemFollowService)
+    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal, IClientContext clientContext, IMemoryCache cache, INotificationService notificationService, IProblemFollowService problemFollowService, ITopicFollowService topicFollowService, IUserService userService, ITopicFollowDal topicFollowDal)
     {
         _problemDal = problemDal;
         _logService = logService;
@@ -34,6 +37,9 @@ public class ProblemManager : IProblemService
         _cache = cache;
         _notificationService = notificationService;
         _problemFollowService = problemFollowService;
+        _topicFollowService = topicFollowService;
+        _userService = userService;
+        _topicFollowDal = topicFollowDal;
     }
 
     public IDataResult<ProblemDetailDto> GetById(int id)
@@ -81,6 +87,22 @@ public class ProblemManager : IProblemService
         }
 
         _logService.LogInfo("Content", "Add", $"Problem eklendi - Başlık: {problem.Title}");
+
+        if (topicIds != null && topicIds.Count > 0) {
+            var followerIds = _topicFollowService.GetFollowerIdsByTopicIds(topicIds);
+            foreach (var fId in followerIds) {
+                if (fId == problem.SenderId) continue; // Kendine atma
+                
+                _notificationService.Add(new Notification {
+                    UserId = fId,
+                    Title = "Takip Ettiğiniz Kategoride Yeni Sorun",
+                    Message = $"\"{problem.Title}\" başlıklı yeni bir sorun paylaşıldı.",
+                    Type = "TopicNewProblem",
+                    ReferenceLink = $"/problem/{problem.Id}"
+                });
+            }
+        }
+
         return new SuccessResult(Messages.ProblemAdded);
     }
 
@@ -235,11 +257,51 @@ public class ProblemManager : IProblemService
             problems = problems.Where(p => p.Topics != null && p.Topics.Any(t => t.Id == filterDto.TopicId.Value)).ToList();
         }
 
-        var sortedProblems = problems.OrderByDescending(p =>
-            (p.ViewCount) +
-            (p.SolutionCount * 5) +
-            (p.IsResolvedByExpert ? 1000 : 0)
-        ).ToList();
+        var currentUserId = _clientContext.GetUserId();
+        int? userCityCode = null;
+        int? userInstitutionId = null;
+        List<int> followedTopicIds = new List<int>();
+
+        if (currentUserId > 0)
+        {
+            var user = _userService.GetById((int)currentUserId).Data;
+            if (user != null)
+            {
+                userCityCode = user.CityCode;
+                userInstitutionId = user.InstitutionId;
+            }
+            followedTopicIds = _topicFollowDal.GetAll(t => t.UserId == currentUserId).Select(t => t.TopicId).ToList();
+        }
+
+        var sortedProblems = problems.OrderByDescending(p => {
+            // 1. Etkileşim Skoru
+            double baseScore = (p.ViewCount * 1) + 
+                               (p.SolutionCount * 15) + 
+                               (p.UpvoteCount * 20) + 
+                               (p.FollowerCount * 10);
+            if (baseScore == 0) baseScore = 1;
+
+            // 2. Otorite Çarpanı
+            double authority = 1.0;
+            if (p.IsHighlighted) authority *= 3.0;
+            if (p.IsResolvedByExpert) authority *= 2.0;
+            if (p.SenderIsOfficial) authority *= 1.5;
+
+            // 3. Kişiselleştirme Çarpanı
+            double personalization = 1.0;
+            if (currentUserId > 0) {
+                if (userCityCode.HasValue && p.CityCode == userCityCode.Value) personalization *= 1.5;
+                if (userInstitutionId.HasValue && p.InstitutionId == userInstitutionId.Value) personalization *= 2.0;
+                if (p.Topics != null && p.Topics.Any(t => followedTopicIds.Contains(t.Id))) personalization *= 2.5;
+            }
+
+            // 4. Zaman Kaybı (Time Decay)
+            double hoursSincePosted = (DateTime.Now - p.SendDate).TotalHours;
+            if (hoursSincePosted < 0) hoursSincePosted = 0;
+            double timeDecay = Math.Pow(hoursSincePosted + 2, 1.5);
+
+            return (baseScore * authority * personalization) / timeDecay;
+        }).ToList();
 
         var paginatedProblems = sortedProblems
             .Skip((filterDto.Page - 1) * filterDto.PageSize)

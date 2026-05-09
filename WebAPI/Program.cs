@@ -42,6 +42,9 @@ builder.Services.AddScoped<ITopicDal, EfTopicDal>();
 builder.Services.AddScoped<IProblemService, ProblemManager>();
 builder.Services.AddScoped<IProblemDal, EfProblemDal>();
 
+builder.Services.AddScoped<IProblemUpvoteService, ProblemUpvoteManager>();
+builder.Services.AddScoped<IProblemUpvoteDal, EfProblemUpvoteDal>();
+
 builder.Services.AddScoped<ISolutionService, SolutionManager>();
 builder.Services.AddScoped<ISolutionDal, EfSolutionDal>();
 
@@ -59,6 +62,9 @@ builder.Services.AddScoped<IEmailVerificationDal, EfEmailVerificationDal>();
 
 builder.Services.AddScoped<IEmailHelper, SmtpEmailHelper>();
 builder.Services.AddScoped<ILogService, LogManager>();
+
+builder.Services.Configure<Core.CrossCuttingConcerns.Logging.ExceptionFileLoggingOptions>(builder.Configuration.GetSection("ExceptionFileLogging"));
+builder.Services.AddSingleton<Core.CrossCuttingConcerns.Logging.IExceptionFileLogger, WebAPI.Services.ExceptionFileLogger>();
 
 builder.Services.AddScoped<IReportDal, EfReportDal>();
 builder.Services.AddScoped<IReportService, ReportManager>();
@@ -96,6 +102,9 @@ builder.Services.AddScoped<ISavedSolutionService, SavedSolutionManager>();
 builder.Services.AddScoped<ILegalAgreementDal, EfLegalAgreementDal>();
 builder.Services.AddScoped<IUserAgreementAcceptanceDal, EfUserAgreementAcceptanceDal>();
 builder.Services.AddScoped<ILegalAgreementService, LegalAgreementManager>();
+
+builder.Services.AddScoped<IAboutPageSectionService, AboutPageSectionManager>();
+builder.Services.AddScoped<IAboutPageSectionDal, EfAboutPageSectionDal>();
 
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<ICaptchaService, CaptchaManager>();

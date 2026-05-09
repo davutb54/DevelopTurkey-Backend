@@ -130,7 +130,9 @@ namespace WebAPI.Controllers
                 return BadRequest(userToLogin.Message);
             }
 
-            var user = _userService.GetByUserName(userForLoginDto.UserName);
+            // Username veya e-posta ile giriş yapılabildiğinden kullanıcıyı aynı şekilde çek
+            var user = _userService.GetByUserName(userForLoginDto.UserName)
+                       ?? _userService.GetByEmail(userForLoginDto.UserName);
 
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
 
@@ -408,6 +410,27 @@ namespace WebAPI.Controllers
             Response.Cookies.Append("userId", tokenResult.Data.UserId.ToString(), cookieOptions);
 
             return Ok(new { success = true, data = tokenResult.Data, message = "Admin hesabına başarıyla geri dönüldü." });
+        }
+
+        [HttpPost("updateusername")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        public IActionResult UpdateUsername([FromBody] string newUsername)
+        {
+            if (User.Identity == null || !User.Identity.IsAuthenticated)
+                return Unauthorized("Kullanıcı girişi gereklidir.");
+
+            if (User.Claims.Any(c => c.Type == System.Security.Claims.ClaimTypes.Actor))
+                return BadRequest("SUDO Güvenlik Politikası: Başka bir kullanıcının adını değiştiremezsiniz.");
+
+            if (string.IsNullOrWhiteSpace(newUsername))
+                return BadRequest("Kullanıcı adı boş olamaz.");
+
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
+                return Unauthorized("Geçersiz token.");
+
+            var result = _userService.UpdateUsername(userId, newUsername);
+            return result.Success ? Ok(result) : BadRequest(result);
         }
 
     }

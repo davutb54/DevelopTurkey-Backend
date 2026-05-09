@@ -1,4 +1,4 @@
-﻿using Core.DataAccess.EntityFramework;
+using Core.DataAccess.EntityFramework;
 using DataAccess.Abstract;
 using Entities.Concrete;
 using Entities.DTOs;
@@ -42,6 +42,8 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                         IsResolvedByExpert = context.Solutions.Any(s => s.ProblemId == p.Id && s.ExpertApprovalStatus == 1),
                         IsResolved = p.IsResolved,
                         InstitutionId = p.InstitutionId,
+                        UpvoteCount = context.ProblemUpvotes.Count(u => u.ProblemId == p.Id),
+                        FollowerCount = context.ProblemFollowers.Count(f => f.ProblemId == p.Id),
 
                         Topics = (from pt in context.ProblemTopics
                                   join t in context.Topics on pt.TopicId equals t.Id
@@ -87,6 +89,8 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                         IsResolvedByExpert = context.Solutions.Any(s => s.ProblemId == p.Id && s.ExpertApprovalStatus == 1),
                         IsResolved = p.IsResolved,
                         InstitutionId = p.InstitutionId,
+                        UpvoteCount = context.ProblemUpvotes.Count(u => u.ProblemId == p.Id),
+                        FollowerCount = context.ProblemFollowers.Count(f => f.ProblemId == p.Id),
 
                         Topics = (from pt in context.ProblemTopics
                                   join t in context.Topics on pt.TopicId equals t.Id
@@ -147,6 +151,8 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                 IsResolvedByExpert = context.Solutions.Any(s => s.ProblemId == x.p.Id && s.ExpertApprovalStatus == 1),
                 IsResolved = x.p.IsResolved,
                 InstitutionId = x.p.InstitutionId,
+                UpvoteCount = context.ProblemUpvotes.Count(u => u.ProblemId == x.p.Id),
+                FollowerCount = context.ProblemFollowers.Count(f => f.ProblemId == x.p.Id),
 
                 Topics = (from pt in context.ProblemTopics
                           join t in context.Topics on pt.TopicId equals t.Id

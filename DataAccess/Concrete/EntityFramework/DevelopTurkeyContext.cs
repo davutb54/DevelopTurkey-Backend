@@ -52,4 +52,6 @@ public class DevelopTurkeyContext : DbContext
     public DbSet<SavedSolution> SavedSolutions { get; set; }
     public DbSet<LegalAgreement> LegalAgreements { get; set; }
     public DbSet<UserAgreementAcceptance> UserAgreementAcceptances { get; set; }
+    public DbSet<ProblemUpvote> ProblemUpvotes { get; set; }
+    public DbSet<AboutPageSection> AboutPageSections { get; set; }
 }

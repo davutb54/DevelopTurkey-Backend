@@ -1,4 +1,4 @@
-﻿namespace Entities.DTOs.User;
+namespace Entities.DTOs.User;
 
 public class UserDetailDto
 {
@@ -19,8 +19,11 @@ public class UserDetailDto
 	public bool IsDeleted { get; set; }
 	public bool IsBanned { get; set; }
 	public bool IsEmailVerified { get; set; }
+	public string AuthType { get; set; }
+	public bool HasPassword { get; set; }
 	public DateTime RegisterDate { get; set; }
 	public DateTime? DeleteDate { get; set; }
+	public DateTime? LastUsernameChangeDate { get; set; }
     public string? ProfileImageUrl { get; set; }
     public int InstitutionId { get; set; }
 }

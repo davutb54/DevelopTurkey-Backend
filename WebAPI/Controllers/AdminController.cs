@@ -28,13 +28,15 @@ namespace WebAPI.Controllers
         private readonly IUserWarningService _userWarningService;
         private readonly INotificationService _notificationService;
         private readonly ILegalAgreementService _legalAgreementService;
+        private readonly IAboutPageSectionService _aboutPageSectionService;
 
         public AdminController(IUserService userService, IProblemService problemService,
             ISolutionService solutionService, ILogService logService, ITopicService topicService,
             IAdminService adminService, IWebHostEnvironment webHostEnvironment,
             ISystemSettingsService systemSettingsService,
             IUserWarningService userWarningService, INotificationService notificationService,
-            ILegalAgreementService legalAgreementService)
+            ILegalAgreementService legalAgreementService,
+            IAboutPageSectionService aboutPageSectionService)
         {
             _userService = userService;
             _problemService = problemService;
@@ -47,6 +49,7 @@ namespace WebAPI.Controllers
             _userWarningService = userWarningService;
             _notificationService = notificationService;
             _legalAgreementService = legalAgreementService;
+            _aboutPageSectionService = aboutPageSectionService;
         }
 
         [HttpPost("banuser")]
@@ -390,6 +393,36 @@ namespace WebAPI.Controllers
                 AcceptanceCount = countResult.Data,
                 AcceptanceRate = rateResult.Data
             });
+        }
+
+        // --- About Page Sections ---
+
+        [HttpGet("aboutsections")]
+        public IActionResult GetAllAboutSections()
+        {
+            var result = _aboutPageSectionService.GetAll();
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpPost("aboutsections")]
+        public IActionResult AddAboutSection([FromBody] AboutPageSection section)
+        {
+            var result = _aboutPageSectionService.Add(section);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpPut("aboutsections")]
+        public IActionResult UpdateAboutSection([FromBody] AboutPageSection section)
+        {
+            var result = _aboutPageSectionService.Update(section);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpDelete("aboutsections/{id}")]
+        public IActionResult DeleteAboutSection(int id)
+        {
+            var result = _aboutPageSectionService.Delete(id);
+            return result.Success ? Ok(result) : BadRequest(result);
         }
     }
 }

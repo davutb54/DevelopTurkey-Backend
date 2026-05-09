@@ -1,4 +1,6 @@
 using Business.Abstract;
+using Core.Utilities.Results;
+using Entities.Concrete;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -51,6 +53,16 @@ namespace WebAPI.Controllers
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
             var result = _legalAgreementService.Accept(userId, agreementId, ip);
             return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [AllowAnonymous]
+        [HttpGet("active/{type}")]
+        public IActionResult GetActiveByType(string type)
+        {
+            var agreements = _legalAgreementService.GetActiveAgreements().Data;
+            var target = agreements?.FirstOrDefault(a => a.Type.ToLower() == type.ToLower());
+            if (target == null) return NotFound("Bu tipe ait aktif sözleşme bulunamadı.");
+            return Ok(new SuccessDataResult<LegalAgreement>(target));
         }
     }
 }

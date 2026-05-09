@@ -33,10 +33,13 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
                          ProfileImageUrl = u.ProfileImageUrl,
                          IsOfficial = u.IsOfficial,
                          IsEmailVerified = u.IsEmailVerified,
+                         AuthType = u.AuthType,
+                         HasPassword = u.PasswordHash != null,
 						 RegisterDate = u.RegisterDate,
 						 DeleteDate = u.DeleteDate,
 						 CityCode = u.CityCode,
 						 GenderCode = u.Gender,
+						 LastUsernameChangeDate = u.LastUsernameChangeDate,
 						 InstitutionId = u.InstitutionId
                      };
 		return result.SingleOrDefault(filter);
@@ -65,8 +68,11 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
                          IsOfficial = u.IsOfficial,
                          IsBanned = u.IsBanned,
 						 IsEmailVerified = u.IsEmailVerified,
+                         AuthType = u.AuthType,
+                         HasPassword = u.PasswordHash != null,
 						 RegisterDate = u.RegisterDate,
 						 DeleteDate = u.DeleteDate,
+						 LastUsernameChangeDate = u.LastUsernameChangeDate,
 						 InstitutionId = u.InstitutionId,
 					 };
 		return filter == null ? result.ToList() : result.Where(filter).ToList();
@@ -96,8 +102,11 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
                         IsOfficial = u.IsOfficial,
                         IsBanned = u.IsBanned,
                         IsEmailVerified = u.IsEmailVerified,
+                        AuthType = u.AuthType,
+                        HasPassword = u.PasswordHash != null,
                         RegisterDate = u.RegisterDate,
                         DeleteDate = u.DeleteDate,
+                        LastUsernameChangeDate = u.LastUsernameChangeDate,
                         InstitutionId = u.InstitutionId,
                         CityCode = u.CityCode,
                         GenderCode = u.Gender,

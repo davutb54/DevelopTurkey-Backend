@@ -34,4 +34,5 @@ public interface IUserService
     IResult ToggleAdminRole(int userId);
     IResult ToggleExpertRole(int userId);
     IResult ToggleOfficialRole(int userId);
+    IResult UpdateUsername(int userId, string newUsername);
 }

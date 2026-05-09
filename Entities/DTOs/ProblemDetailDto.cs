@@ -1,4 +1,4 @@
-﻿namespace Entities.DTOs;
+namespace Entities.DTOs;
 
 public class ProblemDetailDto
 {
@@ -27,4 +27,6 @@ public class ProblemDetailDto
     public bool IsResolved { get; set; }
     public string? SenderImageUrl { get; set; }
     public int InstitutionId { get; set; }
+    public int UpvoteCount { get; set; }
+    public int FollowerCount { get; set; }
 }

@@ -14,15 +14,18 @@ namespace WebAPI.Controllers
         private readonly IProblemFollowService _problemFollowService;
         private readonly ITopicFollowService _topicFollowService;
         private readonly ISavedSolutionService _savedSolutionService;
+        private readonly IProblemUpvoteService _problemUpvoteService;
 
         public ActionController(
             IProblemFollowService problemFollowService,
             ITopicFollowService topicFollowService,
-            ISavedSolutionService savedSolutionService)
+            ISavedSolutionService savedSolutionService,
+            IProblemUpvoteService problemUpvoteService)
         {
             _problemFollowService = problemFollowService;
             _topicFollowService = topicFollowService;
             _savedSolutionService = savedSolutionService;
+            _problemUpvoteService = problemUpvoteService;
         }
 
         private int GetUserId()
@@ -72,6 +75,16 @@ namespace WebAPI.Controllers
             return Ok(new { isFollowing });
         }
 
+        [HttpGet("check-topic-follow")]
+        public IActionResult CheckTopicFollow([FromQuery] int topicId)
+        {
+            var userId = GetUserId();
+            if (userId == 0) return Unauthorized();
+
+            var isFollowing = _topicFollowService.CheckFollow(topicId, userId);
+            return Ok(new { isFollowing });
+        }
+
         [HttpGet("check-solution-save")]
         public IActionResult CheckSolutionSave([FromQuery] int solutionId)
         {
@@ -80,6 +93,34 @@ namespace WebAPI.Controllers
 
             var isSaved = _savedSolutionService.CheckSave(solutionId, userId);
             return Ok(new { isSaved });
+        }
+
+        [HttpPost("toggle-problem-upvote")]
+        public IActionResult ToggleProblemUpvote([FromQuery] int problemId)
+        {
+            var userId = GetUserId();
+            if (userId == 0) return Unauthorized();
+
+            var result = _problemUpvoteService.ToggleUpvote(problemId, userId);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpGet("check-problem-upvote")]
+        public IActionResult CheckProblemUpvote([FromQuery] int problemId)
+        {
+            var userId = GetUserId();
+            if (userId == 0) return Unauthorized();
+
+            var isUpvoted = _problemUpvoteService.CheckUpvote(problemId, userId);
+            return Ok(new { isUpvoted });
+        }
+
+        [HttpGet("get-problem-upvote-count")]
+        [AllowAnonymous]
+        public IActionResult GetProblemUpvoteCount([FromQuery] int problemId)
+        {
+            var count = _problemUpvoteService.GetUpvoteCount(problemId);
+            return Ok(new { count });
         }
     }
 }

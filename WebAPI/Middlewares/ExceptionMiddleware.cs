@@ -20,7 +20,7 @@ public class ExceptionMiddleware
         _env = env;
     }
 
-    public async Task InvokeAsync(HttpContext httpContext, ILogService logService)
+    public async Task InvokeAsync(HttpContext httpContext, ILogService logService, IExceptionFileLogger exceptionFileLogger)
     {
         try
         {
@@ -45,13 +45,40 @@ public class ExceptionMiddleware
                 Method = request.Method,
                 ClientIp = httpContext.Connection.RemoteIpAddress?.ToString(),
                 UserId = userId,
+                TraceId = httpContext.TraceIdentifier,
                 StackTrace = ex.StackTrace,
                 SuggestedSolutions = solutions
             };
 
             string jsonDetails = System.Text.Json.JsonSerializer.Serialize(detail, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
 
-            logService.LogCritical("System", "UnhandledException", $"Sistem Hatası: {ex.Message}", jsonDetails);
+            // 1) Sunucu dosyasına yaz (DB çökmüş olsa bile log kalsın)
+            var fileEntry = new ExceptionLogFileEntry(
+                TimestampUtc: DateTimeOffset.UtcNow,
+                Environment: _env.EnvironmentName,
+                MachineName: Environment.MachineName,
+                TraceId: httpContext.TraceIdentifier,
+                UserId: userId?.ToString(),
+                Endpoint: endpoint,
+                Method: request.Method,
+                ClientIp: httpContext.Connection.RemoteIpAddress?.ToString(),
+                ExceptionType: ex.GetType().Name,
+                ExceptionMessage: ex.Message,
+                ExceptionToString: ex.ToString(),
+                Detail: detail
+            );
+
+            await exceptionFileLogger.TryLogAsync(fileEntry, CancellationToken.None);
+
+            // 2) Mevcut DB loglamayı da koru
+            try
+            {
+                logService.LogCritical("System", "UnhandledException", $"Sistem Hatası: {ex.Message}", jsonDetails);
+            }
+            catch
+            {
+                // DB log'u patlarsa request'in hata cevabını engellemesin.
+            }
 
             await HandleExceptionAsync(httpContext, ex);
         }

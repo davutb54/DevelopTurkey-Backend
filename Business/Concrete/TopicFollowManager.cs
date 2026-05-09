@@ -28,4 +28,18 @@ public class TopicFollowManager : ITopicFollowService
             return new SuccessDataResult<bool>(true, "Konu takip edildi");
         }
     }
+
+    public bool CheckFollow(int topicId, int userId)
+    {
+        var existing = _topicFollowDal.Get(t => t.TopicId == topicId && t.UserId == userId);
+        return existing != null;
+    }
+
+    public List<int> GetFollowerIdsByTopicIds(List<int> topicIds)
+    {
+        return _topicFollowDal.GetAll(t => topicIds.Contains(t.TopicId))
+                              .Select(t => t.UserId)
+                              .Distinct()
+                              .ToList();
+    }
 }

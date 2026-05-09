@@ -62,6 +62,7 @@ namespace WebAPI.Controllers
             var institution = new Institution
             {
                 Name = dto.Name,
+                Subtitle = dto.Subtitle,
                 Domain = dto.Domain,
                 PrimaryColor = dto.PrimaryColor,
                 Status = dto.Status,
@@ -92,6 +93,7 @@ namespace WebAPI.Controllers
             }
 
             existingInst.Name = dto.Name;
+            existingInst.Subtitle = dto.Subtitle;
             existingInst.Domain = dto.Domain;
             existingInst.PrimaryColor = dto.PrimaryColor;
             existingInst.Status = dto.Status;
