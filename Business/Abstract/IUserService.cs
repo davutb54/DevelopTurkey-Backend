@@ -9,13 +9,14 @@ namespace Business.Abstract;
 public interface IUserService
 {
     IDataResult<UserDetailDto?> GetById(int id);
-    IDataResult<UserPublicProfileDto?> GetPublicProfile(int id);
+    IDataResult<UserPublicProfileDto?> GetPublicProfile(int id, int institutionId);
+    IDataResult<UserPublicProfileDto?> GetPublicProfileByUserName(string username, int institutionId);
     IDataResult<List<UserDetailDto>> GetAll();
     IDataResult<(List<UserDetailDto> Items, int TotalCount)> GetAllPaged(UserFilterDto filter);
     IResult Login(UserForLoginDto userForLoginDto);
     IDataResult<AccessToken> GoogleLogin(UserForGoogleLoginDto googleLoginDto);
     IResult Register(UserForRegisterDto userForRegisterDto);
-    IDataResult<AccessToken> CreateAccessToken(User user, int? impersonatedById = null);
+    IDataResult<AccessToken> CreateAccessToken(User user, int? impersonatedById = null, int? sessionTimeoutMinutes = null);
     bool VerifyPassword(int userId, string password);
     IResult UpdatePassword(UserForPasswordUpdateDto userForPasswordUpdateDto);
     IResult CheckUserExists(CheckExistsDto checkExistsDto);
@@ -35,4 +36,5 @@ public interface IUserService
     IResult ToggleExpertRole(int userId);
     IResult ToggleOfficialRole(int userId);
     IResult UpdateUsername(int userId, string newUsername);
+    IResult ChangeUserInstitution(int userId, int newInstitutionId);
 }

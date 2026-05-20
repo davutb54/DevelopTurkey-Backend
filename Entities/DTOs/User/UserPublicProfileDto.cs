@@ -11,6 +11,9 @@ public class UserPublicProfileDto
     public bool IsAdmin { get; set; }
     public bool IsExpert { get; set; }
     public bool IsOfficial { get; set; }
+    public bool IsProfilePublic { get; set; }
+    public bool ShowSolutions { get; set; }
+    public bool ShowProblems { get; set; }
     public DateTime RegisterDate { get; set; }
     public string? ProfileImageUrl { get; set; }
     public int InstitutionId { get; set; }

@@ -1,4 +1,5 @@
 using Business.Abstract;
+using Business.Models;
 using Core.Utilities.Context;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
@@ -13,18 +14,26 @@ public class FeedbackManager : IFeedbackService
     private readonly IFeedbackDal _feedbackDal;
     private readonly ILogService _logService;
     private readonly IClientContext _clientContext;
+    private readonly IWorkflowEventBus _eventBus;
 
-    public FeedbackManager(IFeedbackDal feedbackDal, ILogService logService, IClientContext clientContext)
+    public FeedbackManager(IFeedbackDal feedbackDal, ILogService logService, IClientContext clientContext, IWorkflowEventBus eventBus)
     {
         _feedbackDal = feedbackDal;
         _logService = logService;
         _clientContext = clientContext;
+        _eventBus = eventBus;
     }
 
     public IResult Add(Feedback feedback)
     {
         feedback.UserId = _clientContext.GetUserId() ?? 0;
         _feedbackDal.Add(feedback);
+
+        _ = _eventBus.PublishAsync("feedback.received", new RuleContext
+        {
+            SystemUserId = feedback.UserId
+        });
+
         _logService.LogInfo("Feedback","Add", $"Yeni Geribildirim eklendi: {feedback.Title}");
         return new SuccessResult("Geri bildirim başarıyla gönderildi.");
     }

@@ -40,7 +40,12 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
 						 CityCode = u.CityCode,
 						 GenderCode = u.Gender,
 						 LastUsernameChangeDate = u.LastUsernameChangeDate,
-						 InstitutionId = u.InstitutionId
+						 InstitutionId = u.InstitutionId,
+						 CustomHierarchyId = u.CustomHierarchyId,
+                         MentionNotificationEnabled = u.MentionNotificationEnabled,
+                         IsProfilePublic = u.IsProfilePublic,
+                         ShowSolutions = u.ShowSolutions,
+                         ShowProblems = u.ShowProblems
                      };
 		return result.SingleOrDefault(filter);
 	}
@@ -74,6 +79,11 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
 						 DeleteDate = u.DeleteDate,
 						 LastUsernameChangeDate = u.LastUsernameChangeDate,
 						 InstitutionId = u.InstitutionId,
+						 CustomHierarchyId = u.CustomHierarchyId,
+                         MentionNotificationEnabled = u.MentionNotificationEnabled,
+                         IsProfilePublic = u.IsProfilePublic,
+                         ShowSolutions = u.ShowSolutions,
+                         ShowProblems = u.ShowProblems
 					 };
 		return filter == null ? result.ToList() : result.Where(filter).ToList();
 	}
@@ -110,6 +120,11 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
                         InstitutionId = u.InstitutionId,
                         CityCode = u.CityCode,
                         GenderCode = u.Gender,
+                        CustomHierarchyId = u.CustomHierarchyId,
+                        MentionNotificationEnabled = u.MentionNotificationEnabled,
+                        IsProfilePublic = u.IsProfilePublic,
+                        ShowSolutions = u.ShowSolutions,
+                        ShowProblems = u.ShowProblems
                     };
 
         // --- FİLTRELER ---

@@ -1,5 +1,6 @@
 using Business.Abstract;
 using Business.Constants;
+using Business.Models;
 using Core.Entities.Concrete;
 using Core.Utilities.Context;
 using Core.Utilities.Results;
@@ -17,14 +18,20 @@ public class CommentManager : ICommentService
     private readonly IClientContext _clientContext;
     private readonly ISolutionDal _solutionDal;
     private readonly INotificationService _notificationService;
+    private readonly IInstitutionFeatureService _featureService;
+    private readonly IMentionService _mentionService;
+    private readonly IWorkflowEventBus _eventBus;
 
-    public CommentManager(ICommentDal commentDal, ILogService logService, IClientContext clientContext, ISolutionDal solutionDal, INotificationService notificationService)
+    public CommentManager(ICommentDal commentDal, ILogService logService, IClientContext clientContext, ISolutionDal solutionDal, INotificationService notificationService, IInstitutionFeatureService featureService, IMentionService mentionService, IWorkflowEventBus eventBus)
     {
         _commentDal = commentDal;
         _logService = logService;
         _clientContext = clientContext;
         _solutionDal = solutionDal;
         _notificationService = notificationService;
+        _featureService = featureService;
+        _mentionService = mentionService;
+        _eventBus = eventBus;
     }
 
 
@@ -50,16 +57,38 @@ public class CommentManager : ICommentService
 
     public IResult Add(Comment comment)
     {
+        var solution = _solutionDal.Get(s => s.Id == comment.SolutionId);
+        if (solution == null) return new ErrorResult("Çözüm bulunamadı.");
+
+        if (comment.ParentCommentId.HasValue && !_featureService.IsFeatureEnabled(solution.InstitutionId, "Social.EnableNestedComments"))
+        {
+            return new ErrorResult("Bu kurumda alt yorumlar (yanıtlar) devre dışıdır.");
+        }
+
         comment.SenderId = _clientContext.GetUserId() ?? 0;
         comment.SendDate = DateTime.Now;
         _commentDal.Add(comment);
+
+        _ = _eventBus.PublishAsync("comment.created", new RuleContext
+        {
+            SystemUserId = comment.SenderId,
+            Metadata = new Dictionary<string, object?>
+            {
+                ["CommentId"] = comment.Id,
+                ["SolutionId"] = comment.SolutionId,
+                ["ParentCommentId"] = comment.ParentCommentId
+            }
+        });
+
         _logService.LogInfo("Content", "Add", $"Yorum eklendi - SolutionId: {comment.SolutionId}");
+
+        // Etiketlemeleri işle
+        _mentionService.ProcessMentions(comment.Text, comment.SenderId, solution.InstitutionId, $"/problem/{solution.ProblemId}", solution.Title);
 
         // Bildirim: Çözüm sahibine, kendi yorumu değilse bildirim gönder
         try
         {
-            var solution = _solutionDal.Get(s => s.Id == comment.SolutionId);
-            if (solution != null && solution.SenderId != comment.SenderId)
+            if (solution.SenderId != comment.SenderId)
             {
                 _notificationService.Add(new Notification
                 {
@@ -91,7 +120,26 @@ public class CommentManager : ICommentService
         comment.Text = commentUpdateDto.Text;
 
         _commentDal.Update(comment);
+
+        _ = _eventBus.PublishAsync("comment.updated", new RuleContext
+        {
+            SystemUserId = comment.SenderId,
+            Metadata = new Dictionary<string, object?>
+            {
+                ["CommentId"] = comment.Id,
+                ["SolutionId"] = comment.SolutionId
+            }
+        });
+
         _logService.LogInfo("Content", "Update", $"Yorum güncellendi - CommentId: {comment.Id}");
+
+        // Etiketlemeleri işle (güncellemede de bildirim gitsin)
+        var solution = _solutionDal.Get(s => s.Id == comment.SolutionId);
+        if (solution != null)
+        {
+            _mentionService.ProcessMentions(comment.Text, comment.SenderId, solution.InstitutionId, $"/problem/{solution.ProblemId}", solution.Title);
+        }
+
         return new SuccessResult(Messages.CommentUpdated);
     }
 
@@ -119,6 +167,15 @@ public class CommentManager : ICommentService
             childCom.DeleteDate = DateTime.Now;
             _commentDal.Update(childCom);
         }
+
+        _ = _eventBus.PublishAsync("comment.deleted", new RuleContext
+        {
+            SystemUserId = _clientContext.GetUserId() ?? 0,
+            Metadata = new Dictionary<string, object?>
+            {
+                ["CommentId"] = id
+            }
+        });
 
         _logService.LogWarning("Content", "Delete", $"Yorum silindi - CommentId: {id} (Alt Yanıtlarıyla Birlikte)");
 

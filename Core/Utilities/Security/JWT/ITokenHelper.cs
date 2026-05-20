@@ -4,5 +4,5 @@ namespace Core.Utilities.Security.JWT;
 
 public interface ITokenHelper
 {
-    AccessToken CreateToken(User user, int? impersonatedById = null);
+    AccessToken CreateToken(User user, int? impersonatedById = null, int? sessionTimeoutMinutes = null);
 }

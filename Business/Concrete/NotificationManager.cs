@@ -2,8 +2,6 @@ using Business.Abstract;
 using Core.Entities.Concrete;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace Business.Concrete;
 
@@ -11,17 +9,23 @@ public class NotificationManager : INotificationService
 {
     private readonly INotificationDal _notificationDal;
     private readonly ILogService _logService;
+    private readonly ILiveNotificationService _liveNotificationService;
 
-    public NotificationManager(INotificationDal notificationDal, ILogService logService)
+    public NotificationManager(INotificationDal notificationDal, ILogService logService, ILiveNotificationService liveNotificationService)
     {
         _notificationDal = notificationDal;
         _logService = logService;
+        _liveNotificationService = liveNotificationService;
     }
 
     public IResult Add(Notification notification)
     {
         _notificationDal.Add(notification);
         _logService.LogInfo("System", "SendNotification", $"Kullanıcıya (ID: {notification.UserId}) yeni bildirim: {notification.Title}");
+
+        // Soyutlanmış canlı bildirim servisini kullan
+        _liveNotificationService.SendNotificationAsync(notification);
+
         return new SuccessResult("Bildirim eklendi.");
     }
 

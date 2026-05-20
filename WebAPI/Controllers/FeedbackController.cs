@@ -14,16 +14,29 @@ public class FeedbackController : ControllerBase
 {
     private readonly IFeedbackService _feedbackService;
     private readonly IClientContext _clientContext;
+    private readonly IInstitutionFeatureService _institutionFeatureService;
 
-    public FeedbackController(IFeedbackService feedbackService, IClientContext clientContext)
+    public FeedbackController(IFeedbackService feedbackService, IClientContext clientContext,
+        IInstitutionFeatureService institutionFeatureService)
     {
         _feedbackService = feedbackService;
         _clientContext = clientContext;
+        _institutionFeatureService = institutionFeatureService;
     }
 
     [HttpPost("add")]
     public IActionResult Add(Feedback feedback)
     {
+        // Geri bildirim feature kontrolü
+        int institutionId = 1;
+        var institutionClaim = User.Claims.FirstOrDefault(c => c.Type == "InstitutionId");
+        if (institutionClaim != null)
+        {
+            institutionId = Convert.ToInt32(institutionClaim.Value);
+        }
+        if (!_institutionFeatureService.IsFeatureEnabled(institutionId, "Communication.EnableFeedbackInbox", true))
+            return BadRequest(new { success = false, message = "Bu kurum için geri bildirim özelliği devre dışı." });
+
         feedback.UserId = _clientContext.GetUserId() ?? 0;
         feedback.SendDate = DateTime.Now;
         feedback.IsRead = false;

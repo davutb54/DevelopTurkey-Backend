@@ -1,4 +1,4 @@
-﻿using Core.Entities;
+using Core.Entities;
 
 namespace Entities.Concrete;
 
@@ -9,6 +9,7 @@ public class Log : IEntity
     public string? UserName { get; set; }
     public string? IpAddress { get; set; }
     public string? Port { get; set; }
+    public int? InstitutionId { get; set; }
     public string Category { get; set; }
     public string Action { get; set; }
     public string Level { get; set; } 

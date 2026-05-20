@@ -1,4 +1,5 @@
 using Business.Abstract;
+using Business.Models;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
 using Entities.Concrete;
@@ -13,15 +14,18 @@ public class SystemSettingsManager : ISystemSettingsService
     private readonly ISystemSettingsDal _systemSettingsDal;
     private readonly IMemoryCache _memoryCache;
     private readonly ILogService _logService;
+    private readonly IWorkflowEventBus _eventBus;
 
     public SystemSettingsManager(
         ISystemSettingsDal systemSettingsDal,
         IMemoryCache memoryCache,
-        ILogService logService)
+        ILogService logService,
+        IWorkflowEventBus eventBus)
     {
         _systemSettingsDal = systemSettingsDal;
         _memoryCache = memoryCache;
         _logService = logService;
+        _eventBus = eventBus;
     }
 
     public IDataResult<SystemSettings> Get()
@@ -64,6 +68,17 @@ public class SystemSettingsManager : ISystemSettingsService
         _systemSettingsDal.Update(settings);
 
         _memoryCache.Remove(CacheKey);
+
+        _ = _eventBus.PublishAsync("system.settings_changed", new RuleContext
+        {
+            SystemUserId = adminUserId,
+            Metadata = new Dictionary<string, object?>
+            {
+                ["IsMaintenanceMode"] = settings.IsMaintenanceMode,
+                ["DisableNewRegistrations"] = settings.DisableNewRegistrations,
+                ["MaintenanceMessage"] = settings.MaintenanceMessage
+            }
+        });
 
         _logService.LogInfo(
             "AdminAction",

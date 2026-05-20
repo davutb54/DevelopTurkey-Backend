@@ -66,7 +66,10 @@ namespace WebAPI.Controllers
                 Domain = dto.Domain,
                 PrimaryColor = dto.PrimaryColor,
                 Status = dto.Status,
-                LogoUrl = logoUrl
+                LogoUrl = logoUrl,
+                CustomFieldsJson = dto.CustomFieldsJson,
+                CustomHierarchyLabel = dto.CustomHierarchyLabel,
+                CustomHierarchyJson = dto.CustomHierarchyJson
             };
             var result = _institutionService.Add(institution);
             return result.Success ? Ok(result) : BadRequest(result);
@@ -98,6 +101,9 @@ namespace WebAPI.Controllers
             existingInst.PrimaryColor = dto.PrimaryColor;
             existingInst.Status = dto.Status;
             existingInst.LogoUrl = logoUrl;
+            existingInst.CustomFieldsJson = dto.CustomFieldsJson;
+            existingInst.CustomHierarchyLabel = dto.CustomHierarchyLabel;
+            existingInst.CustomHierarchyJson = dto.CustomHierarchyJson;
 
             var result = _institutionService.Update(existingInst);
             return result.Success ? Ok(result) : BadRequest(result);

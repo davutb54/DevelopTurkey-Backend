@@ -1,4 +1,5 @@
 using Business.Abstract;
+using Business.Models;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
 using Entities.Concrete;
@@ -9,11 +10,13 @@ public class UserWarningManager : IUserWarningService
 {
     private readonly IUserWarningDal _userWarningDal;
     private readonly ILogService _logService;
+    private readonly IWorkflowEventBus _eventBus;
 
-    public UserWarningManager(IUserWarningDal userWarningDal, ILogService logService)
+    public UserWarningManager(IUserWarningDal userWarningDal, ILogService logService, IWorkflowEventBus eventBus)
     {
         _userWarningDal = userWarningDal;
         _logService = logService;
+        _eventBus = eventBus;
     }
 
     public IDataResult<List<UserWarning>> GetByUserId(int userId)
@@ -36,6 +39,17 @@ public class UserWarningManager : IUserWarningService
         warning.IsActive = true;
         _userWarningDal.Add(warning);
 
+        _ = _eventBus.PublishAsync("user.warning_issued", new RuleContext
+        {
+            SystemUserId = warning.UserId,
+            Metadata = new Dictionary<string, object?>
+            {
+                ["WarningId"] = warning.Id,
+                ["Severity"] = warning.Severity,
+                ["Title"] = warning.Title
+            }
+        });
+
         _logService.LogWarning("AdminAction", "IssueWarning",
             $"Uyarı verildi - Kullanıcı ID: {warning.UserId}, Seviye: {warning.Severity}");
 
@@ -50,6 +64,15 @@ public class UserWarningManager : IUserWarningService
 
         warning.IsActive = false;
         _userWarningDal.Update(warning);
+
+        _ = _eventBus.PublishAsync("user.warning_revoked", new RuleContext
+        {
+            SystemUserId = warning.UserId,
+            Metadata = new Dictionary<string, object?>
+            {
+                ["WarningId"] = warningId
+            }
+        });
 
         _logService.LogInfo("AdminAction", "RevokeWarning",
             $"Uyarı geri alındı - Warning ID: {warningId}");

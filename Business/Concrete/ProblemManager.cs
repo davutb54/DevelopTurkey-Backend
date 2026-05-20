@@ -1,5 +1,6 @@
 using System.Linq;
 using Business.Abstract;
+using Business.Models;
 using Core.Entities.Concrete;
 using Core.Utilities.Context;
 using Business.Constants;
@@ -25,8 +26,11 @@ public class ProblemManager : IProblemService
     private readonly ITopicFollowService _topicFollowService;
     private readonly IUserService _userService;
     private readonly ITopicFollowDal _topicFollowDal;
+    private readonly IInstitutionFeatureService _featureService;
+    private readonly IMentionService _mentionService;
+    private readonly IWorkflowEventBus _eventBus;
 
-    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal, IClientContext clientContext, IMemoryCache cache, INotificationService notificationService, IProblemFollowService problemFollowService, ITopicFollowService topicFollowService, IUserService userService, ITopicFollowDal topicFollowDal)
+    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal, IClientContext clientContext, IMemoryCache cache, INotificationService notificationService, IProblemFollowService problemFollowService, ITopicFollowService topicFollowService, IUserService userService, ITopicFollowDal topicFollowDal, IInstitutionFeatureService featureService, IMentionService mentionService, IWorkflowEventBus eventBus)
     {
         _problemDal = problemDal;
         _logService = logService;
@@ -40,6 +44,9 @@ public class ProblemManager : IProblemService
         _topicFollowService = topicFollowService;
         _userService = userService;
         _topicFollowDal = topicFollowDal;
+        _featureService = featureService;
+        _mentionService = mentionService;
+        _eventBus = eventBus;
     }
 
     public IDataResult<ProblemDetailDto> GetById(int id)
@@ -71,6 +78,12 @@ public class ProblemManager : IProblemService
 
     public IResult Add(Problem problem, List<int> topicIds)
     {
+        if (!_featureService.IsFeatureEnabled(problem.InstitutionId, "Content.EnableMapLocation", true))
+        {
+            problem.Latitude = 0;
+            problem.Longitude = 0;
+        }
+
         problem.SendDate = DateTime.Now;
         _problemDal.Add(problem);
 
@@ -92,16 +105,26 @@ public class ProblemManager : IProblemService
             var followerIds = _topicFollowService.GetFollowerIdsByTopicIds(topicIds);
             foreach (var fId in followerIds) {
                 if (fId == problem.SenderId) continue; // Kendine atma
-                
-                _notificationService.Add(new Notification {
-                    UserId = fId,
-                    Title = "Takip Ettiğiniz Kategoride Yeni Sorun",
-                    Message = $"\"{problem.Title}\" başlıklı yeni bir sorun paylaşıldı.",
-                    Type = "TopicNewProblem",
-                    ReferenceLink = $"/problem/{problem.Id}"
-                });
+
+                // _notificationService.Add(new Notification {
+                //     UserId = fId,
+                //     Title = "Takip Ettiğiniz Kategoride Yeni Sorun",
+                //     Message = $"\"{problem.Title}\" başlıklı yeni bir sorun paylaşıldı.",
+                //     Type = "TopicNewProblem",
+                //     ReferenceLink = $"/problem/{problem.Id}"
+                // });
             }
         }
+
+        // Etiketlemeleri işle
+        _mentionService.ProcessMentions(problem.Description, problem.SenderId, problem.InstitutionId, $"/problem/{problem.Id}", problem.Title);
+
+        _ = _eventBus.PublishAsync("problem.created", new RuleContext
+        {
+            SystemUserId = problem.SenderId,
+            ProblemId = problem.Id,
+            InstitutionId = problem.InstitutionId
+        });
 
         return new SuccessResult(Messages.ProblemAdded);
     }
@@ -117,10 +140,10 @@ public class ProblemManager : IProblemService
             return new ErrorResult("Kayıt bulunamadı");
         }
 
-        // TODO: İleride Moderator rolü (Örn: IsOfficial) eklendiğinde, moderatörün 
+        // TODO: İleride Moderator rolü (Örn: IsOfficial) eklendiğinde, moderatörün
         // kendi kurumuna (InstitutionId) ait olmayan problemleri güncellemesi engellenmelidir.
         // Örn: var institutionId = _clientContext.GetInstitutionId();
-        // if (!isAdmin && isOfficial && existingProblem.InstitutionId != institutionId) return new ErrorResult(Messages.AuthorizationDenied); 
+        // if (!isAdmin && isOfficial && existingProblem.InstitutionId != institutionId) return new ErrorResult(Messages.AuthorizationDenied);
 
         if (!isAdmin && existingProblem.SenderId != currentUserId)
         {
@@ -128,9 +151,9 @@ public class ProblemManager : IProblemService
         }
 
         // --- IDOR & Privilege Escalation Koruma Ağı ---
-        // Kullanıcı yetkili dahi olsa (Admin veya kendi gönderisi) formdan gelebilecek 
+        // Kullanıcı yetkili dahi olsa (Admin veya kendi gönderisi) formdan gelebilecek
         // manipüle edilmiş metadataların/sahipliğin üzerine DB'den gelen orjinal hallerini eziyoruz.
-        problem.SenderId = existingProblem.SenderId; 
+        problem.SenderId = existingProblem.SenderId;
         problem.SendDate = existingProblem.SendDate;
         problem.InstitutionId = existingProblem.InstitutionId;
         problem.ViewCount = existingProblem.ViewCount;
@@ -142,7 +165,7 @@ public class ProblemManager : IProblemService
             problem.IsHighlighted = existingProblem.IsHighlighted;
             problem.IsResolved = existingProblem.IsResolved;
         }
-        
+
         _problemDal.Update(problem);
 
         var existingTopics = _problemTopicDal.GetAll(pt => pt.ProblemId == problem.Id);
@@ -164,6 +187,17 @@ public class ProblemManager : IProblemService
         }
 
         _logService.LogInfo("Content", "Update", $"Problem güncellendi - ID: {problem.Id}");
+
+        // Etiketlemeleri işle
+        _mentionService.ProcessMentions(problem.Description, problem.SenderId, problem.InstitutionId, $"/problem/{problem.Id}", problem.Title);
+
+        _ = _eventBus.PublishAsync("problem.updated", new RuleContext
+        {
+            SystemUserId = (int)(currentUserId ?? 0),
+            ProblemId = problem.Id,
+            InstitutionId = problem.InstitutionId
+        });
+
         return new SuccessResult(Messages.ProblemUpdated);
     }
 
@@ -175,7 +209,7 @@ public class ProblemManager : IProblemService
         var problem = _problemDal.Get(p => p.Id == id);
         if (problem == null) return new ErrorResult("Kayıt bulunamadı");
 
-        // TODO: İleride Moderator rolü (Örn: IsOfficial) eklendiğinde, moderatörün 
+        // TODO: İleride Moderator rolü (Örn: IsOfficial) eklendiğinde, moderatörün
         // kendi kurumuna (InstitutionId) ait olmayan problemleri silmesi engellenmelidir.
         // Örn: var institutionId = _clientContext.GetInstitutionId();
         // if (!isAdmin && isOfficial && problem.InstitutionId != institutionId) return new ErrorResult(Messages.AuthorizationDenied);
@@ -224,14 +258,14 @@ public class ProblemManager : IProblemService
             _logService.LogWarning("AdminAction", "Delete", $"Problem GÖREVLİ tarafından silindi - ID: {id} (Alt Çözüm ve Yorumlarıyla Birlikte)");
             try
             {
-                _notificationService.Add(new Notification
-                {
-                    UserId = problem.SenderId,
-                    Title = "Bir içeriğiniz kaldırıldı",
-                    Message = $"\"{problem.Title}\" başlıklı sorunuz platform kurallarına aykırı olduğu için kaldırıldı.",
-                    Type = "ContentRemoved",
-                    ReferenceLink = null
-                });
+                // _notificationService.Add(new Notification
+                // {
+                //     UserId = problem.SenderId,
+                //     Title = "Bir içeriğiniz kaldırıldı",
+                //     Message = $"\"{problem.Title}\" başlıklı sorunuz platform kurallarına aykırı olduğu için kaldırıldı.",
+                //     Type = "ContentRemoved",
+                //     ReferenceLink = null
+                // });
             }
             catch { /* Bildirim hatası ana işlemi etkilemesin */ }
         }
@@ -239,6 +273,14 @@ public class ProblemManager : IProblemService
         {
             _logService.LogWarning("Content", "Delete", $"Problem kullanıcı tarafından silindi - ID: {id} (Alt Çözüm ve Yorumlarıyla Birlikte)");
         }
+
+        _ = _eventBus.PublishAsync("problem.deleted", new RuleContext
+        {
+            SystemUserId = (int)(currentUserId ?? 0),
+            ProblemId = id,
+            TargetUserId = problem.SenderId,
+            InstitutionId = problem.InstitutionId
+        });
 
         return new SuccessResult(Messages.ProblemDeleted);
     }
@@ -249,6 +291,7 @@ public class ProblemManager : IProblemService
             (p.IsDeleted == false) &&
             (institutionId == 0 || p.InstitutionId == institutionId) &&
             (!filterDto.CityCode.HasValue || p.CityCode == filterDto.CityCode.Value) &&
+            (!filterDto.CustomHierarchyId.HasValue || p.CustomHierarchyId == filterDto.CustomHierarchyId.Value) &&
             (string.IsNullOrEmpty(filterDto.SearchText) || p.Title.Contains(filterDto.SearchText) || p.Description.Contains(filterDto.SearchText))
         );
 
@@ -275,9 +318,9 @@ public class ProblemManager : IProblemService
 
         var sortedProblems = problems.OrderByDescending(p => {
             // 1. Etkileşim Skoru
-            double baseScore = (p.ViewCount * 1) + 
-                               (p.SolutionCount * 15) + 
-                               (p.UpvoteCount * 20) + 
+            double baseScore = (p.ViewCount * 1) +
+                               (p.SolutionCount * 15) +
+                               (p.UpvoteCount * 20) +
                                (p.FollowerCount * 10);
             if (baseScore == 0) baseScore = 1;
 
@@ -335,6 +378,15 @@ public class ProblemManager : IProblemService
         problem.IsReported = true;
         _problemDal.Update(problem);
         _logService.LogInfo("Moderation", "Report", $"Problem raporlandı - ID: {problem.Id}");
+
+        _ = _eventBus.PublishAsync("problem.reported", new RuleContext
+        {
+            SystemUserId = (int)(_clientContext.GetUserId() ?? 0),
+            ProblemId = id,
+            TargetUserId = problem.SenderId,
+            InstitutionId = problem.InstitutionId
+        });
+
         return new SuccessResult($"Problem (ID: {problem.Id}) raporlandı.");
     }
 
@@ -345,6 +397,14 @@ public class ProblemManager : IProblemService
         {
             problem.IsReported = false;
             _problemDal.Update(problem);
+
+            _ = _eventBus.PublishAsync("problem.unreported", new RuleContext
+            {
+                SystemUserId = (int)(_clientContext.GetUserId() ?? 0),
+                ProblemId = id,
+                TargetUserId = problem.SenderId,
+                InstitutionId = problem.InstitutionId
+            });
         }
         return new SuccessResult();
     }
@@ -356,7 +416,7 @@ public class ProblemManager : IProblemService
         problem.IsHighlighted = !problem.IsHighlighted;
         _problemDal.Update(problem);
         _logService.LogInfo("AdminAction", "Highlight", $"Problem {(problem.IsHighlighted ? "vurgulandı" : "vurgulama kaldırıldı")} - ID: {problem.Id}");
-        
+
         if (problem.IsHighlighted)
         {
             try
@@ -364,18 +424,26 @@ public class ProblemManager : IProblemService
                 var followerIds = _problemFollowService.GetFollowerIds(problem.Id);
                 foreach (var fId in followerIds)
                 {
-                    _notificationService.Add(new Notification
-                    {
-                        UserId = fId,
-                        Title = "Takip ettiğiniz sorun öne çıkarıldı!",
-                        Message = $"\"{problem.Title}\" başlıklı sorun editörler tarafından öne çıkarıldı.",
-                        Type = "FollowedProblemHighlighted",
-                        ReferenceLink = $"/problem/{problem.Id}"
-                    });
+                    // _notificationService.Add(new Notification
+                    // {
+                    //     UserId = fId,
+                    //     Title = "Takip ettiğiniz sorun öne çıkarıldı!",
+                    //     Message = $"\"{problem.Title}\" başlıklı sorun editörler tarafından öne çıkarıldı.",
+                    //     Type = "FollowedProblemHighlighted",
+                    //     ReferenceLink = $"/problem/{problem.Id}"
+                    // });
                 }
             }
             catch { /* Bildirim hatası ana işlemi etkilemesin */ }
         }
+
+        _ = _eventBus.PublishAsync("problem.highlight_toggled", new RuleContext
+        {
+            SystemUserId = (int)(_clientContext.GetUserId() ?? 0),
+            ProblemId = id,
+            NewValue = problem.IsHighlighted.ToString(),
+            InstitutionId = problem.InstitutionId
+        });
 
         return new SuccessResult($"Problem (ID: {problem.Id}) {(problem.IsHighlighted ? "vurgulandı" : "vurgulama kaldırıldı")}.");
     }
@@ -395,6 +463,12 @@ public class ProblemManager : IProblemService
         {
             problem.ViewCount += 1;
             _problemDal.Update(problem);
+
+            _ = _eventBus.PublishAsync("problem.view_incremented", new RuleContext
+            {
+                ProblemId = id,
+                InstitutionId = problem.InstitutionId
+            });
         }
 
         // 10 dakika boyunca bu IP'nin bu problemi tekrar count etmesini engelle
@@ -409,6 +483,15 @@ public class ProblemManager : IProblemService
         problem.IsResolved = !problem.IsResolved;
         _problemDal.Update(problem);
         _logService.LogInfo("AdminAction", "ToggleResolved", $"Problem {(problem.IsResolved ? "çözüldü" : "çözülmedi olarak işaretlendi")} - ID: {problem.Id}");
+
+        _ = _eventBus.PublishAsync("problem.resolved_toggled", new RuleContext
+        {
+            SystemUserId = (int)(_clientContext.GetUserId() ?? 0),
+            ProblemId = id,
+            NewValue = problem.IsResolved.ToString(),
+            InstitutionId = problem.InstitutionId
+        });
+
         return new SuccessResult($"Problem (ID: {problem.Id}) {(problem.IsResolved ? "çözüldü" : "çözülmedi olarak işaretlendi")}.");
     }
 
@@ -419,6 +502,15 @@ public class ProblemManager : IProblemService
         problem.IsResolved = true;
         _problemDal.Update(problem);
         _logService.LogInfo("Content", "Resolve", $"Problem çözüldü - ID: {problem.Id}");
+
+        _ = _eventBus.PublishAsync("problem.resolved", new RuleContext
+        {
+            SystemUserId = (int)(_clientContext.GetUserId() ?? 0),
+            ProblemId = id,
+            TargetUserId = problem.SenderId,
+            InstitutionId = problem.InstitutionId
+        });
+
         return new SuccessResult($"Problem (ID: {problem.Id}) çözüldü işaretlendi.");
     }
 
@@ -427,6 +519,7 @@ public class ProblemManager : IProblemService
         var problems = _problemDal.GetProblemsDetails(p => p.IsDeleted == false);
         return new SuccessDataResult<List<ProblemDetailDto>>(problems.OrderByDescending(p => p.SendDate).ToList());
     }
+
     public IResult RemoveTopicFromProblem(int problemId, int topicId)
     {
         var problemTopic = _problemTopicDal.Get(pt => pt.ProblemId == problemId && pt.TopicId == topicId);
@@ -440,17 +533,24 @@ public class ProblemManager : IProblemService
                 var problem = _problemDal.Get(p => p.Id == problemId);
                 if (problem != null)
                 {
-                    _notificationService.Add(new Notification
-                    {
-                        UserId = problem.SenderId,
-                        Title = "Sorunuzdan bir kategori kaldırıldı",
-                        Message = "Yöneticiler, paylaştığınız sorundan uygunsuz bir kategoriyi kaldırdı.",
-                        Type = "ContentModified",
-                        ReferenceLink = $"/problem/{problemId}"
-                    });
+                    // _notificationService.Add(new Notification
+                    // {
+                    //     UserId = problem.SenderId,
+                    //     Title = "Sorunuzdan bir kategori kaldırıldı",
+                    //     Message = "Yöneticiler, paylaştığınız sorundan uygunsuz bir kategoriyi kaldırdı.",
+                    //     Type = "ContentModified",
+                    //     ReferenceLink = $"/problem/{problemId}"
+                    // });
                 }
             }
             catch { /* Bildirim hatası ana işlemi etkilemesin */ }
+
+            _ = _eventBus.PublishAsync("problem.topic_removed", new RuleContext
+            {
+                SystemUserId = (int)(_clientContext.GetUserId() ?? 0),
+                ProblemId = problemId,
+                Metadata = new Dictionary<string, object?> { ["TopicId"] = topicId }
+            });
 
             return new SuccessResult("Kategori sorundan başarıyla kaldırıldı.");
         }

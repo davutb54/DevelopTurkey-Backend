@@ -13,10 +13,13 @@ namespace WebAPI.Controllers
 	public class CommentController : Controller
 	{
 		private readonly ICommentService _commentService;
+		private readonly IInstitutionFeatureService _institutionFeatureService;
 
-		public CommentController(ICommentService commentService)
+		public CommentController(ICommentService commentService,
+			IInstitutionFeatureService institutionFeatureService)
 		{
 			_commentService = commentService;
+			_institutionFeatureService = institutionFeatureService;
 		}
 
         [HttpGet("getbyid")]
@@ -55,6 +58,16 @@ namespace WebAPI.Controllers
 			{
 				return Unauthorized("Kullanıcı girişi gereklidir.");
 			}
+
+			// Yorum feature kontrolü
+			int institutionId = 1;
+			var institutionClaim = User.Claims.FirstOrDefault(c => c.Type == "InstitutionId");
+			if (institutionClaim != null)
+			{
+				institutionId = Convert.ToInt32(institutionClaim.Value);
+			}
+			if (!_institutionFeatureService.IsFeatureEnabled(institutionId, "Social.EnableNestedComments", true))
+				return BadRequest(new { success = false, message = "Bu kurum için yorum özelliği devre dışı." });
 
 			// comment.SenderId = _clientContext.GetUserId() will be set in Manager
 			comment.SendDate = DateTime.Now;

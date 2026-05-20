@@ -1,4 +1,4 @@
-﻿using Core.Utilities.Results;
+using Core.Utilities.Results;
 using Entities.Concrete;
 using Entities.DTOs;
 
@@ -8,8 +8,8 @@ public interface ILogService
 {
     IDataResult<List<Log>> GetListByFilter(LogFilterDto filter);
 
-    void LogInfo(string category, string action, string message, string? details = null);
-    void LogWarning(string category, string action, string message, string? details = null);
-    void LogError(string category, string action, string message, string? details = null);
-    void LogCritical(string category, string action, string message, string? details = null);
+    void LogInfo(string category, string action, string message, string? details = null, int? institutionId = null);
+    void LogWarning(string category, string action, string message, string? details = null, int? institutionId = null);
+    void LogError(string category, string action, string message, string? details = null, int? institutionId = null);
+    void LogCritical(string category, string action, string message, string? details = null, int? institutionId = null);
 }

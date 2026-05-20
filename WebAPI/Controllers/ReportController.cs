@@ -11,10 +11,13 @@ namespace WebAPI.Controllers
     public class ReportController : Controller
     {
         private readonly IReportService _reportService;
+        private readonly IInstitutionFeatureService _institutionFeatureService;
 
-        public ReportController(IReportService reportService)
+        public ReportController(IReportService reportService,
+            IInstitutionFeatureService institutionFeatureService)
         {
             _reportService = reportService;
+            _institutionFeatureService = institutionFeatureService;
         }
 
         [HttpPost("add")]
@@ -25,6 +28,16 @@ namespace WebAPI.Controllers
             {
                 return Unauthorized("Kullanıcı girişi gereklidir.");
             }
+
+            // Şikayet feature kontrolü
+            int institutionId = 1;
+            var institutionClaim = User.Claims.FirstOrDefault(c => c.Type == "InstitutionId");
+            if (institutionClaim != null)
+            {
+                institutionId = Convert.ToInt32(institutionClaim.Value);
+            }
+            if (!_institutionFeatureService.IsFeatureEnabled(institutionId, "Moderation.EnableReportSystem", true))
+                return BadRequest(new { success = false, message = "Bu kurum için şikayet özelliği devre dışı." });
 
             var report = new Report
             {

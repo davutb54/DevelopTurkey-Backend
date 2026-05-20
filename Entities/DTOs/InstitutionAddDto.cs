@@ -8,5 +8,10 @@ public class InstitutionAddDto
     public string Domain { get; set; }
     public IFormFile? Logo { get; set; }
     public string? PrimaryColor { get; set; }
+
+    public string CustomFieldsJson { get; set; }
+    public string? CustomHierarchyLabel { get; set; }
+    public string? CustomHierarchyJson { get; set; }
+
     public bool Status { get; set; }
 }

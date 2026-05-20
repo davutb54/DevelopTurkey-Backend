@@ -1,4 +1,5 @@
 using Business.Abstract;
+using Business.Models;
 using Core.Utilities.Context;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
@@ -16,6 +17,7 @@ namespace Business.Concrete
         private readonly IUserService _userService;
         private readonly ILogService _logService;
         private readonly IClientContext _clientContext;
+        private readonly IWorkflowEventBus _eventBus;
 
         public ReportManager(
             IReportDal reportDal,
@@ -23,7 +25,8 @@ namespace Business.Concrete
             ISolutionService solutionService,
             IUserService userService,
             ILogService logService,
-            IClientContext clientContext)
+            IClientContext clientContext,
+            IWorkflowEventBus eventBus)
         {
             _reportDal = reportDal;
             _problemService = problemService;
@@ -31,6 +34,7 @@ namespace Business.Concrete
             _userService = userService;
             _logService = logService;
             _clientContext = clientContext;
+            _eventBus = eventBus;
         }
 
         public IResult Add(Report report)
@@ -40,6 +44,17 @@ namespace Business.Concrete
             report.IsResolved = false;
 
             _reportDal.Add(report);
+
+            _ = _eventBus.PublishAsync("report.created", new RuleContext
+            {
+                SystemUserId = report.ReporterUserId,
+                Metadata = new Dictionary<string, object?>
+                {
+                    ["TargetType"] = report.TargetType,
+                    ["TargetId"] = report.TargetId
+                }
+            });
+
             _logService.LogInfo("Report", "Add", $"{report.ReporterUserId} {report.TargetType} {report.TargetId} şikayetinde bulundu");
 
             switch (report.TargetType)
@@ -89,6 +104,17 @@ namespace Business.Concrete
 
             report.IsResolved = true;
             _reportDal.Update(report);
+
+            _ = _eventBus.PublishAsync("report.resolved", new RuleContext
+            {
+                SystemUserId = report.ReporterUserId,
+                Metadata = new Dictionary<string, object?>
+                {
+                    ["TargetType"] = report.TargetType,
+                    ["TargetId"] = report.TargetId
+                }
+            });
+
             _logService.LogInfo("Report", "ResolveReport", $"{report.ReporterUserId} {report.TargetType} {report.TargetId} şikayeti çözüldü");
 
             switch (report.TargetType)

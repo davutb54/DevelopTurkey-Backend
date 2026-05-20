@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 
 namespace Entities.DTOs;
 
@@ -11,9 +11,11 @@ public class ProblemAddDto
     public string? Address { get; set; }
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
-    public List<int> TopicIds { get; set; }
-    public IFormFile? Image { get; set; }
+    public int? CustomHierarchyId { get; set; }
+    public List<int>? TopicIds { get; set; }
+    public List<IFormFile>? Images { get; set; }
 
     public string? SolutionTitle { get; set; }
     public string? SolutionDescription { get; set; }
+    public List<IFormFile>? SolutionImages { get; set; }
 }

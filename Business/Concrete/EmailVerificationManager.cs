@@ -1,4 +1,5 @@
 using Business.Abstract;
+using Business.Models;
 using Core.Entities.Concrete;
 using Core.Utilities.Helpers.Email;
 using Core.Utilities.Results;
@@ -13,13 +14,23 @@ public class EmailVerificationManager : IEmailVerificationService
     private readonly IUserDal _userDal;
     private readonly IEmailHelper _emailHelper;
     private readonly ILogService _logService;
+    private readonly IEmailTemplateService _emailTemplateService;
+    private readonly IWorkflowEventBus _eventBus;
 
-    public EmailVerificationManager(IEmailVerificationDal emailVerificationDal, IUserDal userDal, IEmailHelper emailHelper, ILogService logService)
+    public EmailVerificationManager(
+        IEmailVerificationDal emailVerificationDal,
+        IUserDal userDal,
+        IEmailHelper emailHelper,
+        ILogService logService,
+        IEmailTemplateService emailTemplateService,
+        IWorkflowEventBus eventBus)
     {
         _emailVerificationDal = emailVerificationDal;
         _userDal = userDal;
         _emailHelper = emailHelper;
         _logService = logService;
+        _emailTemplateService = emailTemplateService;
+        _eventBus = eventBus;
     }
 
     public IResult SendVerificationCode(User user)
@@ -39,8 +50,27 @@ public class EmailVerificationManager : IEmailVerificationService
 
         _emailVerificationDal.Add(verification);
 
+        // Get template from database
+        var templateResult = _emailTemplateService.GetByKey("EmailVerification");
         string subject = "Develop Turkey - Email Doğrulama";
         string body = $"<h3>Hoşgeldin {user.Name},</h3><p>Hesabını doğrulamak için kodun: <h1>{code}</h1></p>";
+
+        if (templateResult.Success)
+        {
+            var template = templateResult.Data;
+            subject = template.Subject;
+
+            var renderResult = _emailTemplateService.RenderTemplate(template.Body, new Dictionary<string, string>
+            {
+                { "{UserName}", user.Name },
+                { "{Code}", code.ToString() }
+            });
+
+            if (renderResult.Success)
+            {
+                body = renderResult.Data;
+            }
+        }
 
         var sendResult = _emailHelper.Send(user.Email, subject, body);
 
@@ -49,6 +79,11 @@ public class EmailVerificationManager : IEmailVerificationService
             _logService.LogError("Auth", "SendVerification", $"Email gönderme hatası - UserID: {user.Id}, Email: {user.Email}", sendResult.Message);
             return new ErrorResult("Kayıt oldu ama mail gidemedi: " + sendResult.Message);
         }
+
+        _ = _eventBus.PublishAsync("auth.verification_code_sent", new RuleContext
+        {
+            SystemUserId = user.Id
+        });
 
         _logService.LogInfo("Auth", "SendVerification", $"Doğrulama kodu gönderildi - UserID: {user.Id}");
         return new SuccessResult("Doğrulama kodu e-posta adresinize gönderildi.");
@@ -94,6 +129,12 @@ public class EmailVerificationManager : IEmailVerificationService
         _userDal.Update(user);
 
         _logService.LogInfo("Auth", "Verify", $"Email başarıyla doğrulandı - UserID: {user.Id}");
+
+        _ = _eventBus.PublishAsync("auth.email_verified", new RuleContext
+        {
+            SystemUserId = user.Id
+        });
+
         return new SuccessResult("Email başarıyla doğrulandı!");
     }
 
@@ -134,6 +175,11 @@ public class EmailVerificationManager : IEmailVerificationService
         user.IsEmailVerified = true;
         _userDal.Update(user);
 
+        _ = _eventBus.PublishAsync("auth.password_reset_verified", new RuleContext
+        {
+            SystemUserId = user.Id
+        });
+
         _logService.LogInfo("Auth", "VerifyForReset", $"Email başarıyla doğrulandı - UserID: {user.Id}");
         return new SuccessResult("Email başarıyla doğrulandı!");
     }
@@ -155,8 +201,27 @@ public class EmailVerificationManager : IEmailVerificationService
 
         _emailVerificationDal.Add(verification);
 
+        // Get template from database
+        var templateResult = _emailTemplateService.GetByKey("PasswordReset");
         string subject = "Develop Turkey - Şifre Sıfırlama Talebi";
         string body = $"<h3>Merhaba {user.Name},</h3><p>Şifreni sıfırlamak için kullanacağın kod: <h1 style='color:red'>{code}</h1></p><p>Bu işlemi sen yapmadıysan dikkate alma.</p>";
+
+        if (templateResult.Success)
+        {
+            var template = templateResult.Data;
+            subject = template.Subject;
+
+            var renderResult = _emailTemplateService.RenderTemplate(template.Body, new Dictionary<string, string>
+            {
+                { "{UserName}", user.Name },
+                { "{Code}", code.ToString() }
+            });
+
+            if (renderResult.Success)
+            {
+                body = renderResult.Data;
+            }
+        }
 
         var sendResult = _emailHelper.Send(user.Email, subject, body);
         if (!sendResult.Success)
@@ -166,6 +231,12 @@ public class EmailVerificationManager : IEmailVerificationService
         }
 
         _logService.LogInfo("Auth", "SendPasswordReset", $"Şifre sıfırlama kodu gönderildi - UserID: {user.Id}");
+
+        _ = _eventBus.PublishAsync("auth.password_reset_requested", new RuleContext
+        {
+            SystemUserId = user.Id
+        });
+
         return new SuccessResult("Şifre sıfırlama kodu gönderildi.");
     }
 }

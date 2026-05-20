@@ -18,7 +18,7 @@ public class JwtHelper : ITokenHelper
         _tokenOptions = _configuration.GetSection("TokenOptions").Get<TokenOptions>();
     }
 
-    public AccessToken CreateToken(User user, int? impersonatedById = null)
+    public AccessToken CreateToken(User user, int? impersonatedById = null, int? sessionTimeoutMinutes = null)
     {
         if (_tokenOptions == null)
         {
@@ -30,6 +30,8 @@ public class JwtHelper : ITokenHelper
                 SecurityKey = _configuration["TokenOptions:SecurityKey"]
             };
         }
+
+        int expirationMinutes = sessionTimeoutMinutes ?? _tokenOptions.AccessTokenExpiration;
 
         var securityKey = SecurityKeyHelper.CreateSecurityKey(_tokenOptions.SecurityKey);
         var signingCredentials = SigningCredentialsHelper.CreateSigningCredentials(securityKey);
@@ -61,7 +63,7 @@ public class JwtHelper : ITokenHelper
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),
-            Expires = DateTime.Now.AddMinutes(_tokenOptions.AccessTokenExpiration),
+            Expires = DateTime.Now.AddMinutes(expirationMinutes),
             Issuer = _tokenOptions.Issuer,
             Audience = _tokenOptions.Audience,
             SigningCredentials = signingCredentials

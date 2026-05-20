@@ -1,4 +1,4 @@
-﻿using Core.Entities;
+using Core.Entities;
 
 namespace Entities.Concrete;
 
@@ -17,9 +17,10 @@ public class Problem : IEntity
 	public bool IsDeleted { get; set; } = false;
 	public DateTime SendDate { get; set; }
 	public DateTime? DeleteDate { get; set; }
-    public string? ImageUrl { get; set; }
+    public string? ImageUrls { get; set; }
     public int ViewCount { get; set; }
     public bool IsResolved { get; set; }
 
     public int InstitutionId { get; set; }
+    public int? CustomHierarchyId { get; set; }
 }

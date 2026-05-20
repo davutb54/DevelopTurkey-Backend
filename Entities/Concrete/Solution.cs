@@ -1,4 +1,4 @@
-﻿using Core.Entities;
+using Core.Entities;
 
 namespace Entities.Concrete;
 
@@ -18,4 +18,5 @@ public class Solution : IEntity
     public int ExpertApprovalStatus { get; set; } = 0;
 
     public int InstitutionId { get; set; }
+    public string? ImageUrls { get; set; }
 }

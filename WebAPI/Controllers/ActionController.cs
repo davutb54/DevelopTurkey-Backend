@@ -15,17 +15,20 @@ namespace WebAPI.Controllers
         private readonly ITopicFollowService _topicFollowService;
         private readonly ISavedSolutionService _savedSolutionService;
         private readonly IProblemUpvoteService _problemUpvoteService;
+        private readonly IInstitutionFeatureService _institutionFeatureService;
 
         public ActionController(
             IProblemFollowService problemFollowService,
             ITopicFollowService topicFollowService,
             ISavedSolutionService savedSolutionService,
-            IProblemUpvoteService problemUpvoteService)
+            IProblemUpvoteService problemUpvoteService,
+            IInstitutionFeatureService institutionFeatureService)
         {
             _problemFollowService = problemFollowService;
             _topicFollowService = topicFollowService;
             _savedSolutionService = savedSolutionService;
             _problemUpvoteService = problemUpvoteService;
+            _institutionFeatureService = institutionFeatureService;
         }
 
         private int GetUserId()
@@ -35,11 +38,23 @@ namespace WebAPI.Controllers
             return int.Parse(userIdStr);
         }
 
+        private int GetInstitutionId()
+        {
+            var institutionClaim = User.Claims.FirstOrDefault(c => c.Type == "InstitutionId");
+            if (institutionClaim != null && int.TryParse(institutionClaim.Value, out int instId))
+                return instId;
+            return 1;
+        }
+
         [HttpPost("toggle-problem-follow")]
         public IActionResult ToggleProblemFollow([FromQuery] int problemId)
         {
             var userId = GetUserId();
             if (userId == 0) return Unauthorized();
+
+            var institutionId = GetInstitutionId();
+            if (!_institutionFeatureService.IsFeatureEnabled(institutionId, "Social.EnableFollowSystem", true))
+                return BadRequest(new { success = false, message = "Takip sistemi kurumunuz için devre dışı." });
 
             var result = _problemFollowService.ToggleFollow(problemId, userId);
             return result.Success ? Ok(result) : BadRequest(result);
@@ -51,6 +66,10 @@ namespace WebAPI.Controllers
             var userId = GetUserId();
             if (userId == 0) return Unauthorized();
 
+            var institutionId = GetInstitutionId();
+            if (!_institutionFeatureService.IsFeatureEnabled(institutionId, "Social.EnableFollowSystem", true))
+                return BadRequest(new { success = false, message = "Takip sistemi kurumunuz için devre dışı." });
+
             var result = _topicFollowService.ToggleFollow(topicId, userId);
             return result.Success ? Ok(result) : BadRequest(result);
         }
@@ -60,6 +79,10 @@ namespace WebAPI.Controllers
         {
             var userId = GetUserId();
             if (userId == 0) return Unauthorized();
+
+            var institutionId = GetInstitutionId();
+            if (!_institutionFeatureService.IsFeatureEnabled(institutionId, "Social.EnableSavedSolutions", true))
+                return BadRequest(new { success = false, message = "Çözüm kaydetme özelliği kurumunuz için devre dışı." });
 
             var result = _savedSolutionService.ToggleSave(solutionId, userId);
             return result.Success ? Ok(result) : BadRequest(result);
@@ -121,6 +144,16 @@ namespace WebAPI.Controllers
         {
             var count = _problemUpvoteService.GetUpvoteCount(problemId);
             return Ok(new { count });
+        }
+
+        [HttpGet("get-my-saved-solutions")]
+        public IActionResult GetMySavedSolutions()
+        {
+            var userId = GetUserId();
+            if (userId == 0) return Unauthorized();
+
+            var result = _savedSolutionService.GetSavedSolutions(userId);
+            return result.Success ? Ok(result) : BadRequest(result);
         }
     }
 }

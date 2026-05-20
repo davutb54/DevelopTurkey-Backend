@@ -54,4 +54,13 @@ public class DevelopTurkeyContext : DbContext
     public DbSet<UserAgreementAcceptance> UserAgreementAcceptances { get; set; }
     public DbSet<ProblemUpvote> ProblemUpvotes { get; set; }
     public DbSet<AboutPageSection> AboutPageSections { get; set; }
+    public DbSet<FeatureGroup> FeatureGroups { get; set; }
+    public DbSet<FeatureDefinition> FeatureDefinitions { get; set; }
+    public DbSet<InstitutionFeatureValue> InstitutionFeatureValues { get; set; }
+    public DbSet<DynamicRule> DynamicRules { get; set; }
+    public DbSet<WorkflowTrigger> WorkflowTriggers { get; set; }
+    public DbSet<WorkflowField> WorkflowFields { get; set; }
+    public DbSet<WorkflowAction> WorkflowActions { get; set; }
+    public DbSet<EmailTemplate> EmailTemplates { get; set; }
+    public DbSet<WorkflowLog> WorkflowLogs { get; set; }
 }

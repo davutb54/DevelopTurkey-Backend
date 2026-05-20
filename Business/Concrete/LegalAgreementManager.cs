@@ -1,4 +1,5 @@
 using Business.Abstract;
+using Business.Models;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
 using Entities.Concrete;
@@ -12,17 +13,20 @@ public class LegalAgreementManager : ILegalAgreementService
     private readonly IUserAgreementAcceptanceDal _acceptanceDal;
     private readonly ILogService _logService;
     private readonly IUserDal _userDal;
+    private readonly IWorkflowEventBus _eventBus;
 
     public LegalAgreementManager(
         ILegalAgreementDal legalAgreementDal,
         IUserAgreementAcceptanceDal acceptanceDal,
         ILogService logService,
-        IUserDal userDal)
+        IUserDal userDal,
+        IWorkflowEventBus eventBus)
     {
         _legalAgreementDal = legalAgreementDal;
         _acceptanceDal = acceptanceDal;
         _logService = logService;
         _userDal = userDal;
+        _eventBus = eventBus;
     }
 
     // ─── Herkese açık ────────────────────────────────────────────────────────
@@ -123,6 +127,18 @@ public class LegalAgreementManager : ILegalAgreementService
 
         _legalAgreementDal.Add(agreement);
 
+        _ = _eventBus.PublishAsync("legal.agreement_created", new RuleContext
+        {
+            SystemUserId = adminId,
+            Metadata = new Dictionary<string, object?>
+            {
+                ["AgreementId"] = agreement.Id,
+                ["Type"] = agreement.Type,
+                ["Version"] = agreement.Version,
+                ["IsMajorVersion"] = agreement.IsMajorVersion
+            }
+        });
+
         _logService.LogInfo(
             "AdminAction",
             "AgreementCreate",
@@ -148,6 +164,17 @@ public class LegalAgreementManager : ILegalAgreementService
 
         target.IsActive = true;
         _legalAgreementDal.Update(target);
+
+        _ = _eventBus.PublishAsync("legal.agreement_published", new RuleContext
+        {
+            Metadata = new Dictionary<string, object?>
+            {
+                ["AgreementId"] = target.Id,
+                ["Type"] = target.Type,
+                ["Version"] = target.Version,
+                ["IsMajorVersion"] = target.IsMajorVersion
+            }
+        });
 
         _logService.LogInfo(
             "AdminAction",

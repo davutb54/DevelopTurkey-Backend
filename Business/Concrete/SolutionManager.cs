@@ -1,5 +1,6 @@
 using Business.Abstract;
 using Business.Constants;
+using Business.Models;
 using Core.Entities.Concrete;
 using Core.Utilities.Context;
 using Core.Utilities.Results;
@@ -19,8 +20,11 @@ public class SolutionManager : ISolutionService
     private readonly IClientContext _clientContext;
     private readonly INotificationService _notificationService;
     private readonly IProblemFollowService _problemFollowService;
+    private readonly IInstitutionFeatureService _featureService;
+    private readonly IMentionService _mentionService;
+    private readonly IWorkflowEventBus _eventBus;
 
-    public SolutionManager(ISolutionDal solutionDal, ILogService logService, IProblemService problemService, ICommentDal commentDal, IClientContext clientContext, INotificationService notificationService, IProblemFollowService problemFollowService)
+    public SolutionManager(ISolutionDal solutionDal, ILogService logService, IProblemService problemService, ICommentDal commentDal, IClientContext clientContext, INotificationService notificationService, IProblemFollowService problemFollowService, IInstitutionFeatureService featureService, IMentionService mentionService, IWorkflowEventBus eventBus)
     {
         _solutionDal = solutionDal;
         _logService = logService;
@@ -29,6 +33,9 @@ public class SolutionManager : ISolutionService
         _clientContext = clientContext;
         _notificationService = notificationService;
         _problemFollowService = problemFollowService;
+        _featureService = featureService;
+        _mentionService = mentionService;
+        _eventBus = eventBus;
     }
 
     public IDataResult<Solution?> GetById(int id)
@@ -59,7 +66,14 @@ public class SolutionManager : ISolutionService
     public IResult Add(Solution solution)
     {
         solution.SenderId = _clientContext.GetUserId() ?? 0;
+        solution.InstitutionId = _clientContext.GetInstitutionId() ?? 1;
         solution.SendDate = DateTime.Now;
+
+        if (!_featureService.IsFeatureEnabled(solution.InstitutionId, "Moderation.RequireExpertApproval"))
+        {
+            solution.ExpertApprovalStatus = 1; // Otomatik Onay
+        }
+
         _solutionDal.Add(solution);
 
         _logService.LogInfo("Content", "Add", $"Çözüm eklendi - ProblemID: {solution.ProblemId}");
@@ -70,14 +84,14 @@ public class SolutionManager : ISolutionService
             var problem = _problemService.GetById(solution.ProblemId);
             if (problem.Success && problem.Data != null && problem.Data.SenderId != solution.SenderId)
             {
-                _notificationService.Add(new Notification
-                {
-                    UserId = problem.Data.SenderId,
-                    Title = "Sorununa yeni bir çözüm eklendi",
-                    Message = $"Birileri \"{problem.Data.Title}\" sorununa bir çözüm paylaştı.",
-                    Type = "SolutionAdded",
-                    ReferenceLink = $"/problem/{solution.ProblemId}"
-                });
+                // _notificationService.Add(new Notification
+                // {
+                //     UserId = problem.Data.SenderId,
+                //     Title = "Sorununa yeni bir çözüm eklendi",
+                //     Message = $"Birileri \"{problem.Data.Title}\" sorununa bir çözüm paylaştı.",
+                //     Type = "SolutionAdded",
+                //     ReferenceLink = $"/problem/{solution.ProblemId}"
+                // });
             }
 
             // Bildirim: Problemi takip edenlere bildirim gönder
@@ -85,21 +99,32 @@ public class SolutionManager : ISolutionService
             foreach (var fId in followerIds)
             {
                 if (fId == solution.SenderId) continue; // Kendine bildirim atma
-                
+
                 // Problem sahibine zaten üstte bildirim attık, tekrar atmayalım
                 if (problem.Success && problem.Data != null && fId == problem.Data.SenderId) continue;
 
-                _notificationService.Add(new Notification
-                {
-                    UserId = fId,
-                    Title = "Takip ettiğiniz soruna yeni çözüm eklendi",
-                    Message = "Takip ettiğiniz bir soruna yeni bir çözüm eklendi.",
-                    Type = "FollowedProblemNewSolution",
-                    ReferenceLink = $"/problem/{solution.ProblemId}"
-                });
+                // _notificationService.Add(new Notification
+                // {
+                //     UserId = fId,
+                //     Title = "Takip ettiğiniz soruna yeni çözüm eklendi",
+                //     Message = "Takip ettiğiniz bir soruna yeni bir çözüm eklendi.",
+                //     Type = "FollowedProblemNewSolution",
+                //     ReferenceLink = $"/problem/{solution.ProblemId}"
+                // });
             }
         }
         catch { /* Bildirim hatası ana işlemi etkilemesin */ }
+
+        // Etiketlemeleri işle
+        _mentionService.ProcessMentions(solution.Description, solution.SenderId, solution.InstitutionId, $"/problem/{solution.ProblemId}", solution.Title);
+
+        _ = _eventBus.PublishAsync("solution.created", new RuleContext
+        {
+            SystemUserId = solution.SenderId,
+            SolutionId = solution.Id,
+            ProblemId = solution.ProblemId,
+            InstitutionId = solution.InstitutionId
+        });
 
         return new SuccessResult(Messages.SolutionAdded);
     }
@@ -131,6 +156,18 @@ public class SolutionManager : ISolutionService
 
         _solutionDal.Update(solution);
         _logService.LogInfo("Content", "Update", $"Çözüm güncellendi - ID: {solution.Id}");
+
+        // Etiketlemeleri işle
+        _mentionService.ProcessMentions(solution.Description, solution.SenderId, solution.InstitutionId, $"/problem/{solution.ProblemId}", solution.Title);
+
+        _ = _eventBus.PublishAsync("solution.updated", new RuleContext
+        {
+            SystemUserId = (int)(currentUserId ?? 0),
+            SolutionId = solution.Id,
+            ProblemId = solution.ProblemId,
+            InstitutionId = solution.InstitutionId
+        });
+
         return new SuccessResult(Messages.SolutionUpdated);
     }
 
@@ -166,20 +203,20 @@ public class SolutionManager : ISolutionService
                 _commentDal.Update(childCom);
             }
         }
-        
+
         if (isAdmin && solution.SenderId != currentUserId)
         {
             _logService.LogWarning("AdminAction", "Delete", $"Çözüm GÖREVLİ tarafından silindi - ID: {id} (Alt Yorumlarıyla Birlikte)");
             try
             {
-                _notificationService.Add(new Notification
-                {
-                    UserId = solution.SenderId,
-                    Title = "Bir içeriğiniz kaldırıldı",
-                    Message = "Paylaştığınız bir çözüm platform kurallarına aykırı olduğu için kaldırıldı.",
-                    Type = "ContentRemoved",
-                    ReferenceLink = null
-                });
+                // _notificationService.Add(new Notification
+                // {
+                //     UserId = solution.SenderId,
+                //     Title = "Bir içeriğiniz kaldırıldı",
+                //     Message = "Paylaştığınız bir çözüm platform kurallarına aykırı olduğu için kaldırıldı.",
+                //     Type = "ContentRemoved",
+                //     ReferenceLink = null
+                // });
             }
             catch { /* Bildirim hatası ana işlemi etkilemesin */ }
         }
@@ -187,6 +224,15 @@ public class SolutionManager : ISolutionService
         {
             _logService.LogWarning("Content", "Delete", $"Çözüm kullanıcı tarafından silindi - ID: {id} (Alt Yorumlarıyla Birlikte)");
         }
+
+        _ = _eventBus.PublishAsync("solution.deleted", new RuleContext
+        {
+            SystemUserId = (int)(currentUserId ?? 0),
+            SolutionId = id,
+            ProblemId = solution.ProblemId,
+            TargetUserId = solution.SenderId,
+            InstitutionId = solution.InstitutionId
+        });
 
         return new SuccessResult(Messages.SolutionDeleted);
     }
@@ -203,6 +249,16 @@ public class SolutionManager : ISolutionService
         solution.IsReported = true;
         _solutionDal.Update(solution);
         _logService.LogInfo("Moderation", "Report", $"Çözüm raporlandı - ID: {solution.Id}");
+
+        _ = _eventBus.PublishAsync("solution.reported", new RuleContext
+        {
+            SystemUserId = (int)(_clientContext.GetUserId() ?? 0),
+            SolutionId = id,
+            ProblemId = solution.ProblemId,
+            TargetUserId = solution.SenderId,
+            InstitutionId = solution.InstitutionId
+        });
+
         return new SuccessResult($"Çözüm (ID: {solution.Id}) raporlandı.");
     }
 
@@ -213,6 +269,15 @@ public class SolutionManager : ISolutionService
         {
             solution.IsReported = false;
             _solutionDal.Update(solution);
+
+            _ = _eventBus.PublishAsync("solution.unreported", new RuleContext
+            {
+                SystemUserId = (int)(_clientContext.GetUserId() ?? 0),
+                SolutionId = id,
+                ProblemId = solution.ProblemId,
+                TargetUserId = solution.SenderId,
+                InstitutionId = solution.InstitutionId
+            });
         }
         return new SuccessResult();
     }
@@ -231,17 +296,27 @@ public class SolutionManager : ISolutionService
         {
             try
             {
-                _notificationService.Add(new Notification
-                {
-                    UserId = solution.SenderId,
-                    Title = "Çözümünüz öne çıkarıldı ⭐",
-                    Message = "Paylaştığınız çözüm editörler tarafından öne çıkarıldı.",
-                    Type = "SolutionHighlighted",
-                    ReferenceLink = $"/problem/{solution.ProblemId}"
-                });
+                // _notificationService.Add(new Notification
+                // {
+                //     UserId = solution.SenderId,
+                //     Title = "Çözümünüz öne çıkarıldı ⭐",
+                //     Message = "Paylaştığınız çözüm editörler tarafından öne çıkarıldı.",
+                //     Type = "SolutionHighlighted",
+                //     ReferenceLink = $"/problem/{solution.ProblemId}"
+                // });
             }
             catch { /* Bildirim hatası ana işlemi etkilemesin */ }
         }
+
+        _ = _eventBus.PublishAsync("solution.highlight_toggled", new RuleContext
+        {
+            SystemUserId = (int)(_clientContext.GetUserId() ?? 0),
+            SolutionId = id,
+            ProblemId = solution.ProblemId,
+            TargetUserId = solution.SenderId,
+            NewValue = solution.IsHighlighted.ToString(),
+            InstitutionId = solution.InstitutionId
+        });
 
         return new SuccessResult($"Çözüm (ID: {solution.Id}) {action}.");
     }
@@ -264,14 +339,14 @@ public class SolutionManager : ISolutionService
 
         try
         {
-            _notificationService.Add(new Notification
-            {
-                UserId = solution.SenderId,
-                Title = "Çözümünüz onaylandı! 🎉",
-                Message = "Paylaştığınız çözüm yetkili tarafından incelendi ve onaylandı.",
-                Type = "SolutionApproved",
-                ReferenceLink = $"/problem/{solution.ProblemId}"
-            });
+            // _notificationService.Add(new Notification
+            // {
+            //     UserId = solution.SenderId,
+            //     Title = "Çözümünüz onaylandı! 🎉",
+            //     Message = "Paylaştığınız çözüm yetkili tarafından incelendi ve onaylandı.",
+            //     Type = "SolutionApproved",
+            //     ReferenceLink = $"/problem/{solution.ProblemId}"
+            // });
 
             // Bildirim: Problemi takip edenlere "Çözüm yetkili tarafından onaylandı!" diye bildir
             var followerIds = _problemFollowService.GetFollowerIds(solution.ProblemId);
@@ -279,17 +354,26 @@ public class SolutionManager : ISolutionService
             {
                 if (fId == solution.SenderId) continue;
 
-                _notificationService.Add(new Notification
-                {
-                    UserId = fId,
-                    Title = "Takip ettiğiniz soruna onaylı çözüm!",
-                    Message = "Takip ettiğiniz bir sorundaki çözüm yetkililer tarafından onaylandı.",
-                    Type = "FollowedProblemSolutionApproved",
-                    ReferenceLink = $"/problem/{solution.ProblemId}"
-                });
+                // _notificationService.Add(new Notification
+                // {
+                //     UserId = fId,
+                //     Title = "Takip ettiğiniz soruna onaylı çözüm!",
+                //     Message = "Takip ettiğiniz bir sorundaki çözüm yetkililer tarafından onaylandı.",
+                //     Type = "FollowedProblemSolutionApproved",
+                //     ReferenceLink = $"/problem/{solution.ProblemId}"
+                // });
             }
         }
         catch { /* Bildirim hatası ana işlemi etkilemesin */ }
+
+        _ = _eventBus.PublishAsync("solution.approved", new RuleContext
+        {
+            SystemUserId = (int)(_clientContext.GetUserId() ?? 0),
+            SolutionId = id,
+            ProblemId = solution.ProblemId,
+            TargetUserId = solution.SenderId,
+            InstitutionId = solution.InstitutionId
+        });
 
         return new SuccessResult($"Çözüm (ID: {solution.Id}) admin tarafından onaylandı.");
     }
@@ -304,19 +388,29 @@ public class SolutionManager : ISolutionService
 
         try
         {
-            _notificationService.Add(new Notification
-            {
-                UserId = solution.SenderId,
-                Title = "Çözümünüz reddedildi",
-                Message = "Paylaştığınız çözüm yetkili incelemesinden geçemedi.",
-                Type = "SolutionRejected",
-                ReferenceLink = $"/problem/{solution.ProblemId}"
-            });
+            // _notificationService.Add(new Notification
+            // {
+            //     UserId = solution.SenderId,
+            //     Title = "Çözümünüz reddedildi",
+            //     Message = "Paylaştığınız çözüm yetkili incelemesinden geçemedi.",
+            //     Type = "SolutionRejected",
+            //     ReferenceLink = $"/problem/{solution.ProblemId}"
+            // });
         }
         catch { /* Bildirim hatası ana işlemi etkilemesin */ }
 
+        _ = _eventBus.PublishAsync("solution.rejected", new RuleContext
+        {
+            SystemUserId = (int)(_clientContext.GetUserId() ?? 0),
+            SolutionId = id,
+            ProblemId = solution.ProblemId,
+            TargetUserId = solution.SenderId,
+            InstitutionId = solution.InstitutionId
+        });
+
         return new SuccessResult($"Çözüm (ID: {solution.Id}) admin tarafından reddedildi.");
     }
+
     public IDataResult<List<SolutionDetailDto>> GetAllForAdmin()
     {
         return new SuccessDataResult<List<SolutionDetailDto>>(_solutionDal.GetSolutions());

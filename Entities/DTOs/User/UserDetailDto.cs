@@ -12,6 +12,10 @@ public class UserDetailDto
     public int CityCode { get; set; }
     public int GenderCode { get; set; }
 	public bool EmailNotificationPermission { get; set; }
+	public bool MentionNotificationEnabled { get; set; }
+    public bool IsProfilePublic { get; set; }
+    public bool ShowSolutions { get; set; }
+    public bool ShowProblems { get; set; }
 	public bool IsAdmin { get; set; }
 	public bool IsExpert { get; set; }
     public bool IsOfficial { get; set; }
@@ -26,4 +30,5 @@ public class UserDetailDto
 	public DateTime? LastUsernameChangeDate { get; set; }
     public string? ProfileImageUrl { get; set; }
     public int InstitutionId { get; set; }
+    public int? CustomHierarchyId { get; set; }
 }

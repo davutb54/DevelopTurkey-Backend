@@ -1,5 +1,7 @@
-using Business.Abstract;
 using Business.Concrete;
+using Business.Abstract;
+using WebAPI.Hubs;
+using WebAPI.SignalR;
 using Core.Utilities.Helpers.Email;
 using Core.Utilities.Security.Encryption;
 using Core.Utilities.Security.JWT;
@@ -23,7 +25,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowOrigin", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://localhost:5173")
+        policy.WithOrigins("http://localhost:3000", "http://localhost:5173", "http://194.146.36.60:3000")
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();
@@ -106,8 +108,54 @@ builder.Services.AddScoped<ILegalAgreementService, LegalAgreementManager>();
 builder.Services.AddScoped<IAboutPageSectionService, AboutPageSectionManager>();
 builder.Services.AddScoped<IAboutPageSectionDal, EfAboutPageSectionDal>();
 
+builder.Services.AddScoped<IFeatureGroupDal, EfFeatureGroupDal>();
+builder.Services.AddScoped<IFeatureGroupService, FeatureGroupManager>();
+
+builder.Services.AddScoped<IFeatureDefinitionDal, EfFeatureDefinitionDal>();
+builder.Services.AddScoped<IFeatureDefinitionService, FeatureDefinitionManager>();
+
+builder.Services.AddScoped<IDynamicRuleDal, EfDynamicRuleDal>();
+builder.Services.AddScoped<IDynamicRuleService, DynamicRuleManager>();
+
+builder.Services.AddScoped<IWorkflowTriggerDal, EfWorkflowTriggerDal>();
+builder.Services.AddScoped<IWorkflowTriggerService, WorkflowTriggerManager>();
+builder.Services.AddScoped<IWorkflowFieldDal, EfWorkflowFieldDal>();
+builder.Services.AddScoped<IWorkflowFieldService, WorkflowFieldManager>();
+builder.Services.AddScoped<IWorkflowActionDal, EfWorkflowActionDal>();
+builder.Services.AddScoped<IWorkflowActionService, WorkflowActionManager>();
+
+builder.Services.AddScoped<IWorkflowActionDispatcher, WorkflowActionDispatcher>();
+builder.Services.AddScoped<IWorkflowInterpreterService, WorkflowInterpreterManager>();
+
+builder.Services.AddScoped<IWorkflowLogDal, EfWorkflowLogDal>();
+builder.Services.AddScoped<IWorkflowLogService, WorkflowLogManager>();
+
+// Workflow Event Bus — yeni handler eklemek için IWorkflowEventHandler olarak kaydet
+builder.Services.AddScoped<IWorkflowEventHandler, WorkflowEventHandler>();
+builder.Services.AddScoped<IRuleContextEnricher, RuleContextEnricher>();
+builder.Services.AddScoped<IWorkflowEventBus, WorkflowEventBus>();
+
+// Roslyn C# Script Motoru - Yalnızca SuperAdmin yetkisiyle çalışır
+builder.Services.AddScoped<IRuleExecutionService, RuleExecutionManager>();
+
+builder.Services.AddScoped<IInstitutionFeatureValueDal, EfInstitutionFeatureValueDal>();
+builder.Services.AddScoped<IInstitutionFeatureService, InstitutionFeatureManager>();
+builder.Services.AddScoped<IMentionService, MentionManager>();
+builder.Services.AddScoped<ILiveNotificationService, SignalRLiveNotificationManager>();
+
+builder.Services.AddScoped<IEmailTemplateDal, EfEmailTemplateDal>();
+builder.Services.AddScoped<IEmailTemplateService, EmailTemplateManager>();
+
+builder.Services.AddScoped<DevelopTurkeyContext, DevelopTurkeyContext>();
+
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<ICaptchaService, CaptchaManager>();
+// Workflow webhook action'ı için: HttpClient default timeout'u (100s) workflow
+// bağlamında çok uzun. 10s ile sınırla — hung webhook tüm kuralı bloke etmesin.
+builder.Services.AddHttpClient<IWebhookClient, WebAPI.Services.WebhookClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 
 builder.Services.AddScoped<WebAPI.Services.IGeoLocationService, WebAPI.Services.GeoLocationService>();
 
@@ -258,22 +306,19 @@ app.Use(async (context, next) =>
     await next();
 });
 
-app.Use(async (context, next) =>
+if (!app.Environment.IsDevelopment())
 {
-    context.Response.Headers.Append("X-Frame-Options", "DENY");
-
-    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
-
-    context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
-
-    context.Response.Headers.Append("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; frame-ancestors 'none';");
-
-    context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
-
-    context.Response.Headers.Append("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
-
-    await next();
-});
+    app.Use(async (context, next) =>
+    {
+        context.Response.Headers.Append("X-Frame-Options", "DENY");
+        context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+        context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
+        context.Response.Headers.Append("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; frame-ancestors 'none';");
+        context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+        context.Response.Headers.Append("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+        await next();
+    });
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -325,8 +370,18 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<WebAPI.Middlewares.MaintenanceMiddleware>();
 app.UseAuthorization();
+app.UseMiddleware<WebAPI.Middlewares.IpWhitelistMiddleware>();
 
 app.MapControllers();
-app.MapHub<WebAPI.Hubs.NotificationHub>("/api/hubs/notification");
+app.MapHub<NotificationHub>("/api/hubs/notification");
+
+// Feature Seeder
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<DataAccess.Concrete.EntityFramework.DevelopTurkeyContext>();
+    WebAPI.Seeders.FeatureSeeder.Seed(context);
+    WebAPI.Seeders.EmailTemplateSeeder.Seed(context);
+    WebAPI.Seeders.WorkflowReferenceSeeder.Seed(context);
+}
 
 app.Run();

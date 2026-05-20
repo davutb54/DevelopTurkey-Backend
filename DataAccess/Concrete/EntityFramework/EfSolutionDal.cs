@@ -1,4 +1,4 @@
-﻿using System.Linq.Expressions;
+using System.Linq.Expressions;
 using Core.DataAccess.EntityFramework;
 using DataAccess.Abstract;
 using Entities.Concrete;
@@ -33,7 +33,8 @@ public class EfSolutionDal : EfEntityRepositoryBase<Solution, DevelopTurkeyConte
                          VoteCount = context.SolutionVotes.Count(v => v.SolutionId == s.Id && v.IsUpvote) - context.SolutionVotes.Count(v => v.SolutionId == s.Id && !v.IsUpvote),
                          ExpertApprovalStatus = s.ExpertApprovalStatus,
                          SenderImageUrl = u.ProfileImageUrl,
-                         InstitutionId = s.InstitutionId
+                         InstitutionId = s.InstitutionId,
+                         ImageUrls = s.ImageUrls != null ? s.ImageUrls.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList() : new List<string>()
                      };
         return filter == null ? result.ToList() : result.Where(filter).ToList();
     }

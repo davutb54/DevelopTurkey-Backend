@@ -1,4 +1,4 @@
-﻿namespace Entities.DTOs;
+namespace Entities.DTOs;
 
 public class SolutionDetailDto
 {
@@ -21,4 +21,5 @@ public class SolutionDetailDto
     public string? SenderImageUrl { get; set; }
 
     public int InstitutionId { get; set; }
+    public List<string>? ImageUrls { get; set; }
 }

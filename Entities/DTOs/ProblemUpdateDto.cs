@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 
 namespace Entities.DTOs;
 
@@ -14,8 +14,8 @@ public class ProblemUpdateDto
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
 
-    public string? ImageUrl { get; set; }
-    public IFormFile? Image { get; set; }
+    public string? ImageUrls { get; set; }
+    public List<IFormFile>? Images { get; set; }
 
     public bool ClearLocation { get; set; }
 
@@ -26,6 +26,7 @@ public class ProblemUpdateDto
     public bool IsResolved { get; set; }
     public int InstitutionId { get; set; }
     public int ViewCount { get; set; }
+    public int? CustomHierarchyId { get; set; }
 
-    public List<int> TopicIds { get; set; } = new();
+    public List<int>? TopicIds { get; set; } = new();
 }

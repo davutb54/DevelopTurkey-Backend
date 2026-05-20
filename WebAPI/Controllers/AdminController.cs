@@ -1,4 +1,5 @@
 using Business.Abstract;
+using Business.Models;
 using Core.Entities.Concrete;
 using Entities.Concrete;
 using Microsoft.AspNetCore.Authorization;
@@ -29,6 +30,8 @@ namespace WebAPI.Controllers
         private readonly INotificationService _notificationService;
         private readonly ILegalAgreementService _legalAgreementService;
         private readonly IAboutPageSectionService _aboutPageSectionService;
+        private readonly IInstitutionFeatureService _institutionFeatureService;
+        private readonly IWorkflowEventBus _eventBus;
 
         public AdminController(IUserService userService, IProblemService problemService,
             ISolutionService solutionService, ILogService logService, ITopicService topicService,
@@ -36,7 +39,9 @@ namespace WebAPI.Controllers
             ISystemSettingsService systemSettingsService,
             IUserWarningService userWarningService, INotificationService notificationService,
             ILegalAgreementService legalAgreementService,
-            IAboutPageSectionService aboutPageSectionService)
+            IAboutPageSectionService aboutPageSectionService,
+            IInstitutionFeatureService institutionFeatureService,
+            IWorkflowEventBus eventBus)
         {
             _userService = userService;
             _problemService = problemService;
@@ -50,6 +55,8 @@ namespace WebAPI.Controllers
             _notificationService = notificationService;
             _legalAgreementService = legalAgreementService;
             _aboutPageSectionService = aboutPageSectionService;
+            _institutionFeatureService = institutionFeatureService;
+            _eventBus = eventBus;
         }
 
         [HttpPost("banuser")]
@@ -129,6 +136,11 @@ namespace WebAPI.Controllers
             var targetUserRes = _userService.GetById(impersonateDto.TargetUserId);
             if (!targetUserRes.Success || targetUserRes.Data == null) return BadRequest(targetUserRes.Message);
 
+            // KRİTİK: Impersonation feature kontrolü hedef kullanıcının kurumuna göre yapılır
+            int targetInstitutionId = targetUserRes.Data.InstitutionId;
+            if (!_institutionFeatureService.IsFeatureEnabled(targetInstitutionId, "Identity.AllowImpersonation", false))
+                return BadRequest(new { success = false, message = "Bu kullanıcının kurumu için yönetici geçişi özelliği devre dışı bırakılmış." });
+
             // Güvenlik: Admin'den Admin'e geçiş yasak
             if (targetUserRes.Data.IsAdmin)
             {
@@ -142,6 +154,17 @@ namespace WebAPI.Controllers
             // Token'ı üret ve içerisine "Actor=adminId" claim'ini göm
             var tokenResult = _userService.CreateAccessToken(targetUserEntity, adminId);
             if (!tokenResult.Success) return BadRequest(tokenResult.Message);
+
+            _ = _eventBus.PublishAsync("auth.impersonated", new RuleContext
+            {
+                SystemUserId = adminId,
+                TargetUserId = targetUserEntity.Id,
+                Metadata = new Dictionary<string, object?>
+                {
+                    ["AdminId"] = adminId,
+                    ["TargetUserId"] = targetUserEntity.Id
+                }
+            });
 
             _logService.LogInfo("Security", "Impersonate", $"Admin (ID:{adminId}) -> User (ID:{targetUserEntity.Id}, {targetUserEntity.UserName}) hesabına sudo geçişi sağladı.");
 
@@ -164,6 +187,13 @@ namespace WebAPI.Controllers
         {
             var result = _logService.GetListByFilter(filter);
             return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpPost("changeuserinstitution")]
+        public IActionResult ChangeUserInstitution(int userId, int newInstitutionId)
+        {
+            var result = _userService.ChangeUserInstitution(userId, newInstitutionId);
+            return result.Success ? Ok(result.Message) : BadRequest(result.Message);
         }
 
         [HttpPost("toggleadminrole")]

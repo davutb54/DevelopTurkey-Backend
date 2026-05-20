@@ -11,16 +11,18 @@ public class ProblemDetailDto
 	public bool SenderIsExpert { get; set; }
 	public string Title { get; set; }
 	public string Description { get; set; }
-	public int CityCode { get; set; }
+	public int? CityCode { get; set; }
+    public int? CustomHierarchyId { get; set; }
     public string? Address { get; set; }
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
 	public string CityName { get; set; }
+    public string? CustomHierarchyName { get; set; }
 	public bool IsHighlighted { get; set; }
 	public bool IsReported { get; set; }
 	public bool IsDeleted { get; set; }
 	public DateTime SendDate { get; set; }
-    public string? ImageUrl { get; set; }
+    public List<string>? ImageUrls { get; set; }
     public int ViewCount { get; set; }
     public int SolutionCount { get; set; }
     public bool IsResolvedByExpert { get; set; }

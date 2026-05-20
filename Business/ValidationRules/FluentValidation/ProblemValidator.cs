@@ -10,7 +10,7 @@ public class ProblemValidator : AbstractValidator<ProblemAddDto>
         RuleFor(p => p.Title)
             .NotEmpty().WithMessage("Başlık boş olamaz.")
             .MinimumLength(5).WithMessage("Başlık en az 5 karakter olmalıdır.")
-            .MaximumLength(100).WithMessage("Başlık 100 karakterden uzun olamaz.");
+            .MaximumLength(200).WithMessage("Başlık 200 karakterden uzun olamaz.");
 
         RuleFor(p => p.Description)
             .NotEmpty().WithMessage("Açıklama boş olamaz.")

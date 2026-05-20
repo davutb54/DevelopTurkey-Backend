@@ -11,4 +11,5 @@ public class UserForRegisterDto
 	public int GenderCode { get; set; }
 	public bool EmailNotificationPermission { get; set; }
 	public string? CaptchaToken { get; set; }
+	public bool AgreementAccepted { get; set; } = false;
 }

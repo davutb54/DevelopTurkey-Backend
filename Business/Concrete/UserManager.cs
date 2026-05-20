@@ -12,6 +12,7 @@ using Entities.DTOs;
 using Entities.DTOs.User;
 using Google.Apis.Auth;
 using Microsoft.Extensions.Configuration;
+using Business.Models;
 
 namespace Business.Concrete;
 
@@ -26,8 +27,10 @@ public class UserManager : IUserService
     private readonly INotificationService _notificationService;
     private readonly IConfiguration _configuration;
     private readonly IEmailVerificationService _emailVerificationService;
+    private readonly IInstitutionFeatureService _institutionFeatureService;
+    private readonly IWorkflowEventBus _eventBus;
 
-    public UserManager(IUserDal userDal, ILogService logService, ITokenHelper tokenHelper, IInstitutionService institutionService, IClientContext clientContext, ISystemSettingsService systemSettingsService, INotificationService notificationService, IConfiguration configuration, IEmailVerificationService emailVerificationService)
+    public UserManager(IUserDal userDal, ILogService logService, ITokenHelper tokenHelper, IInstitutionService institutionService, IClientContext clientContext, ISystemSettingsService systemSettingsService, INotificationService notificationService, IConfiguration configuration, IEmailVerificationService emailVerificationService, IInstitutionFeatureService institutionFeatureService, IWorkflowEventBus eventBus)
     {
         _userDal = userDal;
         _logService = logService;
@@ -38,6 +41,8 @@ public class UserManager : IUserService
         _notificationService = notificationService;
         _configuration = configuration;
         _emailVerificationService = emailVerificationService;
+        _institutionFeatureService = institutionFeatureService;
+        _eventBus = eventBus;
     }
 
     public IDataResult<UserDetailDto?> GetById(int id)
@@ -52,9 +57,9 @@ public class UserManager : IUserService
         return new ErrorDataResult<UserDetailDto?>(user, Messages.UserGetByIdError);
     }
 
-    public IDataResult<UserPublicProfileDto?> GetPublicProfile(int id)
+    public IDataResult<UserPublicProfileDto?> GetPublicProfile(int id, int institutionId)
     {
-        var user = _userDal.GetUserDetail(u => u.Id == id);
+        var user = _userDal.GetUserDetail(u => u.Id == id && u.InstitutionId == institutionId);
 
         if (user != null)
         {
@@ -71,7 +76,40 @@ public class UserManager : IUserService
                 IsOfficial = user.IsOfficial,
                 RegisterDate = user.RegisterDate,
                 ProfileImageUrl = user.ProfileImageUrl,
-                InstitutionId = user.InstitutionId
+                InstitutionId = user.InstitutionId,
+                IsProfilePublic = user.IsProfilePublic,
+                ShowSolutions = user.ShowSolutions,
+                ShowProblems = user.ShowProblems
+            };
+            return new SuccessDataResult<UserPublicProfileDto?>(publicProfile, Messages.UserGetByIdOk);
+        }
+
+        return new ErrorDataResult<UserPublicProfileDto?>(null, Messages.UserGetByIdError);
+    }
+
+    public IDataResult<UserPublicProfileDto?> GetPublicProfileByUserName(string username, int institutionId)
+    {
+        var user = _userDal.GetUserDetail(u => u.UserName == username && u.InstitutionId == institutionId);
+
+        if (user != null)
+        {
+            var publicProfile = new UserPublicProfileDto
+            {
+                Id = user.Id,
+                UserName = user.UserName,
+                Name = user.Name,
+                Surname = user.Surname,
+                CityName = user.CityName,
+                Gender = user.Gender,
+                IsAdmin = user.IsAdmin,
+                IsExpert = user.IsExpert,
+                IsOfficial = user.IsOfficial,
+                RegisterDate = user.RegisterDate,
+                ProfileImageUrl = user.ProfileImageUrl,
+                InstitutionId = user.InstitutionId,
+                IsProfilePublic = user.IsProfilePublic,
+                ShowSolutions = user.ShowSolutions,
+                ShowProblems = user.ShowProblems
             };
             return new SuccessDataResult<UserPublicProfileDto?>(publicProfile, Messages.UserGetByIdOk);
         }
@@ -106,6 +144,15 @@ public class UserManager : IUserService
             return new ErrorResult("Hesabınız kuralları ihlal ettiğiniz gerekçesiyle sistem yöneticileri tarafından askıya alınmıştır.");
         }
 
+        // Feature: MaxLoginAttempts - hesap kilitleme kontrolü
+        int maxLoginAttempts = int.Parse(_institutionFeatureService.GetFeatureValue(user.InstitutionId, "Identity.MaxLoginAttempts", "5"));
+        if (user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTime.Now)
+        {
+            var remainingMinutes = (int)(user.LockoutEnd.Value - DateTime.Now).TotalMinutes + 1;
+            _logService.LogWarning("Security", "Login", $"Kilitli hesap giriş denemesi: {user.UserName} (Kalan: {remainingMinutes} dk)");
+            return new ErrorResult($"Hesabınız çok fazla başarısız giriş denemesi nedeniyle {remainingMinutes} dakika süreyle kilitlenmiştir.");
+        }
+
         if (user.InstitutionId != 1)
         {
             var institutionResult = _institutionService.GetById(user.InstitutionId);
@@ -119,9 +166,52 @@ public class UserManager : IUserService
 
         if (!HashingHelper.VerifyPasswordHash(userForLoginDto.Password, user.PasswordHash, user.PasswordSalt))
         {
-            _logService.LogWarning("Auth", "Login", $"Hatalı şifre girişi: {user.UserName}");
+            user.FailedLoginAttempts++;
+            if (user.FailedLoginAttempts >= maxLoginAttempts)
+            {
+                // Katlanarak artan blokaj (15dk, 30dk, 60dk, 120dk...)
+                int lockoutMinutes = 15 * (int)Math.Pow(2, user.LockoutCount);
+                if (lockoutMinutes > 1440) lockoutMinutes = 1440; // Max 24 saat
+
+                user.LockoutEnd = DateTime.Now.AddMinutes(lockoutMinutes);
+                user.LockoutCount++;
+                user.FailedLoginAttempts = 0;
+                _userDal.Update(user);
+                
+                _ = _eventBus.PublishAsync("auth.locked_out", new RuleContext
+                {
+                    SystemUserId = user.Id,
+                    InstitutionId = user.InstitutionId,
+                    Metadata = new Dictionary<string, object?>
+                    {
+                        ["LockoutMinutes"] = lockoutMinutes,
+                        ["LockoutCount"] = user.LockoutCount
+                    }
+                });
+
+                _logService.LogWarning("Security", "Login", $"Hesap kilitlendi: {user.UserName} (Kilit Sayısı: {user.LockoutCount}, Süre: {lockoutMinutes} dk)");
+                return new ErrorResult($"Hesabınız çok fazla başarısız giriş denemesi nedeniyle {lockoutMinutes} dakika süreyle kilitlenmiştir.");
+            }
+            _userDal.Update(user);
+            _logService.LogWarning("Auth", "Login", $"Hatalı şifre girişi: {user.UserName} (Deneme: {user.FailedLoginAttempts}/{maxLoginAttempts})");
             return new ErrorResult(Messages.UserPasswordError);
         }
+
+        // Feature: Email doğrulama kontrolü
+        if (_institutionFeatureService.IsFeatureEnabled(user.InstitutionId, "Identity.RequireEmailVerification", true))
+        {
+            if (!user.IsEmailVerified)
+            {
+                _logService.LogWarning("Auth", "Login", $"Doğrulanmamış email ile giriş denemesi: {user.UserName}");
+                return new ErrorResult("Giriş yapabilmek için e-posta adresinizi doğrulamanız gerekmektedir.");
+            }
+        }
+
+        // Başarılı giriş: sayaçları sıfırla
+        user.FailedLoginAttempts = 0;
+        user.LockoutCount = 0; // Kilit sayısını da sıfırla
+        user.LockoutEnd = null;
+        _userDal.Update(user);
 
         _logService.LogInfo("Auth", "Login", $"Başarılı giriş - ID: {user.Id}, Kullanıcı: {user.UserName}");
         return new SuccessResult(Messages.UserLoginOk);
@@ -175,23 +265,34 @@ public class UserManager : IUserService
                 Gender = 0
             };
             _userDal.Add(user);
+            _ = _eventBus.PublishAsync("auth.registered", new RuleContext
+            {
+                SystemUserId = user.Id,
+                InstitutionId = user.InstitutionId
+            });
             _logService.LogInfo("Auth", "GoogleRegister", $"Google ile yeni kayıt: {user.Email}");
         }
 
         // GİRİŞ İŞLEMİ (Hesap birleştirilmiş veya yeni açılmış fark etmez)
         if (user.IsBanned) return new ErrorDataResult<AccessToken>(null, "Hesabınız askıya alınmıştır.");
-        
+
+        _ = _eventBus.PublishAsync("auth.google_login", new RuleContext
+        {
+            SystemUserId = user.Id,
+            InstitutionId = user.InstitutionId
+        });
+
         _logService.LogInfo("Auth", "GoogleLogin", $"Google ile giriş: {user.Email}");
         var accessToken = _tokenHelper.CreateToken(user, null);
         accessToken.UserId = user.Id;
         return new SuccessDataResult<AccessToken>(accessToken, "Giriş başarılı.");
     }
 
-    public IDataResult<AccessToken> CreateAccessToken(User user, int? impersonatedById = null)
+    public IDataResult<AccessToken> CreateAccessToken(User user, int? impersonatedById = null, int? sessionTimeoutMinutes = null)
     {
         if (_tokenHelper == null) return new ErrorDataResult<AccessToken>(null, "Token servisi yapılandırılmadı.");
 
-        var accessToken = _tokenHelper.CreateToken(user, impersonatedById);
+        var accessToken = _tokenHelper.CreateToken(user, impersonatedById, sessionTimeoutMinutes);
         accessToken.UserId = user.Id;
         return new SuccessDataResult<AccessToken>(accessToken, "Token oluşturuldu");
     }
@@ -258,6 +359,12 @@ public class UserManager : IUserService
 
         _userDal.Add(user);
 
+        _ = _eventBus.PublishAsync("auth.registered", new RuleContext
+        {
+            SystemUserId = user.Id,
+            InstitutionId = user.InstitutionId
+        });
+
         _logService.LogInfo("Auth", "Register", $"Yeni kullanıcı kaydı - ID: {user.Id}, Kullanıcı: {user.UserName}");
 
         return new SuccessResult(Messages.UserRegisterOk);
@@ -291,6 +398,12 @@ public class UserManager : IUserService
         user.PasswordSalt = newSalt;
 
         _userDal.Update(user);
+
+        _ = _eventBus.PublishAsync("auth.password_changed", new RuleContext
+        {
+            SystemUserId = user.Id,
+            InstitutionId = user.InstitutionId
+        });
 
         _logService.LogInfo("Security", "UpdatePassword", $"Şifre güncellendi - ID: {user.Id}, Kullanıcı: {user.UserName}");
         return new SuccessResult(Messages.UserPasswordUpdateOk);
@@ -332,6 +445,11 @@ public class UserManager : IUserService
         user.Email = userForUpdateDto.Email;
         user.CityCode = userForUpdateDto.CityCode;
         user.Gender = userForUpdateDto.GenderCode;
+        user.CustomHierarchyId = userForUpdateDto.CustomHierarchyId;
+        user.MentionNotificationEnabled = userForUpdateDto.MentionNotificationEnabled;
+        user.IsProfilePublic = userForUpdateDto.IsProfilePublic;
+        user.ShowSolutions = userForUpdateDto.ShowSolutions;
+        user.ShowProblems = userForUpdateDto.ShowProblems;
 
         if (emailChanged)
         {
@@ -346,6 +464,12 @@ public class UserManager : IUserService
         }
 
         _logService.LogInfo("Auth", "UpdateDetails", $"Kullanıcı bilgileri güncellendi - ID: {user.Id}, Kullanıcı: {user.UserName}");
+
+        _ = _eventBus.PublishAsync("user.updated", new RuleContext
+        {
+            SystemUserId = user.Id,
+            InstitutionId = user.InstitutionId
+        });
 
         return new SuccessResult(Messages.UserUpdateOk);
     }
@@ -362,6 +486,12 @@ public class UserManager : IUserService
         user.IsDeleted = true;
         user.DeleteDate = DateTime.Now;
         _userDal.Update(user);
+
+        _ = _eventBus.PublishAsync("user.deleted", new RuleContext
+        {
+            SystemUserId = user.Id,
+            InstitutionId = user.InstitutionId
+        });
 
         var currentUserId = _clientContext.GetUserId();
 
@@ -417,6 +547,12 @@ public class UserManager : IUserService
 
         _logService.LogWarning("AdminAction", "Ban", $"Kullanıcı yasaklandı - ID: {user.Id}, Kullanıcı: {user.UserName}");
 
+        _ = _eventBus.PublishAsync("user.banned", new RuleContext
+        {
+            SystemUserId = user.Id,
+            InstitutionId = user.InstitutionId
+        });
+
         try
         {
             _notificationService.Add(new Notification
@@ -442,6 +578,12 @@ public class UserManager : IUserService
         _userDal.Update(user);
 
         _logService.LogInfo("AdminAction", "Unban", $"Kullanıcı yasağı kaldırıldı - ID: {user.Id}, Kullanıcı: {user.UserName}");
+
+        _ = _eventBus.PublishAsync("user.unbanned", new RuleContext
+        {
+            SystemUserId = user.Id,
+            InstitutionId = user.InstitutionId
+        });
 
         try
         {
@@ -475,6 +617,13 @@ public class UserManager : IUserService
         if (user == null) return new ErrorResult(Messages.UserNotFound);
         user.IsReported = true;
         _userDal.Update(user);
+
+        _ = _eventBus.PublishAsync("user.reported", new RuleContext
+        {
+            SystemUserId = user.Id,
+            InstitutionId = user.InstitutionId
+        });
+
         _logService.LogInfo("Moderation", "Report", $"Kullanıcı raporlandı - ID: {user.Id}");
         return new SuccessResult($"Kullanıcı (ID: {user.Id}) raporlandı");
     }
@@ -486,6 +635,12 @@ public class UserManager : IUserService
         {
             user.IsReported = false;
             _userDal.Update(user);
+
+            _ = _eventBus.PublishAsync("user.unreported", new RuleContext
+            {
+                SystemUserId = user.Id,
+                InstitutionId = user.InstitutionId
+            });
         }
         return new SuccessResult();
     }
@@ -497,6 +652,21 @@ public class UserManager : IUserService
         user.IsAdmin = !user.IsAdmin;
         _logService.LogWarning("AdminAction", "ToggleAdminRole", $"Admin rolü {(user.IsAdmin ? "verildi" : "kaldırıldı")} - ID: {user.Id}, Kullanıcı: {user.UserName}");
         _userDal.Update(user);
+        string adminOldValue = user.IsAdmin ? "User" : "Admin";
+        string adminNewValue = user.IsAdmin ? "Admin" : "User";
+        _ = _eventBus.PublishAsync("user.role_changed", new RuleContext
+        {
+            SystemUserId = user.Id,
+            InstitutionId = user.InstitutionId,
+            OldValue = adminOldValue,
+            NewValue = adminNewValue,
+            Metadata = new Dictionary<string, object?>
+            {
+                ["RoleName"] = "Admin",
+                ["OldValue"] = adminOldValue,
+                ["NewValue"] = adminNewValue
+            }
+        });
         try
         {
             _notificationService.Add(new Notification
@@ -522,6 +692,21 @@ public class UserManager : IUserService
         user.IsExpert = !user.IsExpert;
         _logService.LogWarning("AdminAction", "ToggleExpertRole", $"Uzman rolü {(user.IsExpert ? "verildi" : "kaldırıldı")} - ID: {user.Id}, Kullanıcı: {user.UserName}");
         _userDal.Update(user);
+        string expertOldValue = user.IsExpert ? "User" : "Expert";
+        string expertNewValue = user.IsExpert ? "Expert" : "User";
+        _ = _eventBus.PublishAsync("user.role_changed", new RuleContext
+        {
+            SystemUserId = user.Id,
+            InstitutionId = user.InstitutionId,
+            OldValue = expertOldValue,
+            NewValue = expertNewValue,
+            Metadata = new Dictionary<string, object?>
+            {
+                ["RoleName"] = "Expert",
+                ["OldValue"] = expertOldValue,
+                ["NewValue"] = expertNewValue
+            }
+        });
         try
         {
             _notificationService.Add(new Notification
@@ -547,6 +732,21 @@ public class UserManager : IUserService
         user.IsOfficial = !user.IsOfficial;
         _logService.LogWarning("AdminAction", "ToggleOfficialRole", $"Resmi rolü {(user.IsOfficial ? "verildi" : "kaldırıldı")} - ID: {user.Id}, Kullanıcı: {user.UserName}");
         _userDal.Update(user);
+        string officialOldValue = user.IsOfficial ? "User" : "Official";
+        string officialNewValue = user.IsOfficial ? "Official" : "User";
+        _ = _eventBus.PublishAsync("user.role_changed", new RuleContext
+        {
+            SystemUserId = user.Id,
+            InstitutionId = user.InstitutionId,
+            OldValue = officialOldValue,
+            NewValue = officialNewValue,
+            Metadata = new Dictionary<string, object?>
+            {
+                ["RoleName"] = "Official",
+                ["OldValue"] = officialOldValue,
+                ["NewValue"] = officialNewValue
+            }
+        });
         try
         {
             _notificationService.Add(new Notification
@@ -565,10 +765,48 @@ public class UserManager : IUserService
         return new SuccessResult($"{action} (ID: {user.Id})");
     }
 
+    public IResult ChangeUserInstitution(int userId, int newInstitutionId)
+    {
+        var user = _userDal.Get(u => u.Id == userId);
+        if (user == null) return new ErrorResult(Messages.UserNotFound);
+
+        int oldInstitutionId = user.InstitutionId;
+        if (oldInstitutionId == newInstitutionId)
+            return new SuccessResult("Kullanıcı zaten bu kuruma üye.");
+
+        user.InstitutionId = newInstitutionId;
+        _userDal.Update(user);
+
+        _logService.LogWarning("AdminAction", "ChangeInstitution",
+            $"Kullanıcı kurumu değiştirildi - ID: {user.Id}, Eski: {oldInstitutionId}, Yeni: {newInstitutionId}");
+
+        _ = _eventBus.PublishAsync("user.institution_changed", new RuleContext
+        {
+            SystemUserId = user.Id,
+            InstitutionId = newInstitutionId,
+            OldValue = oldInstitutionId.ToString(),
+            NewValue = newInstitutionId.ToString(),
+            Metadata = new Dictionary<string, object?>
+            {
+                ["OldValue"] = oldInstitutionId.ToString(),
+                ["NewValue"] = newInstitutionId.ToString(),
+                ["OldInstitutionId"] = oldInstitutionId,
+                ["NewInstitutionId"] = newInstitutionId
+            }
+        });
+
+        return new SuccessResult($"Kullanıcı (ID: {userId}) kurumu {oldInstitutionId} -> {newInstitutionId} olarak güncellendi.");
+    }
+
     public IResult UpdateUsername(int userId, string newUsername)
     {
         var user = _userDal.Get(u => u.Id == userId);
         if (user == null) return new ErrorResult(Messages.UserNotFound);
+
+        // Kurum ayarı kontrolü
+        bool allowUsernameChange = _institutionFeatureService.IsFeatureEnabled(user.InstitutionId, "Profile.AllowUsernameChange", true);
+        if (!allowUsernameChange)
+            return new ErrorResult("Kurumunuz kullanıcı adı değişikliğine izin vermemektedir.");
 
         // Mevcut kullanıcı adıyla aynıysa başarılı dön
         if (string.Equals(user.UserName, newUsername, StringComparison.OrdinalIgnoreCase))
@@ -591,6 +829,19 @@ public class UserManager : IUserService
         user.UserName = newUsername;
         user.LastUsernameChangeDate = DateTime.Now;
         _userDal.Update(user);
+
+        _ = _eventBus.PublishAsync("user.username_changed", new RuleContext
+        {
+            SystemUserId = user.Id,
+            InstitutionId = user.InstitutionId,
+            OldValue = oldUsername,
+            NewValue = newUsername,
+            Metadata = new Dictionary<string, object?>
+            {
+                ["OldUsername"] = oldUsername,
+                ["NewUsername"] = newUsername
+            }
+        });
 
         _logService.LogInfo("Auth", "UpdateUsername", $"Kullanıcı adı güncellendi - ID: {user.Id}, Eski: {oldUsername}, Yeni: {newUsername}");
         return new SuccessResult("Kullanıcı adınız başarıyla güncellendi.");

@@ -10,10 +10,13 @@ namespace WebAPI.Controllers
     public class SolutionVoteController : Controller
     {
         private readonly ISolutionVoteService _solutionVoteService;
+        private readonly IInstitutionFeatureService _institutionFeatureService;
 
-        public SolutionVoteController(ISolutionVoteService solutionVoteService)
+        public SolutionVoteController(ISolutionVoteService solutionVoteService,
+            IInstitutionFeatureService institutionFeatureService)
         {
             _solutionVoteService = solutionVoteService;
+            _institutionFeatureService = institutionFeatureService;
         }
 
         [HttpPost("vote")]
@@ -24,6 +27,16 @@ namespace WebAPI.Controllers
             {
                 return Unauthorized("Kullanıcı girişi gereklidir.");
             }
+
+            // Upvote feature kontrolü
+            int institutionId = 1;
+            var institutionClaim = User.Claims.FirstOrDefault(c => c.Type == "InstitutionId");
+            if (institutionClaim != null)
+            {
+                institutionId = Convert.ToInt32(institutionClaim.Value);
+            }
+            if (!_institutionFeatureService.IsFeatureEnabled(institutionId, "Social.EnableUpvote", true))
+                return BadRequest(new { success = false, message = "Bu kurum için oylama özelliği devre dışı." });
 
             var result = _solutionVoteService.Vote(solutionVoteAddDto.SolutionId, solutionVoteAddDto.IsUpvote);
             if (result.Success)

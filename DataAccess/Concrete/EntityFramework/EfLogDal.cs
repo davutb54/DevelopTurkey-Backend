@@ -15,8 +15,11 @@ public class EfLogDal : EfEntityRepositoryBase<Log, DevelopTurkeyContext>, ILogD
 
             if (filter.IsActivityLog == true)
             {
-                query = query.Where(l => l.Category == "AdminAction" || l.Category == "Security");
+                query = query.Where(l => l.Category == "AdminAction" || l.Category == "Security" || l.Category == "Feature" || l.Category == "FeatureDefinition" || l.Category == "Institution" || l.Category == "DynamicRule");
             }
+
+            if (filter.InstitutionId.HasValue)
+                query = query.Where(l => l.InstitutionId == filter.InstitutionId.Value);
 
             if (!string.IsNullOrEmpty(filter.Category))
                 query = query.Where(l => l.Category == filter.Category);

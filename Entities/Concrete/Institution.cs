@@ -10,6 +10,10 @@ namespace Entities.Concrete
         public string Domain { get; set; }
         public string? LogoUrl { get; set; }
         public string? PrimaryColor { get; set; }
+        // CustomFieldsJson kalıyor
+        public string CustomFieldsJson { get; set; } = "[]";
+        public string? CustomHierarchyLabel { get; set; }
+        public string? CustomHierarchyJson { get; set; }
         public bool Status { get; set; }
     }
 }
