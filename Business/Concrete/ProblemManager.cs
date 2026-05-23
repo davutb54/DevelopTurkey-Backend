@@ -1,7 +1,8 @@
-using System.Linq;
+﻿using System.Linq;
 using Business.Abstract;
 using Business.Models;
 using Core.Entities.Concrete;
+using Core.Utilities.Authorization;
 using Core.Utilities.Context;
 using Business.Constants;
 using Core.Utilities.Results;
@@ -29,8 +30,9 @@ public class ProblemManager : IProblemService
     private readonly IInstitutionFeatureService _featureService;
     private readonly IMentionService _mentionService;
     private readonly IWorkflowEventBus _eventBus;
+    private readonly ICapabilityResolver _capabilityResolver;
 
-    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal, IClientContext clientContext, IMemoryCache cache, INotificationService notificationService, IProblemFollowService problemFollowService, ITopicFollowService topicFollowService, IUserService userService, ITopicFollowDal topicFollowDal, IInstitutionFeatureService featureService, IMentionService mentionService, IWorkflowEventBus eventBus)
+    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal, IClientContext clientContext, IMemoryCache cache, INotificationService notificationService, IProblemFollowService problemFollowService, ITopicFollowService topicFollowService, IUserService userService, ITopicFollowDal topicFollowDal, IInstitutionFeatureService featureService, IMentionService mentionService, IWorkflowEventBus eventBus, ICapabilityResolver capabilityResolver)
     {
         _problemDal = problemDal;
         _logService = logService;
@@ -47,6 +49,7 @@ public class ProblemManager : IProblemService
         _featureService = featureService;
         _mentionService = mentionService;
         _eventBus = eventBus;
+        _capabilityResolver = capabilityResolver;
     }
 
     public IDataResult<ProblemDetailDto> GetById(int id)
@@ -132,7 +135,7 @@ public class ProblemManager : IProblemService
     public IResult Update(Problem problem, List<int> topicIds)
     {
         var currentUserId = _clientContext.GetUserId();
-        var isAdmin = _clientContext.GetRoles().Contains("Admin");
+        var isModerator = _capabilityResolver.Allows(currentUserId.GetValueOrDefault(), "moderation.problem_moderate");
         var existingProblem = _problemDal.Get(p => p.Id == problem.Id);
 
         if (existingProblem == null)
@@ -145,7 +148,7 @@ public class ProblemManager : IProblemService
         // Örn: var institutionId = _clientContext.GetInstitutionId();
         // if (!isAdmin && isOfficial && existingProblem.InstitutionId != institutionId) return new ErrorResult(Messages.AuthorizationDenied);
 
-        if (!isAdmin && existingProblem.SenderId != currentUserId)
+        if (!isModerator && existingProblem.SenderId != currentUserId)
         {
              return new ErrorResult("Bu sorunu güncelleme yetkiniz yok.");
         }
@@ -158,8 +161,8 @@ public class ProblemManager : IProblemService
         problem.InstitutionId = existingProblem.InstitutionId;
         problem.ViewCount = existingProblem.ViewCount;
 
-        // Yalnızca Adminlerin müdahale edebileceği ayarlar; eğer kişi Admin değilse Database'dekini eziyoruz.
-        if (!isAdmin)
+        // Yalnızca moderatörlerin müdahale edebileceği alanlar; değilse DB değerini koru.
+        if (!isModerator)
         {
             problem.IsReported = existingProblem.IsReported;
             problem.IsHighlighted = existingProblem.IsHighlighted;
@@ -204,17 +207,12 @@ public class ProblemManager : IProblemService
     public IResult Delete(int id)
     {
         var currentUserId = _clientContext.GetUserId();
-        var isAdmin = _clientContext.GetRoles().Contains("Admin");
+        var isModerator = _capabilityResolver.Allows(currentUserId.GetValueOrDefault(), "moderation.problem_delete");
 
         var problem = _problemDal.Get(p => p.Id == id);
         if (problem == null) return new ErrorResult("Kayıt bulunamadı");
 
-        // TODO: İleride Moderator rolü (Örn: IsOfficial) eklendiğinde, moderatörün
-        // kendi kurumuna (InstitutionId) ait olmayan problemleri silmesi engellenmelidir.
-        // Örn: var institutionId = _clientContext.GetInstitutionId();
-        // if (!isAdmin && isOfficial && problem.InstitutionId != institutionId) return new ErrorResult(Messages.AuthorizationDenied);
-
-        if (!isAdmin && problem.SenderId != currentUserId)
+        if (!isModerator && problem.SenderId != currentUserId)
         {
              return new ErrorResult("Bu sorunu silme yetkiniz yok.");
         }
@@ -253,7 +251,7 @@ public class ProblemManager : IProblemService
             }
         }
 
-        if (isAdmin && problem.SenderId != currentUserId)
+        if (isModerator && problem.SenderId != currentUserId)
         {
             _logService.LogWarning("AdminAction", "Delete", $"Problem GÖREVLİ tarafından silindi - ID: {id} (Alt Çözüm ve Yorumlarıyla Birlikte)");
             try

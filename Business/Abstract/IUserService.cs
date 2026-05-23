@@ -32,9 +32,6 @@ public interface IUserService
     int GetBannedUserCount();
     IResult ReportUser(int userId);
     IResult UnReportUser(int id);
-    IResult ToggleAdminRole(int userId);
-    IResult ToggleExpertRole(int userId);
-    IResult ToggleOfficialRole(int userId);
     IResult UpdateUsername(int userId, string newUsername);
     IResult ChangeUserInstitution(int userId, int newInstitutionId);
 }

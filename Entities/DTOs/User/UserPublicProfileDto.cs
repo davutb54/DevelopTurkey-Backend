@@ -8,9 +8,6 @@ public class UserPublicProfileDto
     public required string Surname { get; set; }
     public required string CityName { get; set; }
     public required string Gender { get; set; }
-    public bool IsAdmin { get; set; }
-    public bool IsExpert { get; set; }
-    public bool IsOfficial { get; set; }
     public bool IsProfilePublic { get; set; }
     public bool ShowSolutions { get; set; }
     public bool ShowProblems { get; set; }

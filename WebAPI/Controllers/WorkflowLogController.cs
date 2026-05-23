@@ -1,13 +1,13 @@
 using Business.Abstract;
 using Entities.DTOs;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using WebAPI.Filters;
 
 namespace WebAPI.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-[Authorize(Roles = "Admin")]
+[RequireCapability("admin.workflow_log_read")]
 public class WorkflowLogController : ControllerBase
 {
     private readonly IWorkflowLogService _workflowLogService;

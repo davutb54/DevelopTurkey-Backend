@@ -1,4 +1,6 @@
 using Business.Abstract;
+using Core.Utilities.Authorization;
+using System.Security.Claims;
 using System.Text.Json;
 
 namespace WebAPI.Middlewares;
@@ -12,7 +14,7 @@ public class MaintenanceMiddleware
         _next = next;
     }
 
-    public async Task InvokeAsync(HttpContext httpContext, ISystemSettingsService systemSettingsService)
+    public async Task InvokeAsync(HttpContext httpContext, ISystemSettingsService systemSettingsService, ICapabilityResolver capabilityResolver)
     {
         var settingsResult = systemSettingsService.Get();
 
@@ -20,7 +22,10 @@ public class MaintenanceMiddleware
         {
             bool isAuthPath = httpContext.Request.Path.Equals("/api/user/login", StringComparison.OrdinalIgnoreCase);
 
-            bool isAdmin = httpContext.User.IsInRole("Admin");
+            var userIdClaim = httpContext.User?.Claims?.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
+            bool isAdmin = userIdClaim != null
+                && int.TryParse(userIdClaim.Value, out int uid)
+                && capabilityResolver.Allows(uid, "admin.system_access");
 
             if (!isAuthPath && !isAdmin)
             {

@@ -4,6 +4,7 @@ using Entities.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Core.Utilities.Context;
+using WebAPI.Filters;
 
 namespace WebAPI.Controllers;
 
@@ -45,7 +46,7 @@ public class FeedbackController : ControllerBase
     }
 
     [HttpGet("getall")]
-    [Authorize(Roles = "Admin")]
+    [RequireCapability("admin.feedback_read")]
     public IActionResult GetAll()
     {
         var result = _feedbackService.GetAllDetails();
@@ -53,7 +54,7 @@ public class FeedbackController : ControllerBase
     }
 
     [HttpGet("getallpaged")]
-    [Authorize(Roles = "Admin")]
+    [RequireCapability("admin.feedback_read")]
     public IActionResult GetAllPaged([FromQuery] FeedbackFilterDto filter)
     {
         var result = _feedbackService.GetAllDetailsPaged(filter);
@@ -71,7 +72,7 @@ public class FeedbackController : ControllerBase
     }
 
     [HttpPost("markasread")]
-    [Authorize(Roles = "Admin")]
+    [RequireCapability("admin.feedback_read")]
     public IActionResult MarkAsRead(int id)
     {
         var feedback = _feedbackService.GetById(id).Data;

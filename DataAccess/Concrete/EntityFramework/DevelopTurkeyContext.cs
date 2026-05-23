@@ -69,4 +69,16 @@ public class DevelopTurkeyContext : DbContext
     public DbSet<WorkflowAction> WorkflowActions { get; set; }
     public DbSet<EmailTemplate> EmailTemplates { get; set; }
     public DbSet<WorkflowLog> WorkflowLogs { get; set; }
+
+    // Faz 2 — Durable Pipeline
+    public DbSet<WorkflowDefinition> WorkflowDefinitions { get; set; }
+    public DbSet<WorkflowVersion> WorkflowVersions { get; set; }
+    public DbSet<WorkflowRun> WorkflowRuns { get; set; }
+    public DbSet<NodeRun> NodeRuns { get; set; }
+    public DbSet<ActionRun> ActionRuns { get; set; }
+    public DbSet<RuleContextSnapshot> RuleContextSnapshots { get; set; }
+    public DbSet<WorkflowDeadLetter> WorkflowDeadLetters { get; set; }
+
+    // Kill Switch
+    public DbSet<SystemKillSwitch> SystemKillSwitches { get; set; }
 }

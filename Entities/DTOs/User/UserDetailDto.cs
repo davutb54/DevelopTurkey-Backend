@@ -16,9 +16,6 @@ public class UserDetailDto
     public bool IsProfilePublic { get; set; }
     public bool ShowSolutions { get; set; }
     public bool ShowProblems { get; set; }
-	public bool IsAdmin { get; set; }
-	public bool IsExpert { get; set; }
-    public bool IsOfficial { get; set; }
     public bool IsReported { get; set; }
 	public bool IsDeleted { get; set; }
 	public bool IsBanned { get; set; }

@@ -1,7 +1,7 @@
 using Business.Abstract;
 using Entities.DTOs;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using WebAPI.Filters;
 
 namespace WebAPI.Controllers;
 
@@ -17,7 +17,7 @@ public class DynamicRuleController : ControllerBase
     }
 
     [HttpGet("getall")]
-    [Authorize(Roles = "Admin")]
+    [RequireCapability("admin.rule_read")]
     public IActionResult GetAll()
     {
         var result = _dynamicRuleService.GetAll();
@@ -25,7 +25,7 @@ public class DynamicRuleController : ControllerBase
     }
 
     [HttpGet("getbyid")]
-    [Authorize(Roles = "Admin")]
+    [RequireCapability("admin.rule_read")]
     public IActionResult GetById(int id)
     {
         var result = _dynamicRuleService.GetById(id);
@@ -33,7 +33,7 @@ public class DynamicRuleController : ControllerBase
     }
 
     [HttpGet("getbyinstitution")]
-    [Authorize(Roles = "Admin")]
+    [RequireCapability("admin.rule_read")]
     public IActionResult GetByInstitution(int institutionId)
     {
         var result = _dynamicRuleService.GetByInstitutionId(institutionId);
@@ -41,7 +41,7 @@ public class DynamicRuleController : ControllerBase
     }
 
     [HttpPost("save")]
-    [Authorize(Roles = "Admin")]
+    [RequireCapability("admin.rule_create")]
     public async Task<IActionResult> Save([FromBody] SaveWorkflowDto dto)
     {
         var result = await _dynamicRuleService.SaveWorkflowAsync(dto);
@@ -49,7 +49,7 @@ public class DynamicRuleController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "Admin")]
+    [RequireCapability("admin.rule_delete")]
     public IActionResult Delete(int id)
     {
         var result = _dynamicRuleService.Delete(id);
@@ -57,7 +57,7 @@ public class DynamicRuleController : ControllerBase
     }
 
     [HttpPatch("{id}/toggle")]
-    [Authorize(Roles = "Admin")]
+    [RequireCapability("admin.rule_activate")]
     public IActionResult ToggleActive(int id)
     {
         var ruleResult = _dynamicRuleService.GetById(id);

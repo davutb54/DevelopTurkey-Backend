@@ -1,7 +1,7 @@
 using Business.Abstract;
 using Entities.Concrete;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using WebAPI.Filters;
 
 namespace WebAPI.Controllers;
 
@@ -38,7 +38,7 @@ public class FeatureDefinitionsController : ControllerBase
     }
 
     [HttpPost("add")]
-    [Authorize(Roles = "Admin")]
+    [RequireCapability("admin.feature_definition_manage")]
     public IActionResult Add(FeatureDefinition featureDefinition)
     {
         var result = _featureDefinitionService.Add(featureDefinition);
@@ -46,7 +46,7 @@ public class FeatureDefinitionsController : ControllerBase
     }
 
     [HttpPost("update")]
-    [Authorize(Roles = "Admin")]
+    [RequireCapability("admin.feature_definition_manage")]
     public IActionResult Update(FeatureDefinition featureDefinition)
     {
         var result = _featureDefinitionService.Update(featureDefinition);
@@ -54,7 +54,7 @@ public class FeatureDefinitionsController : ControllerBase
     }
 
     [HttpDelete("delete")]
-    [Authorize(Roles = "Admin")]
+    [RequireCapability("admin.feature_definition_manage")]
     public IActionResult Delete(int id)
     {
         var result = _featureDefinitionService.Delete(id);

@@ -5,6 +5,7 @@ using Entities.DTOs.User;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using WebAPI.Filters;
 
 namespace WebAPI.Controllers
 {
@@ -57,7 +58,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("getall")]
-        [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+        [RequireCapability("admin.user_read")]
         public IActionResult GetAll()
         {
             var result = _userService.GetAll();
@@ -65,7 +66,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("getallpaged")]
-        [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+        [RequireCapability("admin.user_read")]
         public IActionResult GetAllPaged([FromQuery] UserFilterDto filter)
         {
             var result = _userService.GetAllPaged(filter);
@@ -106,9 +107,6 @@ namespace WebAPI.Controllers
                 Surname = u.Surname,
                 CityName = u.CityName,
                 Gender = u.Gender,
-                IsAdmin = u.IsAdmin,
-                IsExpert = u.IsExpert,
-                IsOfficial = u.IsOfficial,
                 RegisterDate = u.RegisterDate,
                 ProfileImageUrl = u.ProfileImageUrl,
                 InstitutionId = u.InstitutionId
@@ -155,7 +153,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("delete")]
-        [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+        [RequireCapability("admin.user_delete")]
         public IActionResult Delete(int id)
         {
             var result = _userService.DeleteUser(id);

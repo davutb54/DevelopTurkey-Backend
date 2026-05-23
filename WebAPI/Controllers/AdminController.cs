@@ -1,6 +1,7 @@
 using Business.Abstract;
 using Business.Models;
 using Core.Entities.Concrete;
+using Core.Utilities.Authorization;
 using Entities.Concrete;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
@@ -10,12 +11,12 @@ using System.Security.Claims;
 using System.Linq;
 using Entities.DTOs;
 using System;
+using WebAPI.Filters;
 
 namespace WebAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(Roles = "Admin")]
     public class AdminController : Controller
     {
         private readonly IUserService _userService;
@@ -32,6 +33,7 @@ namespace WebAPI.Controllers
         private readonly IAboutPageSectionService _aboutPageSectionService;
         private readonly IInstitutionFeatureService _institutionFeatureService;
         private readonly IWorkflowEventBus _eventBus;
+        private readonly ICapabilityResolver _capabilityResolver;
 
         public AdminController(IUserService userService, IProblemService problemService,
             ISolutionService solutionService, ILogService logService, ITopicService topicService,
@@ -41,7 +43,8 @@ namespace WebAPI.Controllers
             ILegalAgreementService legalAgreementService,
             IAboutPageSectionService aboutPageSectionService,
             IInstitutionFeatureService institutionFeatureService,
-            IWorkflowEventBus eventBus)
+            IWorkflowEventBus eventBus,
+            ICapabilityResolver capabilityResolver)
         {
             _userService = userService;
             _problemService = problemService;
@@ -57,9 +60,11 @@ namespace WebAPI.Controllers
             _aboutPageSectionService = aboutPageSectionService;
             _institutionFeatureService = institutionFeatureService;
             _eventBus = eventBus;
+            _capabilityResolver = capabilityResolver;
         }
 
         [HttpPost("banuser")]
+        [RequireCapability("admin.user_ban")]
         public IActionResult BanUser(int userId)
         {
             var result = _userService.BanUser(userId);
@@ -68,6 +73,7 @@ namespace WebAPI.Controllers
 
 
         [HttpGet("getreportedproblems")]
+        [RequireCapability("moderation.content_review")]
         public IActionResult GetReportedProblems()
         {
             var result = _problemService.GetReportedProblems();
@@ -75,6 +81,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("deleteproblem")]
+        [RequireCapability("moderation.problem_delete")]
         public IActionResult DeleteProblem(int id)
         {
             var result = _problemService.Delete(id);
@@ -82,6 +89,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("dashboard")]
+        [RequireCapability("admin.dashboard_view")]
         public IActionResult GetDashboardStats()
         {
             var result = _adminService.GetDashboardStats();
@@ -89,6 +97,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("analytics")]
+        [RequireCapability("admin.metrics_user_view")]
         public IActionResult GetDashboardAnalytics()
         {
             var result = _adminService.GetDashboardAnalytics();
@@ -96,6 +105,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("health")]
+        [RequireCapability("admin.metrics_system_health_view")]
         public IActionResult GetSystemHealthStatus()
         {
             var result = _adminService.GetSystemHealthStatus();
@@ -103,6 +113,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("unbanuser")]
+        [RequireCapability("admin.user_unban")]
         public IActionResult UnbanUser(int userId)
         {
             var result = _userService.UnbanUser(userId);
@@ -110,7 +121,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("impersonate")]
-        [Authorize(Roles = "Admin")]
+        [RequireCapability("admin.user_impersonate")]
         public IActionResult ImpersonateUser([FromBody] ImpersonateDto impersonateDto)
         {
             var adminIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
@@ -141,8 +152,8 @@ namespace WebAPI.Controllers
             if (!_institutionFeatureService.IsFeatureEnabled(targetInstitutionId, "Identity.AllowImpersonation", false))
                 return BadRequest(new { success = false, message = "Bu kullanıcının kurumu için yönetici geçişi özelliği devre dışı bırakılmış." });
 
-            // Güvenlik: Admin'den Admin'e geçiş yasak
-            if (targetUserRes.Data.IsAdmin)
+            // Güvenlik: Admin capability'sine sahip kullanıcıya geçiş yasak
+            if (_capabilityResolver.Allows(targetUserRes.Data.Id, "admin.system_access"))
             {
                 _logService.LogWarning("Security", "Impersonate", $"Admin'den Admin'e geçiş engellendi - AdminID: {adminId}, Hedef UID: {impersonateDto.TargetUserId}");
                 return BadRequest("Güvenlik ihlali: Başka bir Sistem Yöneticisi hesabına geçiş yapamazsınız.");
@@ -183,6 +194,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("getlogs")]
+        [RequireCapability("admin.audit_read")]
         public IActionResult GetLogs([FromQuery] Entities.DTOs.LogFilterDto filter)
         {
             var result = _logService.GetListByFilter(filter);
@@ -190,34 +202,15 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("changeuserinstitution")]
+        [RequireCapability("admin.user_update")]
         public IActionResult ChangeUserInstitution(int userId, int newInstitutionId)
         {
             var result = _userService.ChangeUserInstitution(userId, newInstitutionId);
             return result.Success ? Ok(result.Message) : BadRequest(result.Message);
         }
 
-        [HttpPost("toggleadminrole")]
-        public IActionResult ToggleAdminRole(int userId)
-        {
-            var result = _userService.ToggleAdminRole(userId);
-            return result.Success ? Ok(result.Message) : BadRequest(result.Message);
-        }
-
-        [HttpPost("toggleexpertrole")]
-        public IActionResult ToggleExpertRole(int userId)
-        {
-            var result = _userService.ToggleExpertRole(userId);
-            return result.Success ? Ok(result.Message) : BadRequest(result.Message);
-        }
-
-        [HttpPost("toggleofficialrole")]
-        public IActionResult ToggleOfficialRole(int userId)
-        {
-            var result = _userService.ToggleOfficialRole(userId);
-            return result.Success ? Ok(result.Message) : BadRequest(result.Message);
-        }
-
         [HttpPost("toggleproblemhighlight")]
+        [RequireCapability("moderation.problem_highlight")]
         public IActionResult ToggleProblemHighlight(int problemId)
         {
             var result = _problemService.ToggleHighlight(problemId);
@@ -225,6 +218,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("togglesolutionhighlight")]
+        [RequireCapability("moderation.solution_highlight")]
         public IActionResult ToggleSolutionHighlight(int solutionId)
         {
             var result = _solutionService.ToggleHighlight(solutionId);
@@ -232,6 +226,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("toggleproblemresolved")]
+        [RequireCapability("moderation.problem_resolve")]
         public IActionResult ToggleProblemResolved(int problemId)
         {
             var result = _problemService.ToggleResolved(problemId);
@@ -239,6 +234,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("getpendingexpertsolutions")]
+        [RequireCapability("expert.solution_approve")]
         public IActionResult GetPendingExpertSolutions()
         {
             var result = _solutionService.GetPendingExpertSolutions();
@@ -246,6 +242,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("approvesolution")]
+        [RequireCapability("expert.solution_approve")]
         public IActionResult ApproveSolution(int solutionId)
         {
             var result = _solutionService.ApproveSolution(solutionId);
@@ -253,6 +250,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("rejectsolution")]
+        [RequireCapability("expert.solution_reject")]
         public IActionResult RejectSolution(int solutionId)
         {
             var result = _solutionService.RejectSolution(solutionId);
@@ -260,6 +258,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("getallproblems")]
+        [RequireCapability("admin.user_read")]
         public IActionResult GetAllProblems()
         {
             var result = _problemService.GetAllForAdmin();
@@ -267,6 +266,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("getallsolutions")]
+        [RequireCapability("admin.user_read")]
         public IActionResult GetAllSolutions()
         {
             var result = _solutionService.GetAllForAdmin();
@@ -274,6 +274,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("removetopicfromproblem")]
+        [RequireCapability("moderation.problem_moderate")]
         public IActionResult RemoveTopicFromProblem(int problemId, int topicId)
         {
             var result = _problemService.RemoveTopicFromProblem(problemId, topicId);
@@ -281,6 +282,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("getalltopics")]
+        [RequireCapability("admin.user_read")]
         public IActionResult GetAllTopics()
         {
             var result = _topicService.GetAllForAdmin();
@@ -288,6 +290,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("systemsettings/get")]
+        [RequireCapability("admin.system_settings_read")]
         public IActionResult GetSystemSettings()
         {
             var result = _systemSettingsService.Get();
@@ -295,6 +298,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("systemsettings/update")]
+        [RequireCapability("admin.system_settings_write")]
         public IActionResult UpdateSystemSettings([FromBody] SystemSettings settings)
         {
             var adminId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
@@ -326,6 +330,7 @@ namespace WebAPI.Controllers
         // --- KULLANICI UYARI YÖNETİMİ ---
 
         [HttpPost("issue-warning")]
+        [RequireCapability("moderation.user_warn")]
         public IActionResult IssueWarning([FromBody] IssueWarningDto dto)
         {
             var adminId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
@@ -357,6 +362,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("revoke-warning")]
+        [RequireCapability("moderation.user_warn_revoke")]
         public IActionResult RevokeWarning(int warningId)
         {
             var result = _userWarningService.Revoke(warningId);
@@ -364,6 +370,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("user-warnings")]
+        [RequireCapability("admin.user_warning_read_all")]
         public IActionResult GetUserWarnings(int userId)
         {
             var result = _userWarningService.GetByUserId(userId);
@@ -373,6 +380,7 @@ namespace WebAPI.Controllers
         // ─── SÖZLEŞME YÖNETİMİ ───────────────────────────────────────────────────
 
         [HttpGet("agreements")]
+        [RequireCapability("admin.legal_agreement_manage")]
         public IActionResult GetAllAgreements()
         {
             var result = _legalAgreementService.GetAll();
@@ -380,6 +388,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("agreements/{id}")]
+        [RequireCapability("admin.legal_agreement_manage")]
         public IActionResult GetAgreementById(int id)
         {
             var result = _legalAgreementService.GetById(id);
@@ -387,6 +396,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("agreements")]
+        [RequireCapability("admin.legal_agreement_manage")]
         public IActionResult CreateAgreement([FromBody] Entities.DTOs.CreateAgreementDto dto)
         {
             var adminId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
@@ -395,6 +405,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPut("agreements/activate/{id}")]
+        [RequireCapability("admin.legal_agreement_manage")]
         public IActionResult ActivateAgreement(int id)
         {
             var result = _legalAgreementService.Activate(id);
@@ -402,6 +413,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpDelete("agreements/{id}")]
+        [RequireCapability("admin.legal_agreement_manage")]
         public IActionResult DeleteAgreement(int id)
         {
             var result = _legalAgreementService.Delete(id);
@@ -409,6 +421,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("agreements/{id}/stats")]
+        [RequireCapability("admin.legal_agreement_manage")]
         public IActionResult GetAgreementStats(int id)
         {
             var countResult = _legalAgreementService.GetAcceptanceCount(id);
@@ -428,6 +441,7 @@ namespace WebAPI.Controllers
         // --- About Page Sections ---
 
         [HttpGet("aboutsections")]
+        [RequireCapability("admin.about_page_manage")]
         public IActionResult GetAllAboutSections()
         {
             var result = _aboutPageSectionService.GetAll();
@@ -435,6 +449,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("aboutsections")]
+        [RequireCapability("admin.about_page_manage")]
         public IActionResult AddAboutSection([FromBody] AboutPageSection section)
         {
             var result = _aboutPageSectionService.Add(section);
@@ -442,6 +457,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPut("aboutsections")]
+        [RequireCapability("admin.about_page_manage")]
         public IActionResult UpdateAboutSection([FromBody] AboutPageSection section)
         {
             var result = _aboutPageSectionService.Update(section);
@@ -449,6 +465,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpDelete("aboutsections/{id}")]
+        [RequireCapability("admin.about_page_manage")]
         public IActionResult DeleteAboutSection(int id)
         {
             var result = _aboutPageSectionService.Delete(id);

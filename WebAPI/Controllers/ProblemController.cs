@@ -5,6 +5,7 @@ using Entities.Concrete;
 using Entities.DTOs;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using WebAPI.Filters;
 using WebAPI.Services;
 
 namespace WebAPI.Controllers
@@ -72,6 +73,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("add")]
+        [RequireCapability("user.problem_create")]
         public async Task<IActionResult> Add([FromForm] ProblemAddDto problemAddDto, CancellationToken cancellationToken)
         {
             int institutionId = 1;

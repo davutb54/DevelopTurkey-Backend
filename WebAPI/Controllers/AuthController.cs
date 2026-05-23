@@ -1,9 +1,13 @@
 using Business.Abstract;
+using Business.Constants;
 using Business.Models;
 using Core.Entities.Concrete;
+using Core.Utilities.Authorization;
 using Entities.DTOs;
+using Entities.DTOs.Capability;
 using Entities.DTOs.User;
 using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -25,6 +29,8 @@ namespace WebAPI.Controllers
         private readonly IInstitutionFeatureService _institutionFeatureService;
         private readonly ILogService _logService;
         private readonly IValidator<UserForPasswordUpdateDto> _passwordUpdateValidator;
+        private readonly ICapabilityResolver _capabilityResolver;
+        private readonly IUserCapabilityService _userCapabilityService;
 
         public AuthController(
             IEmailVerificationService emailVerificationService,
@@ -36,7 +42,9 @@ namespace WebAPI.Controllers
             IValidator<UserForRegisterDto> registerValidator,
             IInstitutionFeatureService institutionFeatureService,
             ILogService logService,
-            IValidator<UserForPasswordUpdateDto> passwordUpdateValidator)
+            IValidator<UserForPasswordUpdateDto> passwordUpdateValidator,
+            ICapabilityResolver capabilityResolver,
+            IUserCapabilityService userCapabilityService)
         {
             _emailVerificationService = emailVerificationService;
             _userService = userService;
@@ -48,6 +56,8 @@ namespace WebAPI.Controllers
             _institutionFeatureService = institutionFeatureService;
             _logService = logService;
             _passwordUpdateValidator = passwordUpdateValidator;
+            _capabilityResolver = capabilityResolver;
+            _userCapabilityService = userCapabilityService;
         }
 
         [HttpPost("login")]
@@ -120,7 +130,8 @@ namespace WebAPI.Controllers
                     Metadata = new Dictionary<string, object?> { ["IpAddress"] = ipAddress }
                 });
 
-                return Ok(new { success = true, message = "Giriş başarılı." });
+                var effectiveCapabilities = _capabilityResolver.GetEffectiveCodes(user.Id, user.InstitutionId);
+                return Ok(new { success = true, message = "Giriş başarılı.", effectiveCapabilities });
             }
 
             return BadRequest(result.Message);
@@ -188,6 +199,17 @@ namespace WebAPI.Controllers
             if (registerResult.Success)
             {
                 var user = _userService.GetByUserName(userForRegisterDto.UserName);
+
+                // Yeni kullanıcıya varsayılan user.* capability'lerini grant et
+                foreach (var code in CapabilityDefaults.NewUser)
+                {
+                    await _userCapabilityService.GrantAsync(user.Id, new GrantCapabilityDto
+                    {
+                        CapabilityCode = code,
+                        Reason = "default_on_register",
+                    });
+                }
+
                 var tokenResult = _userService.CreateAccessToken(user);
 
                 var emailResult = _emailVerificationService.SendVerificationCode(user);
@@ -384,6 +406,18 @@ namespace WebAPI.Controllers
             }
 
             return BadRequest(result.Message);
+        }
+
+        [HttpGet("me/capabilities")]
+        [Authorize]
+        public IActionResult GetMyCapabilities([FromQuery] int? institutionId = null)
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
+                return Unauthorized();
+
+            var capabilities = _capabilityResolver.GetEffectiveCodes(userId, institutionId);
+            return Ok(new { success = true, data = capabilities });
         }
     }
 }

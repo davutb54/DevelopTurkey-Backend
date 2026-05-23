@@ -1,4 +1,4 @@
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using Core.DataAccess.EntityFramework;
 using Core.Entities.Concrete;
 using Core.Entities.Constants;
@@ -25,13 +25,10 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
 						 CityName = ConstantData.GetCity(u.CityCode).Text,
 						 Gender = ConstantData.GetGender(u.Gender).Text,
 						 EmailNotificationPermission = u.EmailNotificationPermission,
-						 IsAdmin = u.IsAdmin,
-						 IsExpert = u.IsExpert,
 						 IsReported = u.IsReported,
 						 IsDeleted = u.IsDeleted,
 						 IsBanned = u.IsBanned,
                          ProfileImageUrl = u.ProfileImageUrl,
-                         IsOfficial = u.IsOfficial,
                          IsEmailVerified = u.IsEmailVerified,
                          AuthType = u.AuthType,
                          HasPassword = u.PasswordHash != null,
@@ -65,12 +62,9 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
 						 CityName = ConstantData.GetCity(u.CityCode).Text,
 						 Gender = ConstantData.GetGender(u.Gender).Text,
 						 EmailNotificationPermission = u.EmailNotificationPermission,
-						 IsAdmin = u.IsAdmin,
-						 IsExpert = u.IsExpert,
                          ProfileImageUrl = u.ProfileImageUrl,
                          IsReported = u.IsReported,
 						 IsDeleted = u.IsDeleted,
-                         IsOfficial = u.IsOfficial,
                          IsBanned = u.IsBanned,
 						 IsEmailVerified = u.IsEmailVerified,
                          AuthType = u.AuthType,
@@ -104,12 +98,9 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
                         CityName = Core.Entities.Constants.ConstantData.GetCity(u.CityCode).Text,
                         Gender = Core.Entities.Constants.ConstantData.GetGender(u.Gender).Text,
                         EmailNotificationPermission = u.EmailNotificationPermission,
-                        IsAdmin = u.IsAdmin,
-                        IsExpert = u.IsExpert,
                         ProfileImageUrl = u.ProfileImageUrl,
                         IsReported = u.IsReported,
                         IsDeleted = u.IsDeleted,
-                        IsOfficial = u.IsOfficial,
                         IsBanned = u.IsBanned,
                         IsEmailVerified = u.IsEmailVerified,
                         AuthType = u.AuthType,
@@ -142,11 +133,8 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
         {
             query = filter.RoleFilter switch
             {
-                "admin"    => query.Where(u => u.IsAdmin),
-                "expert"   => query.Where(u => u.IsExpert),
-                "official" => query.Where(u => u.IsOfficial),
-                "banned"   => query.Where(u => u.IsBanned),
-                _          => query
+                "banned" => query.Where(u => u.IsBanned),
+                _        => query
             };
         }
 

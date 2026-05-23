@@ -124,9 +124,6 @@ public class RuleContextEnricher : IRuleContextEnricher
                         context.TargetUserSnapshot = result.Data;
                         context.TargetUserRole = DeriveRole(result.Data);
                         context.TargetUserInstitutionId = result.Data.InstitutionId;
-                        context.TargetUserIsAdmin = result.Data.IsAdmin;
-                        context.TargetUserIsExpert = result.Data.IsExpert;
-                        context.TargetUserIsOfficial = result.Data.IsOfficial;
                         context.TargetUserIsBanned = result.Data.IsBanned;
                         context.TargetUserIsEmailVerified = result.Data.IsEmailVerified;
                     }
@@ -230,16 +227,5 @@ public class RuleContextEnricher : IRuleContextEnricher
         }
     }
 
-    /// <summary>
-    /// UserDetailDto'daki rol bayraklarından (IsAdmin/IsExpert/IsOfficial) öncelikli
-    /// rolü türetir. Sistemde "SuperAdmin" kavramı `IsAdmin == true` olarak temsil
-    /// edilir (bkz. RuleExecutionManager.cs:17).
-    /// </summary>
-    private static string DeriveRole(UserDetailDto user)
-    {
-        if (user.IsAdmin) return "Admin";
-        if (user.IsExpert) return "Expert";
-        if (user.IsOfficial) return "Official";
-        return "User";
-    }
+    private static string DeriveRole(UserDetailDto user) => "User";
 }

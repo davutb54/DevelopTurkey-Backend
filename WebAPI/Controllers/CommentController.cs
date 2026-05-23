@@ -5,6 +5,7 @@ using Entities.Concrete;
 using Entities.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using WebAPI.Filters;
 
 namespace WebAPI.Controllers
 {
@@ -51,7 +52,7 @@ namespace WebAPI.Controllers
 		}
 
 		[HttpPost("add")]
-		[Authorize]
+		[RequireCapability("user.comment_create")]
 		public IActionResult Add(Comment comment)
 		{
 			if (User.Identity == null || !User.Identity.IsAuthenticated)

@@ -2,6 +2,7 @@ using Business.Abstract;
 using Business.Constants;
 using Business.Models;
 using Core.Entities.Concrete;
+using Core.Utilities.Authorization;
 using Core.Utilities.Context;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
@@ -23,8 +24,9 @@ public class SolutionManager : ISolutionService
     private readonly IInstitutionFeatureService _featureService;
     private readonly IMentionService _mentionService;
     private readonly IWorkflowEventBus _eventBus;
+    private readonly ICapabilityResolver _capabilityResolver;
 
-    public SolutionManager(ISolutionDal solutionDal, ILogService logService, IProblemService problemService, ICommentDal commentDal, IClientContext clientContext, INotificationService notificationService, IProblemFollowService problemFollowService, IInstitutionFeatureService featureService, IMentionService mentionService, IWorkflowEventBus eventBus)
+    public SolutionManager(ISolutionDal solutionDal, ILogService logService, IProblemService problemService, ICommentDal commentDal, IClientContext clientContext, INotificationService notificationService, IProblemFollowService problemFollowService, IInstitutionFeatureService featureService, IMentionService mentionService, IWorkflowEventBus eventBus, ICapabilityResolver capabilityResolver)
     {
         _solutionDal = solutionDal;
         _logService = logService;
@@ -36,6 +38,7 @@ public class SolutionManager : ISolutionService
         _featureService = featureService;
         _mentionService = mentionService;
         _eventBus = eventBus;
+        _capabilityResolver = capabilityResolver;
     }
 
     public IDataResult<Solution?> GetById(int id)
@@ -132,12 +135,12 @@ public class SolutionManager : ISolutionService
     public IResult Update(Solution solution)
     {
         var currentUserId = _clientContext.GetUserId();
-        var isAdmin = _clientContext.GetRoles().Contains("Admin");
+        var isModerator = _capabilityResolver.Allows(currentUserId.GetValueOrDefault(), "moderation.solution_moderate");
 
         var existingSolution = _solutionDal.Get(s => s.Id == solution.Id);
         if (existingSolution == null) return new ErrorResult("Çözüm bulunamadı");
 
-        if (!isAdmin && existingSolution.SenderId != currentUserId)
+        if (!isModerator && existingSolution.SenderId != currentUserId)
         {
             return new ErrorResult("Bu çözümü güncelleme yetkiniz yok.");
         }
@@ -147,7 +150,7 @@ public class SolutionManager : ISolutionService
         solution.SendDate = existingSolution.SendDate;
         solution.ProblemId = existingSolution.ProblemId;
 
-        if (!isAdmin)
+        if (!isModerator)
         {
             solution.IsReported = existingSolution.IsReported;
             solution.IsHighlighted = existingSolution.IsHighlighted;
@@ -174,12 +177,12 @@ public class SolutionManager : ISolutionService
     public IResult Delete(int id)
     {
         var currentUserId = _clientContext.GetUserId();
-        var isAdmin = _clientContext.GetRoles().Contains("Admin");
+        var isModerator = _capabilityResolver.Allows(currentUserId.GetValueOrDefault(), "moderation.solution_delete");
 
         var solution = _solutionDal.Get(s => s.Id == id);
         if (solution == null) return new ErrorResult("Çözüm bulunamadı");
 
-        if (!isAdmin && solution.SenderId != currentUserId)
+        if (!isModerator && solution.SenderId != currentUserId)
         {
             return new ErrorResult("Bu çözümü silme yetkiniz yok.");
         }
@@ -204,7 +207,7 @@ public class SolutionManager : ISolutionService
             }
         }
 
-        if (isAdmin && solution.SenderId != currentUserId)
+        if (isModerator && solution.SenderId != currentUserId)
         {
             _logService.LogWarning("AdminAction", "Delete", $"Çözüm GÖREVLİ tarafından silindi - ID: {id} (Alt Yorumlarıyla Birlikte)");
             try

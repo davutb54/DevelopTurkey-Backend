@@ -44,17 +44,6 @@ public class JwtHelper : ITokenHelper
             new Claim("InstitutionId", user.InstitutionId.ToString())
         };
 
-        if (user.IsAdmin)
-        {
-            claims.Add(new Claim(ClaimTypes.Role, "Admin"));
-        }
-
-        if (user.IsExpert)
-        {
-            claims.Add(new Claim(ClaimTypes.Role, "Expert"));
-        }
-        if (user.IsOfficial) claims.Add(new Claim(ClaimTypes.Role, "Official"));
-
         if (impersonatedById.HasValue)
         {
             claims.Add(new Claim(ClaimTypes.Actor, impersonatedById.Value.ToString()));

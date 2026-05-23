@@ -3,6 +3,7 @@ using Entities.Concrete;
 using Entities.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using WebAPI.Filters;
 
 namespace WebAPI.Controllers
 {
@@ -52,7 +53,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("getall")]
-        [Authorize(Roles = "Admin")]
+        [RequireCapability("moderation.report_review")]
         public IActionResult GetAll()
         {
             var result = _reportService.GetAll();
@@ -60,7 +61,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpGet("getpending")]
-        [Authorize(Roles = "Admin")]
+        [RequireCapability("moderation.report_review")]
         public IActionResult GetPending()
         {
             var result = _reportService.GetPendingReports();
@@ -68,7 +69,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("resolve")]
-        [Authorize(Roles = "Admin")]
+        [RequireCapability("moderation.report_resolve")]
         public IActionResult Resolve(int id)
         {
             var result = _reportService.ResolveReport(id);
@@ -76,7 +77,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpDelete("delete")]
-        [Authorize(Roles = "Admin")]
+        [RequireCapability("moderation.content_review")]
         public IActionResult Delete(int id)
         {
             var result = _reportService.Delete(id);

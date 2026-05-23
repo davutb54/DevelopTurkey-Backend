@@ -1,6 +1,8 @@
 using Business.Abstract;
 using Entities.Concrete;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using WebAPI.Filters;
 
 namespace WebAPI.Controllers;
 
@@ -16,6 +18,7 @@ public class EmailTemplatesController : ControllerBase
     }
 
     [HttpGet("getall")]
+    [RequireCapability("admin.email_template_manage")]
     public IActionResult GetAll()
     {
         var result = _emailTemplateService.GetAll();
@@ -24,6 +27,7 @@ public class EmailTemplatesController : ControllerBase
     }
 
     [HttpGet("getbyid")]
+    [RequireCapability("admin.email_template_manage")]
     public IActionResult GetById(int id)
     {
         var result = _emailTemplateService.GetById(id);
@@ -32,6 +36,7 @@ public class EmailTemplatesController : ControllerBase
     }
 
     [HttpPost("add")]
+    [RequireCapability("admin.email_template_manage")]
     public IActionResult Add(EmailTemplate emailTemplate)
     {
         var result = _emailTemplateService.Add(emailTemplate);
@@ -40,6 +45,7 @@ public class EmailTemplatesController : ControllerBase
     }
 
     [HttpPost("update")]
+    [RequireCapability("admin.email_template_manage")]
     public IActionResult Update(EmailTemplate emailTemplate)
     {
         var result = _emailTemplateService.Update(emailTemplate);
@@ -48,6 +54,7 @@ public class EmailTemplatesController : ControllerBase
     }
 
     [HttpPost("delete")]
+    [RequireCapability("admin.email_template_manage")]
     public IActionResult Delete(EmailTemplate emailTemplate)
     {
         var result = _emailTemplateService.Delete(emailTemplate);

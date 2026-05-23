@@ -1,4 +1,4 @@
-using Business.Abstract;
+﻿using Business.Abstract;
 using Business.Concrete;
 using Business.Models;
 using Core.Entities.Concrete;
@@ -26,7 +26,6 @@ public sealed class RuleContextEnricherTests
         CityName = "Ankara",
         Gender = "M",
         AuthType = "Local",
-        IsAdmin = true,
         InstitutionId = institutionId
     };
 
@@ -40,8 +39,6 @@ public sealed class RuleContextEnricherTests
         CityName = "Istanbul",
         Gender = "M",
         AuthType = "Local",
-        IsAdmin = false,
-        IsExpert = true,
         InstitutionId = 1
     };
 
@@ -55,9 +52,6 @@ public sealed class RuleContextEnricherTests
         CityName = "Izmir",
         Gender = "F",
         AuthType = "Local",
-        IsAdmin = false,
-        IsExpert = false,
-        IsOfficial = true,
         InstitutionId = 2
     };
 

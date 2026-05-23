@@ -1,4 +1,4 @@
-using Business.Abstract;
+﻿using Business.Abstract;
 using Business.Constants;
 using Core.Entities.Concrete;
 using Core.Utilities.Results;
@@ -71,9 +71,6 @@ public class UserManager : IUserService
                 Surname = user.Surname,
                 CityName = user.CityName,
                 Gender = user.Gender,
-                IsAdmin = user.IsAdmin,
-                IsExpert = user.IsExpert,
-                IsOfficial = user.IsOfficial,
                 RegisterDate = user.RegisterDate,
                 ProfileImageUrl = user.ProfileImageUrl,
                 InstitutionId = user.InstitutionId,
@@ -101,9 +98,6 @@ public class UserManager : IUserService
                 Surname = user.Surname,
                 CityName = user.CityName,
                 Gender = user.Gender,
-                IsAdmin = user.IsAdmin,
-                IsExpert = user.IsExpert,
-                IsOfficial = user.IsOfficial,
                 RegisterDate = user.RegisterDate,
                 ProfileImageUrl = user.ProfileImageUrl,
                 InstitutionId = user.InstitutionId,
@@ -348,8 +342,6 @@ public class UserManager : IUserService
             PasswordSalt = passwordSalt,
             EmailNotificationPermission = userForRegisterDto.EmailNotificationPermission,
             RegisterDate = DateTime.Now,
-            IsAdmin = false,
-            IsExpert = false,
             IsDeleted = false,
             IsReported = false,
             IsBanned = false,
@@ -645,125 +637,6 @@ public class UserManager : IUserService
         return new SuccessResult();
     }
 
-    public IResult ToggleAdminRole(int userId)
-    {
-        var user = _userDal.Get(u => u.Id == userId);
-        if (user == null) return new ErrorResult(Messages.UserNotFound);
-        user.IsAdmin = !user.IsAdmin;
-        _logService.LogWarning("AdminAction", "ToggleAdminRole", $"Admin rolü {(user.IsAdmin ? "verildi" : "kaldırıldı")} - ID: {user.Id}, Kullanıcı: {user.UserName}");
-        _userDal.Update(user);
-        string adminOldValue = user.IsAdmin ? "User" : "Admin";
-        string adminNewValue = user.IsAdmin ? "Admin" : "User";
-        _ = _eventBus.PublishAsync("user.role_changed", new RuleContext
-        {
-            SystemUserId = user.Id,
-            InstitutionId = user.InstitutionId,
-            OldValue = adminOldValue,
-            NewValue = adminNewValue,
-            Metadata = new Dictionary<string, object?>
-            {
-                ["RoleName"] = "Admin",
-                ["OldValue"] = adminOldValue,
-                ["NewValue"] = adminNewValue
-            }
-        });
-        try
-        {
-            _notificationService.Add(new Notification
-            {
-                UserId = userId,
-                Title = $"Admin rolü {(user.IsAdmin ? "verildi" : "kaldırıldı")}",
-                Message = user.IsAdmin
-                    ? "Hesabınıza bir yönetici tarafından Admin yetkisi verildi."
-                    : "Hesabınızdan Admin yetkisi kaldırıldı.",
-                Type = "RoleChanged",
-                ReferenceLink = null
-            });
-        }
-        catch { /* Bildirim hatası ana işlemi etkilemesin */ }
-        string action = user.IsAdmin ? "Admin rolü verildi" : "Admin rolü kaldırıldı";
-        return new SuccessResult($"{action} (ID: {user.Id})");
-    }
-
-    public IResult ToggleExpertRole(int userId)
-    {
-        var user = _userDal.Get(u => u.Id == userId);
-        if (user == null) return new ErrorResult(Messages.UserNotFound);
-        user.IsExpert = !user.IsExpert;
-        _logService.LogWarning("AdminAction", "ToggleExpertRole", $"Uzman rolü {(user.IsExpert ? "verildi" : "kaldırıldı")} - ID: {user.Id}, Kullanıcı: {user.UserName}");
-        _userDal.Update(user);
-        string expertOldValue = user.IsExpert ? "User" : "Expert";
-        string expertNewValue = user.IsExpert ? "Expert" : "User";
-        _ = _eventBus.PublishAsync("user.role_changed", new RuleContext
-        {
-            SystemUserId = user.Id,
-            InstitutionId = user.InstitutionId,
-            OldValue = expertOldValue,
-            NewValue = expertNewValue,
-            Metadata = new Dictionary<string, object?>
-            {
-                ["RoleName"] = "Expert",
-                ["OldValue"] = expertOldValue,
-                ["NewValue"] = expertNewValue
-            }
-        });
-        try
-        {
-            _notificationService.Add(new Notification
-            {
-                UserId = userId,
-                Title = $"Uzman rolü {(user.IsExpert ? "verildi" : "kaldırıldı")}",
-                Message = user.IsExpert
-                    ? "Hesabınıza bir yönetici tarafından Uzman yetkisi verildi."
-                    : "Hesabınızdan Uzman yetkisi kaldırıldı.",
-                Type = "RoleChanged",
-                ReferenceLink = null
-            });
-        }
-        catch { /* Bildirim hatası ana işlemi etkilemesin */ }
-        string action = user.IsExpert ? "Uzman rolü verildi" : "Uzman rolü kaldırıldı";
-        return new SuccessResult($"{action} (ID: {user.Id})");
-    }
-
-    public IResult ToggleOfficialRole(int userId)
-    {
-        var user = _userDal.Get(u => u.Id == userId);
-        if (user == null) return new ErrorResult(Messages.UserNotFound);
-        user.IsOfficial = !user.IsOfficial;
-        _logService.LogWarning("AdminAction", "ToggleOfficialRole", $"Resmi rolü {(user.IsOfficial ? "verildi" : "kaldırıldı")} - ID: {user.Id}, Kullanıcı: {user.UserName}");
-        _userDal.Update(user);
-        string officialOldValue = user.IsOfficial ? "User" : "Official";
-        string officialNewValue = user.IsOfficial ? "Official" : "User";
-        _ = _eventBus.PublishAsync("user.role_changed", new RuleContext
-        {
-            SystemUserId = user.Id,
-            InstitutionId = user.InstitutionId,
-            OldValue = officialOldValue,
-            NewValue = officialNewValue,
-            Metadata = new Dictionary<string, object?>
-            {
-                ["RoleName"] = "Official",
-                ["OldValue"] = officialOldValue,
-                ["NewValue"] = officialNewValue
-            }
-        });
-        try
-        {
-            _notificationService.Add(new Notification
-            {
-                UserId = userId,
-                Title = $"Resmi Kurum yetkisi {(user.IsOfficial ? "verildi" : "kaldırıldı")}",
-                Message = user.IsOfficial
-                    ? "Hesabınıza bir yönetici tarafından Resmi Kurum yetkisi verildi."
-                    : "Hesabınızdan Resmi Kurum yetkisi kaldırıldı.",
-                Type = "RoleChanged",
-                ReferenceLink = null
-            });
-        }
-        catch { /* Bildirim hatası ana işlemi etkilemesin */ }
-        string action = user.IsOfficial ? "Resmi rolü verildi" : "Resmi rolü kaldırıldı";
-        return new SuccessResult($"{action} (ID: {user.Id})");
-    }
 
     public IResult ChangeUserInstitution(int userId, int newInstitutionId)
     {

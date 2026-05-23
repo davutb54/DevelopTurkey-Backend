@@ -30,14 +30,6 @@ public class WebClientContext : IClientContext
                ?? "Anonim/Sistem";
     }
 
-    public List<string> GetRoles()
-    {
-        return _httpContextAccessor.HttpContext?.User?.Claims?
-            .Where(c => c.Type == ClaimTypes.Role)
-            .Select(c => c.Value)
-            .ToList() ?? new List<string>();
-    }
-
     public int? GetInstitutionId()
     {
         var institutionClaim = _httpContextAccessor.HttpContext?.User?.Claims?.FirstOrDefault(c => c.Type == "InstitutionId");

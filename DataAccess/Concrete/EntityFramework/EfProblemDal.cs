@@ -1,4 +1,4 @@
-using Core.DataAccess.EntityFramework;
+﻿using Core.DataAccess.EntityFramework;
 using DataAccess.Abstract;
 using Entities.Concrete;
 using Entities.DTOs;
@@ -34,11 +34,11 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                         ImageUrls = p.ImageUrls != null ? p.ImageUrls.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList() : new List<string>(),
                         SenderUsername = u.UserName,
                         CityName = ConstantData.GetCity(p.CityCode).Text,
-                        SenderIsExpert = u.IsExpert,
+                        SenderIsExpert = false,
                         SendDate = p.SendDate,
                         ViewCount = p.ViewCount,
                         SolutionCount = context.Solutions.Count(s => s.ProblemId == p.Id),
-                        SenderIsOfficial = u.IsOfficial,
+                        SenderIsOfficial = false,
                         SenderImageUrl = u.ProfileImageUrl,
                         IsResolvedByExpert = context.Solutions.Any(s => s.ProblemId == p.Id && s.ExpertApprovalStatus == 1),
                         IsResolved = p.IsResolved,
@@ -84,9 +84,9 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                         CityName = ConstantData.GetCity(p.CityCode).Text,
                         ViewCount = p.ViewCount,
                         SolutionCount = context.Solutions.Count(s => s.ProblemId == p.Id),
-                        SenderIsExpert = u.IsExpert,
+                        SenderIsExpert = false,
                         SendDate = p.SendDate,
-                        SenderIsOfficial = u.IsOfficial,
+                        SenderIsOfficial = false,
                         SenderImageUrl = u.ProfileImageUrl,
                         IsResolvedByExpert = context.Solutions.Any(s => s.ProblemId == p.Id && s.ExpertApprovalStatus == 1),
                         IsResolved = p.IsResolved,
@@ -141,8 +141,8 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                 CityName = ConstantData.GetCity(x.p.CityCode).Text,
                 SenderId = x.p.SenderId,
                 SenderUsername = x.u.UserName,
-                SenderIsExpert = x.u.IsExpert,
-                SenderIsOfficial = x.u.IsOfficial,
+                SenderIsExpert = false,
+                SenderIsOfficial = false,
                 ImageUrls = x.p.ImageUrls != null ? x.p.ImageUrls.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList() : new List<string>(),
                 IsHighlighted = x.p.IsHighlighted,
                 IsReported = x.p.IsReported,

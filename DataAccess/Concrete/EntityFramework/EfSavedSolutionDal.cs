@@ -1,4 +1,4 @@
-using Core.DataAccess.EntityFramework;
+﻿using Core.DataAccess.EntityFramework;
 using Core.Entities.Concrete;
 using DataAccess.Abstract;
 
@@ -24,8 +24,8 @@ public class EfSavedSolutionDal : EfEntityRepositoryBase<SavedSolution, DevelopT
                              Title = sol.Title,
                              Description = sol.Description,
                              SenderUsername = u.UserName,
-                             SenderIsExpert = u.IsExpert,
-                             SenderIsOfficial = u.IsOfficial,
+                             SenderIsExpert = false,
+                             SenderIsOfficial = false,
                              SenderImageUrl = u.ProfileImageUrl,
                              ProblemName = p.Title,
                              IsHighlighted = sol.IsHighlighted,

@@ -1,7 +1,8 @@
-using Business.Abstract;
+﻿using Business.Abstract;
 using Business.Constants;
 using Business.Models;
 using Core.Entities.Concrete;
+using Core.Utilities.Authorization;
 using Core.Utilities.Context;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
@@ -21,8 +22,9 @@ public class CommentManager : ICommentService
     private readonly IInstitutionFeatureService _featureService;
     private readonly IMentionService _mentionService;
     private readonly IWorkflowEventBus _eventBus;
+    private readonly ICapabilityResolver _capabilityResolver;
 
-    public CommentManager(ICommentDal commentDal, ILogService logService, IClientContext clientContext, ISolutionDal solutionDal, INotificationService notificationService, IInstitutionFeatureService featureService, IMentionService mentionService, IWorkflowEventBus eventBus)
+    public CommentManager(ICommentDal commentDal, ILogService logService, IClientContext clientContext, ISolutionDal solutionDal, INotificationService notificationService, IInstitutionFeatureService featureService, IMentionService mentionService, IWorkflowEventBus eventBus, ICapabilityResolver capabilityResolver)
     {
         _commentDal = commentDal;
         _logService = logService;
@@ -32,6 +34,7 @@ public class CommentManager : ICommentService
         _featureService = featureService;
         _mentionService = mentionService;
         _eventBus = eventBus;
+        _capabilityResolver = capabilityResolver;
     }
 
 
@@ -108,12 +111,12 @@ public class CommentManager : ICommentService
     public IResult Update(CommentUpdateDto commentUpdateDto)
     {
         var currentUserId = _clientContext.GetUserId();
-        var isAdmin = _clientContext.GetRoles().Contains("Admin");
+        var isModerator = _capabilityResolver.Allows(currentUserId.GetValueOrDefault(), "moderation.comment_moderate");
 
         var comment = _commentDal.Get(c => c.Id == commentUpdateDto.Id);
         if (comment == null) return new ErrorResult("Yorum Bulunamadı");
 
-        if (!isAdmin && comment.SenderId != currentUserId)
+        if (!isModerator && comment.SenderId != currentUserId)
         {
             return new ErrorResult("Bu yorumu güncelleme yetkiniz yok.");
         }
@@ -146,12 +149,12 @@ public class CommentManager : ICommentService
     public IResult Delete(int id)
     {
         var currentUserId = _clientContext.GetUserId();
-        var isAdmin = _clientContext.GetRoles().Contains("Admin");
+        var isModerator = _capabilityResolver.Allows(currentUserId.GetValueOrDefault(), "moderation.comment_delete");
 
         var comment = _commentDal.Get(comment => comment.Id == id);
         if (comment == null) return new ErrorResult("Yorum Bulunamadı");
 
-        if (!isAdmin && comment.SenderId != currentUserId)
+        if (!isModerator && comment.SenderId != currentUserId)
         {
             return new ErrorResult("Bu yorumu silme yetkiniz yok.");
         }

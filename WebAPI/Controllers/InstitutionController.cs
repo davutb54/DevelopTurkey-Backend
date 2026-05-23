@@ -3,6 +3,7 @@ using Entities.Concrete;
 using Entities.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using WebAPI.Filters;
 
 namespace WebAPI.Controllers
 {
@@ -44,7 +45,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("add")]
-        [Authorize(Roles = "Admin")]
+        [RequireCapability("admin.institution_create")]
         public IActionResult Add([FromForm] InstitutionAddDto dto)
         {
             string logoUrl = null;
@@ -76,7 +77,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPut("update")]
-        [Authorize(Roles = "Admin")]
+        [RequireCapability("admin.institution_update")]
         public IActionResult Update([FromForm] InstitutionUpdateDto dto)
         {
             var existingInst = _institutionService.GetById(dto.Id).Data;
@@ -110,7 +111,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpDelete("delete")]
-        [Authorize(Roles = "Admin")]
+        [RequireCapability("admin.institution_deactivate")]
         public IActionResult Delete(int id)
         {
             var result = _institutionService.Delete(id);

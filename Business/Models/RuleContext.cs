@@ -55,15 +55,6 @@ public class RuleContext
     /// <summary>Hedef kullanıcının yasaklı olup olmadığı.</summary>
     public bool? TargetUserIsBanned { get; set; }
 
-    /// <summary>Hedef kullanıcının admin olup olmadığı.</summary>
-    public bool? TargetUserIsAdmin { get; set; }
-
-    /// <summary>Hedef kullanıcının uzman olup olmadığı.</summary>
-    public bool? TargetUserIsExpert { get; set; }
-
-    /// <summary>Hedef kullanıcının resmi yetkili olup olmadığı.</summary>
-    public bool? TargetUserIsOfficial { get; set; }
-
     /// <summary>Hedef kullanıcının e-posta doğrulama durumu.</summary>
     public bool? TargetUserIsEmailVerified { get; set; }
 

@@ -1,4 +1,4 @@
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using Core.DataAccess.EntityFramework;
 using DataAccess.Abstract;
 using Entities.Concrete;
@@ -27,8 +27,8 @@ public class EfSolutionDal : EfEntityRepositoryBase<Solution, DevelopTurkeyConte
                          IsReported = s.IsReported,
                          IsDeleted = s.IsDeleted,
                          ProblemName = p.Title,
-                         SenderIsOfficial = u.IsOfficial,
-                         SenderIsExpert = u.IsExpert,
+                         SenderIsOfficial = false,
+                         SenderIsExpert = false,
                          SendDate = s.SendDate,
                          VoteCount = context.SolutionVotes.Count(v => v.SolutionId == s.Id && v.IsUpvote) - context.SolutionVotes.Count(v => v.SolutionId == s.Id && !v.IsUpvote),
                          ExpertApprovalStatus = s.ExpertApprovalStatus,

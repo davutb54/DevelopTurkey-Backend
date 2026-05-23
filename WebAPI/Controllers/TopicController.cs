@@ -5,6 +5,7 @@ using Entities.Concrete;
 using Entities.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using WebAPI.Filters;
 
 namespace WebAPI.Controllers
 {
@@ -52,7 +53,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost("add")]
-        [Authorize(Roles = "Admin")]
+        [RequireCapability("moderation.topic_create")]
         public IActionResult Add([FromForm] TopicAddDto topicAddDto)
         {
             string imagePath = "default.png";
@@ -76,7 +77,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpPut("update")]
-        [Authorize(Roles = "Admin")]
+        [RequireCapability("moderation.topic_update")]
         public IActionResult Update([FromForm] TopicUpdateDto dto)
         {
             var existingTopic = _topicService.GetById(dto.Id).Data;
@@ -103,7 +104,7 @@ namespace WebAPI.Controllers
         }
 
         [HttpDelete("delete")]
-        [Authorize(Roles = "Admin")]
+        [RequireCapability("moderation.topic_delete")]
         public IActionResult Delete(int id)
         {
             var topicResult = _topicService.GetById(id);

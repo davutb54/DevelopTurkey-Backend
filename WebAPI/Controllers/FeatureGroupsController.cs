@@ -1,7 +1,7 @@
 using Business.Abstract;
 using Entities.Concrete;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using WebAPI.Filters;
 
 namespace WebAPI.Controllers;
 
@@ -31,7 +31,7 @@ public class FeatureGroupsController : ControllerBase
     }
 
     [HttpPost("add")]
-    [Authorize(Roles = "Admin")]
+    [RequireCapability("admin.feature_group_manage")]
     public IActionResult Add(FeatureGroup featureGroup)
     {
         var result = _featureGroupService.Add(featureGroup);
@@ -39,7 +39,7 @@ public class FeatureGroupsController : ControllerBase
     }
 
     [HttpPost("update")]
-    [Authorize(Roles = "Admin")]
+    [RequireCapability("admin.feature_group_manage")]
     public IActionResult Update(FeatureGroup featureGroup)
     {
         var result = _featureGroupService.Update(featureGroup);
@@ -47,7 +47,7 @@ public class FeatureGroupsController : ControllerBase
     }
 
     [HttpDelete("delete")]
-    [Authorize(Roles = "Admin")]
+    [RequireCapability("admin.feature_group_manage")]
     public IActionResult Delete(int id)
     {
         var result = _featureGroupService.Delete(id);

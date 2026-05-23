@@ -1,6 +1,6 @@
 using Business.Abstract;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using WebAPI.Filters;
 
 namespace WebAPI.Controllers;
 
@@ -29,7 +29,7 @@ public class InstitutionFeaturesController : ControllerBase
     /// Bir kurumun tek bir feature değerini ayarlar
     /// </summary>
     [HttpPost("set/{institutionId}")]
-    [Authorize(Roles = "Admin,SuperAdmin")]
+    [RequireCapability("admin.institution_feature_write")]
     public IActionResult SetFeature(int institutionId, [FromBody] SetFeatureRequest request)
     {
         var result = _institutionFeatureService.SetFeatureValue(institutionId, request.Key, request.Value);
@@ -40,7 +40,7 @@ public class InstitutionFeaturesController : ControllerBase
     /// Bir kurumun birden fazla feature değerini toplu ayarlar
     /// </summary>
     [HttpPost("setbulk/{institutionId}")]
-    [Authorize(Roles = "Admin,SuperAdmin")]
+    [RequireCapability("admin.institution_feature_write")]
     public IActionResult SetFeaturesBulk(int institutionId, [FromBody] Dictionary<string, string> values)
     {
         var result = _institutionFeatureService.SetFeatureValues(institutionId, values);
@@ -51,7 +51,7 @@ public class InstitutionFeaturesController : ControllerBase
     /// Bir kurumun feature cache'ini temizler
     /// </summary>
     [HttpPost("invalidatecache/{institutionId}")]
-    [Authorize(Roles = "Admin,SuperAdmin")]
+    [RequireCapability("admin.institution_feature_write")]
     public IActionResult InvalidateCache(int institutionId)
     {
         _institutionFeatureService.InvalidateCache(institutionId);

@@ -6,6 +6,5 @@ public interface IClientContext
     string GetPort();
     int? GetUserId();
     string GetUserName();
-    List<string> GetRoles();
     int? GetInstitutionId();
 }

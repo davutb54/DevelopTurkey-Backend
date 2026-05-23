@@ -19,6 +19,8 @@
   <ItemGroup>
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.0" />
     <PackageReference Include="Google.Apis.Auth" Version="1.74.0" />
+    <PackageReference Include="MassTransit" Version="8.3.6" />
+    <PackageReference Include="MassTransit.RabbitMQ" Version="8.3.6" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.8.0" />
   </ItemGroup>
 

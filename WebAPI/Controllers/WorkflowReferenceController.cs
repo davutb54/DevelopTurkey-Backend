@@ -1,8 +1,8 @@
 using Business.Abstract;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using System.Threading.Tasks;
+using WebAPI.Filters;
 
 namespace WebAPI.Controllers;
 
@@ -14,7 +14,7 @@ namespace WebAPI.Controllers;
 /// </summary>
 [Route("api/[controller]")]
 [ApiController]
-[Authorize(Roles = "Admin")]
+[RequireCapability("admin.workflow_reference_manage")]
 public class WorkflowReferenceController : ControllerBase
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(1);

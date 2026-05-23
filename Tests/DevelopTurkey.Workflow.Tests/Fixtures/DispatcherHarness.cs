@@ -1,6 +1,7 @@
 using Business.Abstract;
 using Business.Concrete;
 using Business.Models;
+using Core.Utilities.Authorization;
 using Core.Utilities.Helpers.Email;
 using Core.Utilities.Results;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -23,6 +24,7 @@ public sealed class DispatcherHarness
     public Mock<ICommentService>        CommentServiceMock        { get; } = new(MockBehavior.Loose);
     public Mock<ILogService>            LogServiceMock            { get; } = new(MockBehavior.Loose);
     public Mock<IWebhookClient>         WebhookClientMock         { get; } = new(MockBehavior.Loose);
+    public Mock<ICapabilityResolver>    CapabilityResolverMock    { get; } = new(MockBehavior.Loose);
 
     public WorkflowActionDispatcher Dispatcher { get; }
 
@@ -33,6 +35,11 @@ public sealed class DispatcherHarness
                        .Returns(new SuccessResult("sent"));
         WebhookClientMock.Setup(w => w.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), default))
                          .ReturnsAsync(new WebhookSendResult(true, 200, null));
+
+        // Test senaryolarında capability kontrolü bypass — action davranışı test edilir
+        CapabilityResolverMock.Setup(r => r.Allows(
+                It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CapabilityRequestContext>()))
+            .Returns(true);
 
         Dispatcher = new WorkflowActionDispatcher(
             EmailHelperMock.Object,
@@ -45,6 +52,7 @@ public sealed class DispatcherHarness
             CommentServiceMock.Object,
             LogServiceMock.Object,
             WebhookClientMock.Object,
+            CapabilityResolverMock.Object,
             NullLogger<WorkflowActionDispatcher>.Instance);
     }
 

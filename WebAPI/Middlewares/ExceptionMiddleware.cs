@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Business.Abstract;
 using Core.CrossCuttingConcerns.Logging;
+using Core.Utilities.Authorization;
 using Core.Utilities.Results;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
@@ -87,6 +88,19 @@ public class ExceptionMiddleware
     private Task HandleExceptionAsync(HttpContext httpContext, Exception exception)
     {
         httpContext.Response.ContentType = "application/json";
+
+        if (exception is CapabilityDeniedException capEx)
+        {
+            httpContext.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            var capResult = new
+            {
+                success = false,
+                message = capEx.Message,
+                requiredCapability = capEx.RequiredCapability,
+            };
+            return httpContext.Response.WriteAsync(JsonSerializer.Serialize(capResult));
+        }
+
         httpContext.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
 
         string message = _env.IsDevelopment()

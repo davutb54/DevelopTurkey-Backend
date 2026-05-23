@@ -46,5 +46,11 @@ public static class Messages
 	public static string UserUsernameIsFound = "Bu Kullanıcı Adı Kullanılmaktadır";
 	public static string UserEmailAndUsernameIsNotFound = "Email ve Kullanıcı Adı Kullanılmamaktadır";
 
-
+    // Capability
+    public static string CapabilityNotFound = "Capability bulunamadı.";
+    public static string CapabilityAlreadyGranted = "Bu capability zaten aktif olarak atanmış.";
+    public static string CapabilityGranted = "Capability başarıyla atandı.";
+    public static string CapabilityRevoked = "Capability başarıyla iptal edildi.";
+    public static string CapabilityNotGranted = "Atanmış aktif capability bulunamadı.";
+    public static string CapabilityAuditAdded = "Audit kaydı oluşturuldu.";
 }

@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using Business.Abstract;
 using Business.Models;
 using Core.Entities.Concrete;
+using Core.Utilities.Authorization;
 using Core.Utilities.Helpers.Email;
 using Core.Utilities.Results;
 using Entities.Concrete;
@@ -24,6 +25,7 @@ public partial class WorkflowActionDispatcher : IWorkflowActionDispatcher
     private readonly ICommentService _commentService;
     private readonly ILogService _logService;
     private readonly IWebhookClient _webhookClient;
+    private readonly ICapabilityResolver _capabilityResolver;
     private readonly ILogger<WorkflowActionDispatcher> _logger;
 
     [GeneratedRegex(@"\{([^}]+)\}", RegexOptions.Compiled)]
@@ -40,6 +42,7 @@ public partial class WorkflowActionDispatcher : IWorkflowActionDispatcher
         ICommentService commentService,
         ILogService logService,
         IWebhookClient webhookClient,
+        ICapabilityResolver capabilityResolver,
         ILogger<WorkflowActionDispatcher> logger)
     {
         _emailHelper = emailHelper;
@@ -52,6 +55,7 @@ public partial class WorkflowActionDispatcher : IWorkflowActionDispatcher
         _commentService = commentService;
         _logService = logService;
         _webhookClient = webhookClient;
+        _capabilityResolver = capabilityResolver;
         _logger = logger;
     }
 
@@ -64,9 +68,19 @@ public partial class WorkflowActionDispatcher : IWorkflowActionDispatcher
             "[WorkflowActionDispatcher] Action={ActionCode}, UserId={UserId}, Trigger={Trigger}",
             actionCode, context.SystemUserId, context.TriggerEventName);
 
+        var normalizedCode = actionCode.ToLowerInvariant().Trim();
+        var capabilityCode = $"workflow.action.{normalizedCode}";
+        if (!_capabilityResolver.Allows(context.SystemUserId, capabilityCode))
+        {
+            _logger.LogWarning(
+                "[WorkflowActionDispatcher] capability_denied: {CapabilityCode} for UserId={UserId}",
+                capabilityCode, context.SystemUserId);
+            return new ErrorDataResult<object?>(null, $"Yetkisiz action: '{capabilityCode}'");
+        }
+
         try
         {
-            return actionCode.ToLowerInvariant().Trim() switch
+            return normalizedCode switch
             {
                 // İletişim
                 "send_email"             => await HandleSendEmailAsync(parameters, context),
@@ -98,7 +112,7 @@ public partial class WorkflowActionDispatcher : IWorkflowActionDispatcher
                 "log_event"              => await HandleLogEventAsync(parameters, context),
                 "webhook"                => await HandleWebhookAsync(parameters, context),
 
-                _ => new ErrorDataResult<object?>(null, $"Bilinmeyen aksiyon kodu: '{actionCode}'")
+                _ => new ErrorDataResult<object?>(null, $"Bilinmeyen aksiyon kodu: '{normalizedCode}'")
             };
         }
         catch (Exception ex)
@@ -185,16 +199,8 @@ public partial class WorkflowActionDispatcher : IWorkflowActionDispatcher
             .Where(u => !u.IsBanned && !u.IsDeleted)
             .Where(u => context.InstitutionId == null || u.InstitutionId == context.InstitutionId);
 
-        if (targetGroup == "role" && !string.IsNullOrWhiteSpace(roleFilter))
-        {
-            users = roleFilter.ToLowerInvariant() switch
-            {
-                "admin"    => users.Where(u => u.IsAdmin),
-                "expert"   => users.Where(u => u.IsExpert),
-                "official" => users.Where(u => u.IsOfficial),
-                _          => users.Where(u => !u.IsAdmin && !u.IsExpert && !u.IsOfficial)
-            };
-        }
+        // Rol bazlı filtreleme kaldırıldı — capability sistemi kullanılır.
+        // targetGroup == "role" için tüm aktif kullanıcılar hedef alınır.
 
         var userList = users.ToList();
         int sent = 0;
@@ -330,40 +336,15 @@ public partial class WorkflowActionDispatcher : IWorkflowActionDispatcher
             new SuccessDataResult<object?>(new { userId, severity }, $"Kullanıcıya uyarı verildi (ID: {userId})."));
     }
 
-    // change_user_role
-    // Params: userTarget, customUserId, role (Admin|Expert|Official), action (grant|revoke)
+    // change_user_role — rol bayrakları kaldırıldı, capability sistemi kullanılır.
+    // Workflow üzerinden rol değişikliği artık desteklenmiyor;
+    // /api/users/{id}/capabilities/grant veya /revoke kullanın.
     private Task<IDataResult<object?>> HandleChangeUserRoleAsync(
         Dictionary<string, string> parameters, RuleContext context)
     {
-        var userId     = ResolveUserId(parameters, context);
-        var role       = (parameters.GetValueOrDefault("role") ?? "Expert").ToLowerInvariant();
-        var roleAction = (parameters.GetValueOrDefault("action") ?? "grant").ToLowerInvariant();
-
-        // toggle* metodları grant/revoke'u otomatik yönetir
-        IResult result = role switch
-        {
-            "admin"    => _userService.ToggleAdminRole(userId),
-            "expert"   => _userService.ToggleExpertRole(userId),
-            "official" => _userService.ToggleOfficialRole(userId),
-            _          => new ErrorResult($"Bilinmeyen rol: {role}")
-        };
-
-        if (!result.Success)
-            return Task.FromResult<IDataResult<object?>>(
-                new ErrorDataResult<object?>(null, $"Rol değiştirilemedi: {result.Message}"));
-
-        _notificationService.Add(new Notification
-        {
-            UserId    = userId,
-            Title     = "Rolünüz Güncellendi",
-            Message   = $"'{role}' rolünüz {(roleAction == "revoke" ? "kaldırıldı" : "eklendi")}.",
-            Type      = "info",
-            IsRead    = false,
-            CreatedAt = DateTime.UtcNow
-        });
-
+        _logger.LogWarning("[Dispatcher] change_user_role action kaldırıldı. Capability sistemi kullanın.");
         return Task.FromResult<IDataResult<object?>>(
-            new SuccessDataResult<object?>(new { userId, role, roleAction }, "Kullanıcı rolü güncellendi."));
+            new ErrorDataResult<object?>(null, "change_user_role kaldırıldı. Capability grant/revoke API kullanın."));
     }
 
     // ── PROBLEM YÖNETİMİ ──────────────────────────────────────────────────────────

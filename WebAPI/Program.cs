@@ -1,5 +1,8 @@
 using Business.Concrete;
 using Business.Abstract;
+using Business.Consumers;
+using Business.Workflow.Messages;
+using MassTransit;
 using WebAPI.Hubs;
 using WebAPI.SignalR;
 using Core.Utilities.Helpers.Email;
@@ -75,6 +78,7 @@ builder.Services.AddScoped<IInstitutionDal, EfInstitutionDal>();
 builder.Services.AddScoped<IInstitutionService, InstitutionManager>();
 
 builder.Services.AddScoped<IAdminService, AdminManager>();
+builder.Services.AddScoped<IMetricsService, MetricsManager>();
 builder.Services.AddSingleton<Core.CrossCuttingConcerns.Monitoring.ISystemMonitor, Core.CrossCuttingConcerns.Monitoring.SystemMonitorManager>();
 
 builder.Services.AddScoped<Core.Utilities.Context.IClientContext, WebAPI.Context.WebClientContext>();
@@ -147,6 +151,97 @@ builder.Services.AddScoped<IEmailTemplateDal, EfEmailTemplateDal>();
 builder.Services.AddScoped<IEmailTemplateService, EmailTemplateManager>();
 
 builder.Services.AddScoped<DevelopTurkeyContext, DevelopTurkeyContext>();
+
+// Capability sistemi
+builder.Services.AddScoped<ICapabilityDal, EfCapabilityDal>();
+builder.Services.AddScoped<IUserCapabilityDal, EfUserCapabilityDal>();
+builder.Services.AddScoped<ICapabilityTemplateDal, EfCapabilityTemplateDal>();
+builder.Services.AddScoped<ITemplateVersionDal, EfTemplateVersionDal>();
+builder.Services.AddScoped<ITemplateItemDal, EfTemplateItemDal>();
+builder.Services.AddScoped<ICapabilityAuditLogDal, EfCapabilityAuditLogDal>();
+
+builder.Services.AddScoped<ICapabilityService, CapabilityManager>();
+builder.Services.AddScoped<ICapabilityAuditService, CapabilityAuditManager>();
+builder.Services.AddScoped<IUserCapabilityService, UserCapabilityManager>();
+
+// Snapshot singleton — app boyunca tek instance, tüm scope'lardan paylaşılır
+builder.Services.AddSingleton<Core.Utilities.Authorization.ICapabilitySnapshot, Business.Concrete.CapabilitySnapshotService>();
+builder.Services.AddSingleton<Core.Utilities.Authorization.ICapabilityResolver, Business.Concrete.CapabilityResolver>();
+builder.Services.AddScoped<Core.Utilities.Authorization.ICapabilityPolicy, Business.Concrete.CapabilityPolicy>();
+
+// Snapshot startup loader
+builder.Services.AddHostedService<WebAPI.HostedServices.CapabilitySnapshotInitializer>();
+
+// Kill Switch
+builder.Services.AddScoped<ISystemKillSwitchDal, EfSystemKillSwitchDal>();
+builder.Services.AddScoped<IKillSwitchService, KillSwitchManager>();
+
+// Faz 2 — Durable Pipeline DAL'ları
+builder.Services.AddScoped<IWorkflowDefinitionDal, EfWorkflowDefinitionDal>();
+builder.Services.AddScoped<IWorkflowVersionDal, EfWorkflowVersionDal>();
+builder.Services.AddScoped<IWorkflowRunDal, EfWorkflowRunDal>();
+builder.Services.AddScoped<INodeRunDal, EfNodeRunDal>();
+builder.Services.AddScoped<IActionRunDal, EfActionRunDal>();
+builder.Services.AddScoped<IRuleContextSnapshotDal, EfRuleContextSnapshotDal>();
+builder.Services.AddScoped<IWorkflowDeadLetterDal, EfWorkflowDeadLetterDal>();
+
+// Faz 2 — Durable Pipeline Servisleri
+builder.Services.AddScoped<IWorkflowRunService, WorkflowRunManager>();
+builder.Services.AddScoped<IWorkflowOrchestrator, WorkflowOrchestrator>();
+
+// Faz 2 — MassTransit message bus
+var busTransport = builder.Configuration["MessageBus:Transport"] ?? "InMemory";
+builder.Services.AddMassTransit(x =>
+{
+    // Consumer'ları kaydet
+    x.AddConsumer<NodeRunConsumer>();
+    x.AddConsumer<ActionRunConsumer>();
+    x.AddConsumer<DeadLetterConsumer>();
+
+    if (busTransport.Equals("RabbitMQ", StringComparison.OrdinalIgnoreCase))
+    {
+        x.UsingRabbitMq((ctx, cfg) =>
+        {
+            var rmq = builder.Configuration.GetSection("MessageBus:RabbitMQ");
+            cfg.Host(rmq["Host"] ?? "localhost", ushort.Parse(rmq["Port"] ?? "5672"),
+                rmq["VirtualHost"] ?? "/", h =>
+                {
+                    h.Username(rmq["Username"] ?? "guest");
+                    h.Password(rmq["Password"] ?? "guest");
+                });
+
+            // Queue tanımları
+            cfg.ReceiveEndpoint("workflow.noderun", ep =>
+            {
+                ep.ConfigureConsumer<NodeRunConsumer>(ctx);
+                ep.UseMessageRetry(r => r.Exponential(5,
+                    TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(16), TimeSpan.FromSeconds(2)));
+            });
+
+            cfg.ReceiveEndpoint("workflow.actionrun", ep =>
+            {
+                ep.ConfigureConsumer<ActionRunConsumer>(ctx);
+                ep.UseMessageRetry(r => r.Exponential(3,
+                    TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(2), TimeSpan.FromMilliseconds(500)));
+            });
+
+            cfg.ReceiveEndpoint("workflow.deadletter", ep =>
+            {
+                ep.ConfigureConsumer<DeadLetterConsumer>(ctx);
+            });
+
+            cfg.ConfigureEndpoints(ctx);
+        });
+    }
+    else
+    {
+        // Development: InMemory transport (RabbitMQ gerekmez)
+        x.UsingInMemory((ctx, cfg) =>
+        {
+            cfg.ConfigureEndpoints(ctx);
+        });
+    }
+});
 
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<ICaptchaService, CaptchaManager>();
@@ -375,13 +470,17 @@ app.UseMiddleware<WebAPI.Middlewares.IpWhitelistMiddleware>();
 app.MapControllers();
 app.MapHub<NotificationHub>("/api/hubs/notification");
 
-// Feature Seeder
+// Seeders
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<DataAccess.Concrete.EntityFramework.DevelopTurkeyContext>();
+    var config  = scope.ServiceProvider.GetRequiredService<IConfiguration>();
     WebAPI.Seeders.FeatureSeeder.Seed(context);
     WebAPI.Seeders.EmailTemplateSeeder.Seed(context);
     WebAPI.Seeders.WorkflowReferenceSeeder.Seed(context);
+    WebAPI.Seeders.CapabilitySeeder.Seed(context);
+    WebAPI.Seeders.BootstrapAdminSeeder.Seed(context, config);
+    WebAPI.Seeders.SystemUserSeeder.Seed(context, config);
 }
 
 app.Run();

@@ -5,6 +5,7 @@ using Entities.Concrete;
 using Entities.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using WebAPI.Filters;
 
 namespace WebAPI.Controllers
 {
@@ -70,7 +71,7 @@ namespace WebAPI.Controllers
 		}
 
 		[HttpPost("add")]
-		[Authorize]
+		[RequireCapability("user.solution_create")]
 		public IActionResult Add([FromForm] SolutionAddDto solutionAddDto)
 		{
 			if (User.Identity == null || !User.Identity.IsAuthenticated)
