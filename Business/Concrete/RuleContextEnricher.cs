@@ -80,30 +80,64 @@ public class RuleContextEnricher : IRuleContextEnricher
     // ── (2) UserSnapshot + UserRole + InstitutionId ─────────────────────────────
     private void TryEnrichUser(RuleContext context)
     {
-        if (context.SystemUserId <= 0) return;
-        if (context.UserSnapshot != null) return; // önceden doldurulduysa atla
-
-        try
+        if (context.SystemUserId > 0 && context.UserSnapshot == null)
         {
-            var userService = _serviceProvider.GetService<IUserService>();
-            if (userService == null) return;
-            var result = userService.GetById(context.SystemUserId);
-            if (result?.Success == true && result.Data != null)
+            try
             {
-                context.UserSnapshot = result.Data;
-                if (!context.InstitutionId.HasValue)
-                    context.InstitutionId = result.Data.InstitutionId;
+                var userService = _serviceProvider.GetService<IUserService>();
+                if (userService != null)
+                {
+                    var result = userService.GetById(context.SystemUserId);
+                    if (result?.Success == true && result.Data != null)
+                    {
+                        context.UserSnapshot = result.Data;
+                        if (!context.InstitutionId.HasValue)
+                            context.InstitutionId = result.Data.InstitutionId;
 
-                // UserRole: publish noktasında set edilmediyse (default "User") türet.
-                if (string.IsNullOrEmpty(context.UserRole) || context.UserRole == "User")
-                    context.UserRole = DeriveRole(result.Data);
+                        if (string.IsNullOrEmpty(context.UserRole) || context.UserRole == "User")
+                            context.UserRole = DeriveRole(result.Data);
+
+                        context.UserIsBanned = result.Data.IsBanned;
+                        context.UserIsEmailVerified = result.Data.IsEmailVerified;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "[RuleContextEnricher] User enrichment başarısız: UserId={UserId}",
+                    context.SystemUserId);
             }
         }
-        catch (Exception ex)
+
+        // TargetUser'ı da zenginleştir (Aksiyon hedefi)
+        if (context.TargetUserId.HasValue && context.TargetUserId > 0 && context.TargetUserSnapshot == null)
         {
-            _logger.LogWarning(ex,
-                "[RuleContextEnricher] User enrichment başarısız: UserId={UserId}",
-                context.SystemUserId);
+            try
+            {
+                var userService = _serviceProvider.GetService<IUserService>();
+                if (userService != null)
+                {
+                    var result = userService.GetById(context.TargetUserId.Value);
+                    if (result?.Success == true && result.Data != null)
+                    {
+                        context.TargetUserSnapshot = result.Data;
+                        context.TargetUserRole = DeriveRole(result.Data);
+                        context.TargetUserInstitutionId = result.Data.InstitutionId;
+                        context.TargetUserIsAdmin = result.Data.IsAdmin;
+                        context.TargetUserIsExpert = result.Data.IsExpert;
+                        context.TargetUserIsOfficial = result.Data.IsOfficial;
+                        context.TargetUserIsBanned = result.Data.IsBanned;
+                        context.TargetUserIsEmailVerified = result.Data.IsEmailVerified;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "[RuleContextEnricher] TargetUser enrichment başarısız: TargetUserId={TargetUserId}",
+                    context.TargetUserId);
+            }
         }
     }
 
@@ -122,8 +156,16 @@ public class RuleContextEnricher : IRuleContextEnricher
             {
                 context.ProblemSnapshot = result.Data;
 
-                if (string.IsNullOrEmpty(context.ProblemStatus))
-                    context.ProblemStatus = result.Data.IsResolved ? "Resolved" : "Open";
+                context.ProblemOwnerId = result.Data.SenderId;
+                context.ProblemStatus = result.Data.IsResolved ? "Resolved" : "Open";
+                context.ProblemInstitutionId = result.Data.InstitutionId;
+                context.ProblemViewCount = result.Data.ViewCount;
+                context.ProblemSolutionCount = result.Data.SolutionCount;
+                context.ProblemUpvoteCount = result.Data.UpvoteCount;
+                context.ProblemFollowerCount = result.Data.FollowerCount;
+                context.ProblemIsHighlighted = result.Data.IsHighlighted;
+                context.ProblemIsReported = result.Data.IsReported;
+                // ProblemDifficulty şu an ProblemDetailDto'da yok, sabitlenmiyor.
 
                 if (!context.InstitutionId.HasValue)
                     context.InstitutionId = result.Data.InstitutionId;
@@ -151,7 +193,6 @@ public class RuleContextEnricher : IRuleContextEnricher
             if (result?.Success == true && result.Data != null)
             {
                 var s = result.Data;
-                // ISolutionService.GetById Solution entity döner; SolutionDetailDto'ya map.
                 context.SolutionSnapshot = new Entities.DTOs.SolutionDetailDto
                 {
                     Id                   = s.Id,
@@ -159,7 +200,7 @@ public class RuleContextEnricher : IRuleContextEnricher
                     ProblemId            = s.ProblemId,
                     Title                = s.Title,
                     Description          = s.Description,
-                    SenderUsername       = string.Empty,  // entity'de yok; UI tarafına extra çağrıyla doldurulabilir
+                    SenderUsername       = string.Empty, 
                     ProblemName          = string.Empty,
                     IsHighlighted        = s.IsHighlighted,
                     IsReported           = s.IsReported,
@@ -168,6 +209,14 @@ public class RuleContextEnricher : IRuleContextEnricher
                     ExpertApprovalStatus = s.ExpertApprovalStatus,
                     InstitutionId        = s.InstitutionId,
                 };
+
+                context.SolutionOwnerId = s.SenderId;
+                context.SolutionInstitutionId = s.InstitutionId;
+                context.SolutionApprovalStatus = s.ExpertApprovalStatus;
+                context.SolutionIsHighlighted = s.IsHighlighted;
+                context.SolutionIsReported = s.IsReported;
+                // Solution entity'sinde VoteCount yok, hesaplanması (veya DTO'dan gelmesi) gerekir.
+                context.SolutionVoteCount = 0; 
 
                 if (!context.InstitutionId.HasValue)
                     context.InstitutionId = s.InstitutionId;

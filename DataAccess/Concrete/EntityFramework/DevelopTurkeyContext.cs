@@ -56,6 +56,12 @@ public class DevelopTurkeyContext : DbContext
     public DbSet<AboutPageSection> AboutPageSections { get; set; }
     public DbSet<FeatureGroup> FeatureGroups { get; set; }
     public DbSet<FeatureDefinition> FeatureDefinitions { get; set; }
+    public DbSet<Capability> Capabilities { get; set; }
+    public DbSet<UserCapability> UserCapabilities { get; set; }
+    public DbSet<CapabilityTemplate> CapabilityTemplates { get; set; }
+    public DbSet<TemplateVersion> TemplateVersions { get; set; }
+    public DbSet<TemplateItem> TemplateItems { get; set; }
+    public DbSet<CapabilityAuditLog> CapabilityAuditLogs { get; set; }
     public DbSet<InstitutionFeatureValue> InstitutionFeatureValues { get; set; }
     public DbSet<DynamicRule> DynamicRules { get; set; }
     public DbSet<WorkflowTrigger> WorkflowTriggers { get; set; }
