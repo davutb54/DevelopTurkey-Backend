@@ -26,4 +26,6 @@ public interface IProblemService
     IResult ResolveProblem(int id);
     IDataResult<List<ProblemDetailDto>> GetAllForAdmin();
     IResult RemoveTopicFromProblem(int problemId, int topicId);
+    IResult AssignToInstitution(int problemId, int institutionId);
+    IResult SetStatus(int problemId, string status, bool value);
 }

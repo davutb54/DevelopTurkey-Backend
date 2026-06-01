@@ -1,4 +1,9 @@
 using Business.Abstract;
+using Core.Utilities.Context;
+using DataAccess.Abstract;
+using Entities.Concrete;
+using Entities.DTOs;
+using Entities.DTOs.Capability;
 using Entities.DTOs.Metrics;
 using Microsoft.AspNetCore.Mvc;
 using WebAPI.Filters;
@@ -11,11 +16,25 @@ public class MetricsController : ControllerBase
 {
     private readonly IMetricsService _metricsService;
     private readonly IAdminService _adminService;
+    private readonly IWorkflowRunService _runService;
+    private readonly IWorkflowLogService _workflowLogService;
+    private readonly IWorkflowDeadLetterDal _deadLetterDal;
+    private readonly IClientContext _clientContext;
 
-    public MetricsController(IMetricsService metricsService, IAdminService adminService)
+    public MetricsController(
+        IMetricsService metricsService,
+        IAdminService adminService,
+        IWorkflowRunService runService,
+        IWorkflowLogService workflowLogService,
+        IWorkflowDeadLetterDal deadLetterDal,
+        IClientContext clientContext)
     {
         _metricsService = metricsService;
         _adminService = adminService;
+        _runService = runService;
+        _workflowLogService = workflowLogService;
+        _deadLetterDal = deadLetterDal;
+        _clientContext = clientContext;
     }
 
     [HttpGet("overview")]
@@ -64,5 +83,56 @@ public class MetricsController : ControllerBase
     {
         var result = _metricsService.GetAuditLog(filter);
         return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    [HttpGet("workflow/runs")]
+    [RequireCapability("admin.metrics_workflow_view")]
+    public IActionResult GetWorkflowRuns([FromQuery] int definitionId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        var result = _runService.GetSummaryByDefinition(definitionId, page, pageSize);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    [HttpGet("workflow/runs/{runId}")]
+    [RequireCapability("admin.metrics_workflow_view")]
+    public IActionResult GetWorkflowRunDetail(Guid runId)
+    {
+        var result = _runService.GetDetail(runId);
+        return result.Success ? Ok(result) : NotFound(result);
+    }
+
+    // ── 2B: Gerçek event çalışma logları (WorkflowLog) ──────────────────────────
+    [HttpGet("workflow/event-logs")]
+    [RequireCapability("admin.metrics_workflow_view")]
+    public IActionResult GetWorkflowEventLogs([FromQuery] WorkflowLogFilterDto filter)
+    {
+        var items  = _workflowLogService.GetListByFilter(filter);
+        var count  = _workflowLogService.CountByFilter(filter);
+        return Ok(new { success = true, data = new { items = items.Data, total = count.Data } });
+    }
+
+    // ── 2A: Dead-Letter listesi ──────────────────────────────────────────────────
+    [HttpGet("workflow/dead-letters")]
+    [RequireCapability("admin.metrics_workflow_view")]
+    public IActionResult GetDeadLetters([FromQuery] int page = 1, [FromQuery] int pageSize = 30)
+    {
+        var all   = _deadLetterDal.GetPending(page, pageSize);
+        var total = _deadLetterDal.GetAll(x => !x.IsRequeued).Count;
+        return Ok(new { success = true, data = new { items = all, total } });
+    }
+
+    [HttpPost("workflow/dead-letters/{id}/requeue")]
+    [RequireCapability("admin.metrics_workflow_view")]
+    public IActionResult RequeueDeadLetter(Guid id)
+    {
+        var entry = _deadLetterDal.Get(x => x.Id == id);
+        if (entry is null) return NotFound(new { success = false, message = "Kayıt bulunamadı." });
+
+        entry.IsRequeued       = true;
+        entry.RequeuedAt       = DateTime.Now;
+        entry.RequeuedByUserId = _clientContext.GetUserId();
+        _deadLetterDal.Update(entry);
+
+        return Ok(new { success = true, message = "Yeniden kuyruğa alındı." });
     }
 }

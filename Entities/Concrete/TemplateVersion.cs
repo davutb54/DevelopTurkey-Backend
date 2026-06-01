@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Core.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,10 @@ public class TemplateVersion : IEntity
     public DateTime CreatedAt { get; set; }
     public int CreatedBy { get; set; }
     public bool IsPublished { get; set; } = false;
+    public DateTime? PublishedAt { get; set; }
+
+    [MaxLength(500)]
+    public string? ChangeNote { get; set; }
 
     [ForeignKey(nameof(TemplateId))]
     public CapabilityTemplate Template { get; set; } = null!;

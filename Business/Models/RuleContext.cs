@@ -161,5 +161,26 @@ public class RuleContext
 
     /// <summary>Kuralın çalıştırıldığı UTC zaman damgası.</summary>
     public DateTime ExecutedAt { get; set; } = DateTime.UtcNow;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // WORKFLOW ZİNCİR TAKİBİ (trigger_workflow action derinlik koruması için)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>Bu context'in ait olduğu WorkflowRun'ın ID'si.</summary>
+    public Guid? WorkflowRunId { get; set; }
+
+    /// <summary>
+    /// Zincirleme workflow derinliği. 0 = doğrudan tetikleme, 1+ = trigger_workflow action ile başlatılan.
+    /// TriggerWorkflowActionHandler maksimum 3'e izin verir.
+    /// </summary>
+    public int ChainDepth { get; set; } = 0;
+
+    /// <summary>
+    /// Workflow definition'ını oluşturan kullanıcının ID'si.
+    /// WorkflowActionDispatcher, capability kontrolünü SystemUserId yerine bu ID üzerinden yapar.
+    /// Böylece "auth.registered" gibi event'lerde SystemUserId yeni kullanıcı olsa bile
+    /// workflow'u yaratan admin'in yetkileri geçerli olur.
+    /// </summary>
+    public int WorkflowCreatorId { get; set; } = 0;
 }
 

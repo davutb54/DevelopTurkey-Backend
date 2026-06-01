@@ -154,7 +154,8 @@ public class RuleContextEnricher : IRuleContextEnricher
                 context.ProblemSnapshot = result.Data;
 
                 context.ProblemOwnerId = result.Data.SenderId;
-                context.ProblemStatus = result.Data.IsResolved ? "Resolved" : "Open";
+                if (string.IsNullOrEmpty(context.ProblemStatus))
+                    context.ProblemStatus = result.Data.IsResolved ? "Resolved" : "Open";
                 context.ProblemInstitutionId = result.Data.InstitutionId;
                 context.ProblemViewCount = result.Data.ViewCount;
                 context.ProblemSolutionCount = result.Data.SolutionCount;

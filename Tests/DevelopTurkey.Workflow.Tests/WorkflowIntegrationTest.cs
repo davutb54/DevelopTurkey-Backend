@@ -42,8 +42,8 @@ namespace DevelopTurkey.Workflow.Tests.Integration
         // Sistemdeki TÜM Action'lar
         private readonly string[] _allActions = new[]
         {
-            "send_email", "send_notification", "send_bulk_notification", "ban_user", "unban_user", 
-            "warn_user", "change_user_role", "resolve_problem", "highlight_problem", "delete_problem", 
+            "send_email", "send_notification", "send_bulk_notification", "ban_user", "unban_user",
+            "warn_user", "resolve_problem", "highlight_problem", "delete_problem",
             "report_problem", "approve_solution", "reject_solution", "highlight_solution", "delete_solution", 
             "delete_comment", "log_event", "webhook"
         };

@@ -106,10 +106,11 @@ public class UserCapabilityManager : IUserCapabilityService
 
         _auditService.Add(new CapabilityAuditLog
         {
-            ActorUserId = actorId,
-            TargetUserId = userId,
-            Action = "grant",
-            PayloadJson = $"{{\"code\":\"{cap.Code}\",\"institutionId\":{dto.InstitutionId?.ToString() ?? "null"}}}",
+            ActorUserId    = actorId,
+            TargetUserId   = userId,
+            Action         = "grant",
+            CapabilityCode = cap.Code,
+            PayloadJson    = $"{{\"code\":\"{cap.Code}\",\"institutionId\":{dto.InstitutionId?.ToString() ?? "null"}}}",
         });
 
         return new SuccessResult(Messages.CapabilityGranted);
@@ -138,10 +139,11 @@ public class UserCapabilityManager : IUserCapabilityService
         var actorId = _clientContext.GetUserId() ?? 0;
         _auditService.Add(new CapabilityAuditLog
         {
-            ActorUserId = actorId,
-            TargetUserId = userId,
-            Action = "revoke",
-            PayloadJson = $"{{\"code\":\"{cap.Code}\",\"institutionId\":{dto.InstitutionId?.ToString() ?? "null"}}}",
+            ActorUserId    = actorId,
+            TargetUserId   = userId,
+            Action         = "revoke",
+            CapabilityCode = cap.Code,
+            PayloadJson    = $"{{\"code\":\"{cap.Code}\",\"institutionId\":{dto.InstitutionId?.ToString() ?? "null"}}}",
         });
 
         return new SuccessResult(Messages.CapabilityRevoked);

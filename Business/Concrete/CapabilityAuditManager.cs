@@ -18,7 +18,7 @@ public class CapabilityAuditManager : ICapabilityAuditService
 
     public IResult Add(CapabilityAuditLog log)
     {
-        log.CreatedAt = DateTime.UtcNow;
+        log.CreatedAt = DateTime.Now;
         _auditDal.Add(log);
         return new SuccessResult(Messages.CapabilityAuditAdded);
     }

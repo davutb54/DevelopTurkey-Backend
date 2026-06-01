@@ -156,7 +156,126 @@ public static class WorkflowReferenceSeeder
             context.SaveChanges();
         }
 
-        if (!context.WorkflowActions.Any())
+        // ── WorkflowActions: tam idempotent upsert ───────────────────────────────
+        // Her startup'ta çalışır. ActionCode'a göre: varsa güncelle, yoksa ekle.
+        // change_user_role kaldırıldı — handler silindi, DB kaydı da temizlenir.
+        {
+            var stale = context.WorkflowActions.FirstOrDefault(a => a.ActionCode == "change_user_role");
+            if (stale != null) { context.WorkflowActions.Remove(stale); context.SaveChanges(); }
+        }
+
+        var actionDefs = new[]
+        {
+            // Code, Name, Category, Icon, Description, ParametersSchemaJson
+            // ── İletişim ─────────────────────────────────────────────────────────
+            ("send_email", "E-posta Gönder", "İletişim", "📧",
+             "Sisteme kayıtlı şablonu kullanarak veya özel içerikle e-posta gönderir.",
+             """[{"key":"recipient","label":"Alıcı Tipi","type":"select","options":["context_user","target_user","custom"],"required":true,"defaultValue":"context_user"},{"key":"customTo","label":"Özel E-posta (recipient=custom)","type":"text","required":false,"defaultValue":""},{"key":"templateKey","label":"E-posta Şablonu Anahtarı","type":"text","required":false,"defaultValue":""},{"key":"subject","label":"Konu (şablon seçilmemişse)","type":"text","required":false,"defaultValue":""},{"key":"body","label":"İçerik (şablon seçilmemişse)","type":"text","required":false,"defaultValue":""},{"key":"cc","label":"CC Adresleri (virgülle ayır)","type":"text","required":false,"defaultValue":""}]"""),
+            ("send_notification", "Bildirim Gönder", "İletişim", "🔔",
+             "Kullanıcıya uygulama içi bildirim gönderir; isteğe bağlı yönlendirme bağlantısı eklenebilir.",
+             """[{"key":"recipientType","label":"Alıcı Tipi","type":"select","options":["context_user","target_user","custom"],"required":true,"defaultValue":"context_user"},{"key":"customUserId","label":"Kullanıcı ID (recipientType=custom)","type":"text","required":false,"defaultValue":""},{"key":"title","label":"Başlık","type":"text","required":true,"defaultValue":""},{"key":"message","label":"Mesaj","type":"text","required":true,"defaultValue":""},{"key":"type","label":"Tür","type":"select","options":["info","success","warning","error"],"required":true,"defaultValue":"info"},{"key":"referenceLink","label":"Yönlendirme Bağlantısı (opsiyonel)","type":"text","required":false,"defaultValue":""}]"""),
+            ("send_bulk_notification", "Toplu Bildirim Gönder", "İletişim", "📣",
+             "Kurumdaki tüm kullanıcılara veya belirli bir role sahip kullanıcılara toplu bildirim gönderir.",
+             """[{"key":"targetGroup","label":"Hedef Grup","type":"select","options":["institution","role"],"required":true,"defaultValue":"institution"},{"key":"role","label":"Rol (targetGroup=role ise)","type":"select","options":["User","Admin","Expert","Official"],"required":false,"defaultValue":"User"},{"key":"title","label":"Başlık","type":"text","required":true,"defaultValue":""},{"key":"message","label":"Mesaj","type":"text","required":true,"defaultValue":""},{"key":"type","label":"Tür","type":"select","options":["info","success","warning","error"],"required":true,"defaultValue":"info"}]"""),
+
+            // ── Kullanıcı Yönetimi ────────────────────────────────────────────────
+            ("ban_user", "Kullanıcıyı Yasakla", "Kullanıcı Yönetimi", "🚫",
+             "Kullanıcı hesabını belirlenen süre boyunca veya kalıcı olarak askıya alır.",
+             """[{"key":"userTarget","label":"Hedef Kullanıcı","type":"select","options":["context_user","target_user","custom"],"required":true,"defaultValue":"target_user"},{"key":"customUserId","label":"Kullanıcı ID (userTarget=custom)","type":"text","required":false,"defaultValue":""},{"key":"durationDays","label":"Süre (gün, 0=kalıcı)","type":"number","required":true,"defaultValue":"7"},{"key":"reason","label":"Sebep","type":"text","required":false,"defaultValue":""},{"key":"notifyUser","label":"Kullanıcıyı Bildir","type":"boolean","required":false,"defaultValue":"true"}]"""),
+            ("unban_user", "Yasağı Kaldır", "Kullanıcı Yönetimi", "✅",
+             "Askıya alınmış kullanıcının yasağını kaldırır ve isteğe bağlı bildirim gönderir.",
+             """[{"key":"userTarget","label":"Hedef Kullanıcı","type":"select","options":["context_user","target_user","custom"],"required":true,"defaultValue":"target_user"},{"key":"customUserId","label":"Kullanıcı ID (userTarget=custom)","type":"text","required":false,"defaultValue":""},{"key":"notifyUser","label":"Kullanıcıyı Bildir","type":"boolean","required":false,"defaultValue":"true"}]"""),
+            ("warn_user", "Kullanıcıyı Uyar", "Kullanıcı Yönetimi", "⚠️",
+             "Kullanıcıya resmi uyarı kaydı oluşturur ve bildirim gönderir.",
+             """[{"key":"userTarget","label":"Hedef Kullanıcı","type":"select","options":["context_user","target_user","custom"],"required":true,"defaultValue":"target_user"},{"key":"customUserId","label":"Kullanıcı ID (userTarget=custom)","type":"text","required":false,"defaultValue":""},{"key":"title","label":"Uyarı Başlığı","type":"text","required":true,"defaultValue":"Kural İhlali"},{"key":"message","label":"Uyarı Mesajı","type":"text","required":true,"defaultValue":""},{"key":"severity","label":"Ağırlık","type":"select","options":["low","medium","high"],"required":true,"defaultValue":"medium"}]"""),
+            ("grant_capability", "Yetki Ver / Kaldır", "Kullanıcı Yönetimi", "🔑",
+             "Kullanıcıya belirli bir yetki (capability) kodu verir veya kaldırır.",
+             """[{"key":"userTarget","label":"Hedef Kullanıcı","type":"select","options":["context_user","target_user","custom"],"required":true,"defaultValue":"target_user"},{"key":"customUserId","label":"Kullanıcı ID (userTarget=custom)","type":"text","required":false,"defaultValue":""},{"key":"capabilityCode","label":"Yetki Kodu","type":"capability-select","required":true,"defaultValue":""},{"key":"action","label":"İşlem","type":"select","options":["grant","revoke"],"required":true,"defaultValue":"grant"},{"key":"reason","label":"Sebep","type":"text","required":false,"defaultValue":""},{"key":"expiresAt","label":"Geçerlilik Bitiş (ISO tarih)","type":"text","required":false,"defaultValue":""}]"""),
+            ("apply_capability_template", "Yetki Şablonu Uygula", "Kullanıcı Yönetimi", "📋",
+             "Bir yetki şablonunun en son yayınlanan versiyonunu hedef kullanıcıya uygular.",
+             """[{"key":"userTarget","label":"Hedef Kullanıcı","type":"select","options":["context_user","target_user","custom"],"required":true,"defaultValue":"target_user"},{"key":"customUserId","label":"Kullanıcı ID (userTarget=custom)","type":"text","required":false,"defaultValue":""},{"key":"templateId","label":"Yetki Şablonu","type":"template-select","required":true,"defaultValue":""},{"key":"reason","label":"Sebep","type":"text","required":false,"defaultValue":""},{"key":"expiresAt","label":"Geçerlilik Bitiş (ISO tarih)","type":"text","required":false,"defaultValue":""}]"""),
+
+            // ── Problem Yönetimi ─────────────────────────────────────────────────
+            ("assign_problem_institution", "Problemi Kuruma Ata", "Problem Yönetimi", "🏛️",
+             "Problemi belirtilen kurumun sorumluluğuna atar.",
+             """[{"key":"problemTarget","label":"Hedef Problem","type":"select","options":["context_problem","custom"],"required":true,"defaultValue":"context_problem"},{"key":"customProblemId","label":"Problem ID (problemTarget=custom)","type":"text","required":false,"defaultValue":""},{"key":"institutionId","label":"Kurum ID","type":"number","required":true,"defaultValue":""}]"""),
+            ("change_problem_status", "Problem Durumunu Değiştir", "Problem Yönetimi", "🔄",
+             "Problemin çözüm, öne çıkarma veya raporlanma durumunu açar/kapatır.",
+             """[{"key":"problemTarget","label":"Hedef Problem","type":"select","options":["context_problem","custom"],"required":true,"defaultValue":"context_problem"},{"key":"customProblemId","label":"Problem ID (problemTarget=custom)","type":"text","required":false,"defaultValue":""},{"key":"status","label":"Durum","type":"select","options":["resolved","highlighted","reported"],"required":true,"defaultValue":"resolved"},{"key":"value","label":"Değer","type":"boolean","required":true,"defaultValue":"true"}]"""),
+            ("resolve_problem", "Problemi Çöz", "Problem Yönetimi", "✔️",
+             "Problemi çözüldü olarak işaretler; isteğe bağlı olarak problem sahibine bildirim gönderilir.",
+             """[{"key":"problemTarget","label":"Hedef Problem","type":"select","options":["context_problem","custom"],"required":true,"defaultValue":"context_problem"},{"key":"customProblemId","label":"Problem ID (problemTarget=custom)","type":"text","required":false,"defaultValue":""},{"key":"notifyOwner","label":"Sahibini Bildir","type":"boolean","required":false,"defaultValue":"true"}]"""),
+            ("highlight_problem", "Problemi Öne Çıkar", "Problem Yönetimi", "⭐",
+             "Problemin öne çıkarma durumunu açar/kapatır (toggle).",
+             """[{"key":"problemTarget","label":"Hedef Problem","type":"select","options":["context_problem","custom"],"required":true,"defaultValue":"context_problem"},{"key":"customProblemId","label":"Problem ID (problemTarget=custom)","type":"text","required":false,"defaultValue":""}]"""),
+            ("delete_problem", "Problemi Sil", "Problem Yönetimi", "🗑️",
+             "Problemi sistemden kalıcı olarak kaldırır; isteğe bağlı sebep ve sahip bildirimi eklenebilir.",
+             """[{"key":"problemTarget","label":"Hedef Problem","type":"select","options":["context_problem","custom"],"required":true,"defaultValue":"context_problem"},{"key":"customProblemId","label":"Problem ID (problemTarget=custom)","type":"text","required":false,"defaultValue":""},{"key":"reason","label":"Silme Sebebi","type":"text","required":false,"defaultValue":""},{"key":"notifyOwner","label":"Sahibini Bildir","type":"boolean","required":false,"defaultValue":"true"}]"""),
+            ("report_problem", "Problemi Raporla", "Problem Yönetimi", "🚩",
+             "Problemi moderasyon incelemesi için raporlar.",
+             """[{"key":"problemTarget","label":"Hedef Problem","type":"select","options":["context_problem","custom"],"required":true,"defaultValue":"context_problem"},{"key":"customProblemId","label":"Problem ID (problemTarget=custom)","type":"text","required":false,"defaultValue":""}]"""),
+
+            // ── Çözüm Yönetimi ───────────────────────────────────────────────────
+            ("approve_solution", "Çözümü Onayla", "Çözüm Yönetimi", "✅",
+             "Uzman onayı bekleyen çözümü onaylar ve yazara bildirim gönderir.",
+             """[{"key":"solutionTarget","label":"Hedef Çözüm","type":"select","options":["context_solution","custom"],"required":true,"defaultValue":"context_solution"},{"key":"customSolutionId","label":"Çözüm ID (solutionTarget=custom)","type":"text","required":false,"defaultValue":""},{"key":"notifyAuthor","label":"Yazarı Bildir","type":"boolean","required":false,"defaultValue":"true"}]"""),
+            ("reject_solution", "Çözümü Reddet", "Çözüm Yönetimi", "❌",
+             "Uzman incelemesinden geçemeyen çözümü reddeder; yazara sebep bildirilir.",
+             """[{"key":"solutionTarget","label":"Hedef Çözüm","type":"select","options":["context_solution","custom"],"required":true,"defaultValue":"context_solution"},{"key":"customSolutionId","label":"Çözüm ID (solutionTarget=custom)","type":"text","required":false,"defaultValue":""},{"key":"reason","label":"Reddetme Sebebi","type":"text","required":false,"defaultValue":""},{"key":"notifyAuthor","label":"Yazarı Bildir","type":"boolean","required":false,"defaultValue":"true"}]"""),
+            ("highlight_solution", "Çözümü Öne Çıkar", "Çözüm Yönetimi", "💡",
+             "Çözümün öne çıkarma durumunu açar/kapatır (toggle).",
+             """[{"key":"solutionTarget","label":"Hedef Çözüm","type":"select","options":["context_solution","custom"],"required":true,"defaultValue":"context_solution"},{"key":"customSolutionId","label":"Çözüm ID (solutionTarget=custom)","type":"text","required":false,"defaultValue":""}]"""),
+            ("delete_solution", "Çözümü Sil", "Çözüm Yönetimi", "🗑️",
+             "Çözümü sistemden kaldırır; isteğe bağlı sebep ve yazar bildirimi eklenebilir.",
+             """[{"key":"solutionTarget","label":"Hedef Çözüm","type":"select","options":["context_solution","custom"],"required":true,"defaultValue":"context_solution"},{"key":"customSolutionId","label":"Çözüm ID (solutionTarget=custom)","type":"text","required":false,"defaultValue":""},{"key":"reason","label":"Silme Sebebi","type":"text","required":false,"defaultValue":""},{"key":"notifyAuthor","label":"Yazarı Bildir","type":"boolean","required":false,"defaultValue":"true"}]"""),
+
+            // ── Moderasyon ───────────────────────────────────────────────────────
+            ("delete_comment", "Yorumu Sil", "Moderasyon", "🧹",
+             "Belirtilen yorumu moderasyon gerekçesiyle siler.",
+             """[{"key":"commentTarget","label":"Hedef Yorum","type":"select","options":["context_comment","custom"],"required":true,"defaultValue":"context_comment"},{"key":"customCommentId","label":"Yorum ID (commentTarget=custom)","type":"text","required":false,"defaultValue":""},{"key":"reason","label":"Silme Sebebi","type":"text","required":false,"defaultValue":""}]"""),
+
+            // ── Sistem ───────────────────────────────────────────────────────────
+            ("log_event", "Olay Kaydet", "Sistem", "📝",
+             "Audit log tablosuna özelleştirilebilir kategori ve seviyede kayıt ekler.",
+             """[{"key":"category","label":"Kategori","type":"text","required":false,"defaultValue":"Workflow"},{"key":"action","label":"Eylem","type":"text","required":false,"defaultValue":""},{"key":"message","label":"Mesaj","type":"text","required":true,"defaultValue":""},{"key":"details","label":"Detaylar","type":"text","required":false,"defaultValue":""},{"key":"severity","label":"Seviye","type":"select","options":["Info","Warning","Error","Critical"],"required":true,"defaultValue":"Info"}]"""),
+            ("webhook", "Webhook Tetikle", "Sistem", "🌐",
+             "Dış servise HTTP isteği gönderir; payload boş bırakılırsa context otomatik eklenir.",
+             """[{"key":"url","label":"Webhook URL","type":"text","required":true,"defaultValue":"https://"},{"key":"method","label":"HTTP Metodu","type":"select","options":["POST","GET","PUT","PATCH"],"required":true,"defaultValue":"POST"},{"key":"payload","label":"Payload JSON (boş=otomatik)","type":"text","required":false,"defaultValue":""},{"key":"authHeader","label":"Authorization Header","type":"text","required":false,"defaultValue":""}]"""),
+            ("create_announcement", "Duyuru Oluştur", "Sistem", "📢",
+             "Platforma kalıcı duyuru ekler; isteğe bağlı olarak ilgili kullanıcılara bildirim gönderir.",
+             """[{"key":"title","label":"Başlık","type":"text","required":true,"defaultValue":""},{"key":"content","label":"İçerik","type":"text","required":true,"defaultValue":""},{"key":"targetGroup","label":"Hedef Grup","type":"select","options":["all","registered","institution"],"required":false,"defaultValue":"all"},{"key":"institutionId","label":"Kurum ID (targetGroup=institution)","type":"text","required":false,"defaultValue":""},{"key":"link","label":"Bağlantı URL (opsiyonel)","type":"text","required":false,"defaultValue":""},{"key":"expiresAt","label":"Geçerlilik Bitiş (ISO tarih)","type":"text","required":false,"defaultValue":""},{"key":"sendNotification","label":"Bildirim de Gönder","type":"boolean","required":false,"defaultValue":"false"}]"""),
+            ("trigger_workflow", "Workflow Tetikle", "Sistem", "⚡",
+             "Başka bir workflow definition'ı çalıştırır; maksimum 3 zincir derinliği.",
+             """[{"key":"workflowDefinitionId","label":"Workflow Definition ID","type":"number","required":true,"defaultValue":""},{"key":"inheritContext","label":"Context'i Devral","type":"boolean","required":false,"defaultValue":"true"}]"""),
+        };
+
+        // Upsert: her action'ı ActionCode'a göre bul; varsa güncelle, yoksa ekle
+        foreach (var (code, name, cat, icon, desc, schema) in actionDefs)
+        {
+            var existing = context.WorkflowActions.FirstOrDefault(a => a.ActionCode == code);
+            if (existing != null)
+            {
+                existing.Name                 = name;
+                existing.Category             = cat;
+                existing.Icon                 = icon;
+                existing.Description          = desc;
+                existing.ParametersSchemaJson = schema;
+                existing.IsActive             = true;
+            }
+            else
+            {
+                context.WorkflowActions.Add(new WorkflowAction
+                {
+                    Name = name, ActionCode = code, Category = cat,
+                    Icon = icon, Description = desc,
+                    ParametersSchemaJson = schema, IsActive = true,
+                });
+            }
+        }
+        context.SaveChanges();
+
+        // Artık kullanılmayan eski seeder bloğu buradan devam eder:
+        if (false)
         {
             var actions = new List<WorkflowAction>
             {
@@ -249,20 +368,6 @@ public static class WorkflowReferenceSeeder
                       {"key":"title","label":"Uyarı Başlığı","type":"text","required":true,"defaultValue":"Kural İhlali"},
                       {"key":"message","label":"Uyarı Mesajı","type":"text","required":true,"defaultValue":""},
                       {"key":"severity","label":"Ağırlık","type":"select","options":["low","medium","high"],"required":true,"defaultValue":"medium"}
-                    ]
-                    """,
-                    IsActive = true
-                },
-                new()
-                {
-                    Name = "Change User Role",
-                    ActionCode = "change_user_role",
-                    ParametersSchemaJson = """
-                    [
-                      {"key":"userTarget","label":"Hedef Kullanıcı","type":"select","options":["context_user","target_user","custom"],"required":true,"defaultValue":"target_user"},
-                      {"key":"customUserId","label":"Kullanıcı ID (custom ise)","type":"text","required":false,"defaultValue":""},
-                      {"key":"role","label":"Rol","type":"select","options":["Admin","Expert","Official"],"required":true,"defaultValue":"Expert"},
-                      {"key":"action","label":"İşlem","type":"select","options":["grant","revoke"],"required":true,"defaultValue":"grant"}
                     ]
                     """,
                     IsActive = true
@@ -422,9 +527,7 @@ public static class WorkflowReferenceSeeder
                     IsActive = true
                 },
             };
-
-            context.WorkflowActions.AddRange(actions);
-            context.SaveChanges();
+            // (eski blok artık çalışmaz — if (false) koruması var)
         }
     }
 }

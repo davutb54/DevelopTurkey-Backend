@@ -11,6 +11,7 @@ public class DynamicRule : IEntity
     public string Name { get; set; } // Örn: "Bilgi İşlem Otomatik Atama"
     public string TriggerEvent { get; set; } // Örn: "OnProblemCreated"
     public string FlowJson { get; set; }
+    public int FlowJsonSchemaVersion { get; set; } = 1;
     public int Version { get; set; } = 1;
     public int Priority { get; set; } = 100;
     public string Description { get; set; }

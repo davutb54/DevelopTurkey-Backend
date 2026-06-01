@@ -1,4 +1,5 @@
 using Business.Concrete;
+using Business.Concrete.Actions;
 using Business.Abstract;
 using Business.Consumers;
 using Business.Workflow.Messages;
@@ -24,11 +25,14 @@ CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:3000", "http://localhost:5173"];
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowOrigin", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://localhost:5173", "http://194.146.36.60:3000")
+        policy.WithOrigins(corsOrigins)
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();
@@ -87,6 +91,9 @@ builder.Services.AddScoped<IProblemTopicDal, EfProblemTopicDal>();
 builder.Services.AddScoped<IFeedbackDal, EfFeedbackDal>();
 builder.Services.AddScoped<IFeedbackService, FeedbackManager>();
 
+builder.Services.AddScoped<IAnnouncementDal, EfAnnouncementDal>();
+builder.Services.AddScoped<IAnnouncementService, AnnouncementManager>();
+
 builder.Services.AddScoped<ISystemSettingsDal, EfSystemSettingsDal>();
 builder.Services.AddScoped<ISystemSettingsService, SystemSettingsManager>();
 
@@ -128,6 +135,33 @@ builder.Services.AddScoped<IWorkflowFieldService, WorkflowFieldManager>();
 builder.Services.AddScoped<IWorkflowActionDal, EfWorkflowActionDal>();
 builder.Services.AddScoped<IWorkflowActionService, WorkflowActionManager>();
 
+// Action Registry — her handler IWorkflowActionHandler olarak kayıtlı;
+// WorkflowActionDispatcher bunları IEnumerable<IWorkflowActionHandler> ile alır
+// ve ActionCode'a göre dictionary'e dönüştürür.
+builder.Services.AddScoped<IWorkflowActionHandler, SendEmailActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, SendNotificationActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, SendBulkNotificationActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, BanUserActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, UnbanUserActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, WarnUserActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, ResolveProblemActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, HighlightProblemActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, DeleteProblemActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, ReportProblemActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, ApproveSolutionActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, RejectSolutionActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, HighlightSolutionActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, DeleteSolutionActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, DeleteCommentActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, LogEventActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, WebhookActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, GrantCapabilityActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, ApplyCapabilityTemplateActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, AssignProblemToInstitutionActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, ChangeProblemStatusActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, CreateAnnouncementActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, TriggerWorkflowActionHandler>();
+
 builder.Services.AddScoped<IWorkflowActionDispatcher, WorkflowActionDispatcher>();
 builder.Services.AddScoped<IWorkflowInterpreterService, WorkflowInterpreterManager>();
 
@@ -163,6 +197,7 @@ builder.Services.AddScoped<ICapabilityAuditLogDal, EfCapabilityAuditLogDal>();
 builder.Services.AddScoped<ICapabilityService, CapabilityManager>();
 builder.Services.AddScoped<ICapabilityAuditService, CapabilityAuditManager>();
 builder.Services.AddScoped<IUserCapabilityService, UserCapabilityManager>();
+builder.Services.AddScoped<ICapabilityTemplateService, CapabilityTemplateManager>();
 
 // Snapshot singleton — app boyunca tek instance, tüm scope'lardan paylaşılır
 builder.Services.AddSingleton<Core.Utilities.Authorization.ICapabilitySnapshot, Business.Concrete.CapabilitySnapshotService>();
@@ -195,6 +230,7 @@ builder.Services.AddMassTransit(x =>
 {
     // Consumer'ları kaydet
     x.AddConsumer<NodeRunConsumer>();
+    x.AddConsumer<NodeRunFaultConsumer>();
     x.AddConsumer<ActionRunConsumer>();
     x.AddConsumer<DeadLetterConsumer>();
 
@@ -475,12 +511,14 @@ using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<DataAccess.Concrete.EntityFramework.DevelopTurkeyContext>();
     var config  = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+    WebAPI.Seeders.InstitutionSeeder.Seed(context);
     WebAPI.Seeders.FeatureSeeder.Seed(context);
     WebAPI.Seeders.EmailTemplateSeeder.Seed(context);
     WebAPI.Seeders.WorkflowReferenceSeeder.Seed(context);
     WebAPI.Seeders.CapabilitySeeder.Seed(context);
     WebAPI.Seeders.BootstrapAdminSeeder.Seed(context, config);
     WebAPI.Seeders.SystemUserSeeder.Seed(context, config);
+    WebAPI.Seeders.TestDataSeeder.Seed(context, config);   // dev ortamı test verisi
 }
 
 app.Run();

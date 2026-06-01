@@ -34,5 +34,14 @@ public record ActionRunMessage
     /// <summary>Mevcut retry sayısı (0-based)</summary>
     public int AttemptNumber { get; init; }
 
+    /// <summary>Kuralı tetikleyen olay adı (örn. "problem.created")</summary>
+    public string TriggerEvent { get; init; } = string.Empty;
+
+    /// <summary>
+    /// RuleContext nesnesinin JSON serileştirilmiş hali.
+    /// Boş bırakılırsa ActionRunConsumer DB'deki RuleContextSnapshot'ı kullanır.
+    /// </summary>
+    public string RuleContextJson { get; init; } = string.Empty;
+
     public DateTime EnqueuedAt { get; init; } = DateTime.UtcNow;
 }

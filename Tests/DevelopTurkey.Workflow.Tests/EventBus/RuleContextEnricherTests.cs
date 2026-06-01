@@ -115,7 +115,7 @@ public sealed class RuleContextEnricherTests
 
         enriched.SystemUserId.Should().Be(9012);
         enriched.InstitutionId.Should().Be(1);
-        enriched.UserRole.Should().Be("Admin");
+        enriched.UserRole.Should().Be("User"); // role flags removed; capability system handles roles
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public sealed class RuleContextEnricherTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task SystemUserId_Pulls_UserSnapshot_And_Fills_UserRole_Admin()
+    public async Task SystemUserId_Pulls_UserSnapshot_And_Fills_Default_UserRole()
     {
         var (u, p, _, e) = MakeHarness();
         u.Setup(x => x.GetById(9012)).Returns(new SuccessDataResult<UserDetailDto?>(AdminUser(9012, 1)));
@@ -170,18 +170,20 @@ public sealed class RuleContextEnricherTests
 
         enriched.UserSnapshot.Should().NotBeNull();
         enriched.UserSnapshot!.UserName.Should().Be("admin123");
-        enriched.UserRole.Should().Be("Admin");
+        enriched.UserRole.Should().Be("User"); // IsAdmin/IsExpert/IsOfficial removed; capability system replaced role flags
         enriched.InstitutionId.Should().Be(1);
     }
 
     [Theory]
-    [InlineData(typeof(RuleContextEnricherTests), "Expert")]
-    [InlineData(typeof(RuleContextEnricherTests), "Official")]
-    [InlineData(typeof(RuleContextEnricherTests), "User")]
-    public async Task UserRole_Is_Derived_From_Flags(Type _, string expectedRole)
+    [InlineData("Expert")]
+    [InlineData("Official")]
+    [InlineData("User")]
+    public async Task UserRole_Defaults_To_User_For_Any_Former_Role_Type(string userType)
     {
+        // IsAdmin/IsExpert/IsOfficial flags were removed during capability migration.
+        // DeriveRole always returns "User"; capabilities are checked separately via ICapabilityResolver.
         var (u, p, _, e) = MakeHarness();
-        UserDetailDto dto = expectedRole switch
+        UserDetailDto dto = userType switch
         {
             "Expert"   => ExpertUser(),
             "Official" => OfficialUser(),
@@ -191,7 +193,7 @@ public sealed class RuleContextEnricherTests
 
         var enriched = await e.EnrichAsync(new RuleContext { SystemUserId = dto.Id });
 
-        enriched.UserRole.Should().Be(expectedRole);
+        enriched.UserRole.Should().Be("User");
     }
 
     [Fact]

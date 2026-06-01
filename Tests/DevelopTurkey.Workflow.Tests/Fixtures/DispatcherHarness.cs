@@ -1,5 +1,6 @@
 using Business.Abstract;
 using Business.Concrete;
+using Business.Concrete.Actions;
 using Business.Models;
 using Core.Utilities.Authorization;
 using Core.Utilities.Helpers.Email;
@@ -10,7 +11,9 @@ using Moq;
 namespace DevelopTurkey.Workflow.Tests.Fixtures;
 
 /// <summary>
-/// WorkflowActionDispatcher için test harness'i — 10 bağımlılığın hepsi mock.
+/// WorkflowActionDispatcher için test harness'i.
+/// Her action handler kendi mock bağımlılıklarıyla oluşturulur;
+/// Dispatcher bunları IEnumerable&lt;IWorkflowActionHandler&gt; olarak alır.
 /// </summary>
 public sealed class DispatcherHarness
 {
@@ -23,6 +26,12 @@ public sealed class DispatcherHarness
     public Mock<ISolutionService>       SolutionServiceMock       { get; } = new(MockBehavior.Loose);
     public Mock<ICommentService>        CommentServiceMock        { get; } = new(MockBehavior.Loose);
     public Mock<ILogService>            LogServiceMock            { get; } = new(MockBehavior.Loose);
+    /// <summary>
+    /// Dispatcher'ın action-level audit log'ları için ayrı mock.
+    /// LogServiceMock'tan ayrı tutulur ki handler-davranış testleri (log_event vb.)
+    /// dispatcher'ın audit yazımıyla karışmasın.
+    /// </summary>
+    public Mock<ILogService>            AuditLogServiceMock       { get; } = new(MockBehavior.Loose);
     public Mock<IWebhookClient>         WebhookClientMock         { get; } = new(MockBehavior.Loose);
     public Mock<ICapabilityResolver>    CapabilityResolverMock    { get; } = new(MockBehavior.Loose);
 
@@ -33,26 +42,69 @@ public sealed class DispatcherHarness
         // Default davranışlar — başarılı dönüşler
         EmailHelperMock.Setup(e => e.Send(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
                        .Returns(new SuccessResult("sent"));
-        WebhookClientMock.Setup(w => w.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), default))
-                         .ReturnsAsync(new WebhookSendResult(true, 200, null));
+        WebhookClientMock.Setup(w => w.SendAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), default))
+            .ReturnsAsync(new WebhookSendResult(true, 200, null));
 
         // Test senaryolarında capability kontrolü bypass — action davranışı test edilir
         CapabilityResolverMock.Setup(r => r.Allows(
                 It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CapabilityRequestContext>()))
             .Returns(true);
 
+        // Tüm handler'lar kendi mock bağımlılıklarıyla oluşturuluyor
+        var handlers = new IWorkflowActionHandler[]
+        {
+            new SendEmailActionHandler(
+                EmailHelperMock.Object,
+                EmailTemplateServiceMock.Object,
+                UserServiceMock.Object),
+            new SendNotificationActionHandler(
+                NotificationServiceMock.Object),
+            new SendBulkNotificationActionHandler(
+                UserServiceMock.Object,
+                NotificationServiceMock.Object),
+            new BanUserActionHandler(
+                UserServiceMock.Object,
+                NotificationServiceMock.Object),
+            new UnbanUserActionHandler(
+                UserServiceMock.Object,
+                NotificationServiceMock.Object),
+            new WarnUserActionHandler(
+                UserWarningServiceMock.Object,
+                NotificationServiceMock.Object),
+            new ResolveProblemActionHandler(
+                ProblemServiceMock.Object,
+                NotificationServiceMock.Object),
+            new HighlightProblemActionHandler(
+                ProblemServiceMock.Object),
+            new DeleteProblemActionHandler(
+                ProblemServiceMock.Object,
+                NotificationServiceMock.Object),
+            new ReportProblemActionHandler(
+                ProblemServiceMock.Object),
+            new ApproveSolutionActionHandler(
+                SolutionServiceMock.Object,
+                NotificationServiceMock.Object),
+            new RejectSolutionActionHandler(
+                SolutionServiceMock.Object,
+                NotificationServiceMock.Object),
+            new HighlightSolutionActionHandler(
+                SolutionServiceMock.Object),
+            new DeleteSolutionActionHandler(
+                SolutionServiceMock.Object,
+                NotificationServiceMock.Object),
+            new DeleteCommentActionHandler(
+                CommentServiceMock.Object),
+            new LogEventActionHandler(
+                LogServiceMock.Object),
+            new WebhookActionHandler(
+                WebhookClientMock.Object),
+        };
+
         Dispatcher = new WorkflowActionDispatcher(
-            EmailHelperMock.Object,
-            EmailTemplateServiceMock.Object,
-            NotificationServiceMock.Object,
-            UserServiceMock.Object,
-            UserWarningServiceMock.Object,
-            ProblemServiceMock.Object,
-            SolutionServiceMock.Object,
-            CommentServiceMock.Object,
-            LogServiceMock.Object,
-            WebhookClientMock.Object,
+            handlers,
             CapabilityResolverMock.Object,
+            AuditLogServiceMock.Object,
             NullLogger<WorkflowActionDispatcher>.Instance);
     }
 

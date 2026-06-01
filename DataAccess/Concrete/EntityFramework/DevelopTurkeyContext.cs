@@ -81,4 +81,7 @@ public class DevelopTurkeyContext : DbContext
 
     // Kill Switch
     public DbSet<SystemKillSwitch> SystemKillSwitches { get; set; }
+
+    // Duyurular
+    public DbSet<Announcement> Announcements { get; set; }
 }

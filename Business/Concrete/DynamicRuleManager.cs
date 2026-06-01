@@ -82,10 +82,11 @@ public class DynamicRuleManager : IDynamicRuleService
 
             var oldTrigger = existing.TriggerEvent;
 
-            existing.Name         = dto.Name;
-            existing.TriggerEvent = dto.TriggerEvent;
-            existing.FlowJson     = dto.FlowJson;
-            existing.Priority     = dto.Priority;
+            existing.Name                   = dto.Name;
+            existing.TriggerEvent           = dto.TriggerEvent;
+            existing.FlowJson               = dto.FlowJson;
+            existing.FlowJsonSchemaVersion  = dto.FlowJsonSchemaVersion;
+            existing.Priority               = dto.Priority;
             existing.Description  = dto.Description;
             existing.IsActive     = dto.IsActive;
             existing.Version     += 1;
@@ -122,9 +123,10 @@ public class DynamicRuleManager : IDynamicRuleService
             InstitutionId    = institutionId,
             Name             = dto.Name,
             TriggerEvent     = dto.TriggerEvent,
-            FlowJson         = dto.FlowJson,
-            Version          = (latest?.Version ?? 0) + 1,
-            Priority         = dto.Priority,
+            FlowJson                = dto.FlowJson,
+            FlowJsonSchemaVersion   = dto.FlowJsonSchemaVersion,
+            Version                 = (latest?.Version ?? 0) + 1,
+            Priority                = dto.Priority,
             Description      = dto.Description,
             CreatedAt        = now,
             UpdatedAt        = now,

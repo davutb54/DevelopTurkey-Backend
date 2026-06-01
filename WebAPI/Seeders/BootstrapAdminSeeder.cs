@@ -16,10 +16,7 @@ public static class BootstrapAdminSeeder
         var email = section["Email"];
         if (string.IsNullOrWhiteSpace(email)) return;
 
-        // Idempotency: bu audit action daha önce çalıştıysa atla
-        if (context.CapabilityAuditLogs.Any(a => a.Action == "bootstrap_admin")) return;
-
-        // Kullanıcı zaten varsa, capability grant'larına bak — yoksa oluştur
+        // Kullanıcı yoksa oluştur (bir kere)
         var user = context.Users.FirstOrDefault(u => u.Email == email && !u.IsDeleted);
         if (user == null)
         {
@@ -29,21 +26,32 @@ public static class BootstrapAdminSeeder
 
             user = new User
             {
-                UserName    = "superadmin",
-                Name        = section["Name"] ?? "Bootstrap Admin",
-                Surname     = "Admin",
-                Email       = email,
-                PasswordHash = hash,
-                PasswordSalt = salt,
+                UserName        = "superadmin",
+                Name            = section["Name"] ?? "Bootstrap Admin",
+                Surname         = "Admin",
+                Email           = email,
+                PasswordHash    = hash,
+                PasswordSalt    = salt,
                 IsEmailVerified = true,
-                RegisterDate = DateTime.UtcNow,
-                InstitutionId = 1,
+                RegisterDate    = DateTime.UtcNow,
+                InstitutionId   = 1,
             };
             context.Users.Add(user);
             context.SaveChanges();
+
+            context.CapabilityAuditLogs.Add(new CapabilityAuditLog
+            {
+                ActorUserId  = 0,
+                TargetUserId = user.Id,
+                Action       = "bootstrap_admin",
+                PayloadJson  = $"{{\"email\":\"{email}\"}}",
+                CreatedAt    = DateTime.UtcNow,
+            });
+            context.SaveChanges();
         }
 
-        // Capability grant'larını ekle (varsa atla)
+        // Her startup'ta eksik capability'leri grant et.
+        // CapabilityDefaults.BootstrapAdmin güncellendiğinde yeni kodlar otomatik eklenir.
         var capCodes = context.Capabilities
             .Where(c => CapabilityDefaults.BootstrapAdmin.Contains(c.Code) && c.IsActive)
             .Select(c => new { c.Id, c.Code })
@@ -61,28 +69,17 @@ public static class BootstrapAdminSeeder
 
             context.UserCapabilities.Add(new UserCapability
             {
-                UserId       = user.Id,
-                CapabilityId = cap.Id,
+                UserId        = user.Id,
+                CapabilityId  = cap.Id,
                 InstitutionId = null,
-                Status       = 1,
-                GrantedBy    = 0,
-                GrantedAt    = DateTime.UtcNow,
-                Reason       = "bootstrap_admin",
+                Status        = 1,
+                GrantedBy     = 0,
+                GrantedAt     = DateTime.UtcNow,
+                Reason        = "bootstrap_admin",
             });
             added = true;
         }
 
         if (added) context.SaveChanges();
-
-        // Tek seferlik audit kaydı
-        context.CapabilityAuditLogs.Add(new CapabilityAuditLog
-        {
-            ActorUserId   = 0,
-            TargetUserId  = user.Id,
-            Action        = "bootstrap_admin",
-            PayloadJson   = $"{{\"email\":\"{email}\",\"capCount\":{capCodes.Count}}}",
-            CreatedAt     = DateTime.UtcNow,
-        });
-        context.SaveChanges();
     }
 }

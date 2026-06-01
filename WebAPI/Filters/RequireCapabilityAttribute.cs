@@ -1,4 +1,5 @@
 using Core.Utilities.Authorization;
+using Core.Utilities.Context;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
@@ -29,7 +30,11 @@ public sealed class RequireCapabilityAttribute : Attribute, IAsyncAuthorizationF
             return Task.CompletedTask;
         }
 
-        if (!policy.Allows(CapabilityCode))
+        var clientContext = context.HttpContext.RequestServices.GetService<IClientContext>();
+        var ctx = new CapabilityRequestContext(
+            InstitutionId: clientContext?.GetInstitutionId());
+
+        if (!policy.Allows(CapabilityCode, ctx))
         {
             context.Result = new ObjectResult(new
             {

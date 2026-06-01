@@ -34,6 +34,6 @@ public class WebClientContext : IClientContext
     {
         var institutionClaim = _httpContextAccessor.HttpContext?.User?.Claims?.FirstOrDefault(c => c.Type == "InstitutionId");
         if (institutionClaim != null && int.TryParse(institutionClaim.Value, out int id)) return id;
-        return null;
+        return 1; // anonymous → public institution (domain="public")
     }
 }

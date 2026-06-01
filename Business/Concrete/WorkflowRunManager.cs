@@ -2,6 +2,7 @@ using Business.Abstract;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
 using Entities.Concrete;
+using Entities.DTOs;
 
 namespace Business.Concrete;
 
@@ -32,6 +33,77 @@ public class WorkflowRunManager : IWorkflowRunService
     {
         var list = _runDal.GetByDefinition(definitionId, page, pageSize);
         return new SuccessDataResult<List<WorkflowRun>>(list);
+    }
+
+    public IDataResult<List<WorkflowRunSummaryDto>> GetSummaryByDefinition(int definitionId, int page = 1, int pageSize = 20)
+    {
+        var list = _runDal.GetByDefinition(definitionId, page, pageSize);
+        var summaries = list.Select(r => new WorkflowRunSummaryDto
+        {
+            RunId              = r.Id.ToString(),
+            DefinitionId       = r.DefinitionId,
+            TriggerEvent       = r.TriggerEvent,
+            TriggeredByUserId  = r.TriggeredByUserId,
+            Status             = r.Status,
+            IsDryRun           = r.IsDryRun,
+            StartedAt          = r.StartedAt,
+            EndedAt            = r.EndedAt,
+            DurationMs         = r.DurationMs,
+            ErrorMessage       = r.ErrorMessage,
+            NodeRunCount       = _nodeRunDal.GetByRun(r.Id).Count,
+        }).ToList();
+        return new SuccessDataResult<List<WorkflowRunSummaryDto>>(summaries);
+    }
+
+    public IDataResult<WorkflowRunDetailDto> GetDetail(Guid runId)
+    {
+        var run = _runDal.Get(r => r.Id == runId);
+        if (run is null) return new ErrorDataResult<WorkflowRunDetailDto>(default!, "WorkflowRun bulunamadı.");
+
+        var nodeRuns = _nodeRunDal.GetByRun(runId);
+        var nodeRunDtos = nodeRuns.Select(nr =>
+        {
+            var actionRuns = _actionRunDal.GetByNodeRun(nr.Id);
+            return new NodeRunSummaryDto
+            {
+                Id           = nr.Id.ToString(),
+                NodeId       = nr.NodeId,
+                NodeType     = nr.NodeType,
+                Status       = nr.Status,
+                StartedAt    = nr.StartedAt,
+                EndedAt      = nr.EndedAt,
+                ErrorMessage = nr.ErrorMessage,
+                ActionRuns   = actionRuns.Select(ar => new ActionRunSummaryDto
+                {
+                    Id         = ar.Id.ToString(),
+                    ActionCode = ar.ActionCode,
+                    Status     = ar.Status,
+                    RetryCount = ar.RetryCount,
+                    ResultJson = ar.ResultJson,
+                    LastError  = ar.LastError,
+                    StartedAt  = ar.StartedAt,
+                    EndedAt    = ar.EndedAt,
+                }).ToList(),
+            };
+        }).ToList();
+
+        var detail = new WorkflowRunDetailDto
+        {
+            RunId             = run.Id.ToString(),
+            DefinitionId      = run.DefinitionId,
+            TriggerEvent      = run.TriggerEvent,
+            InstitutionId     = run.InstitutionId,
+            TriggeredByUserId = run.TriggeredByUserId,
+            Status            = run.Status,
+            IsDryRun          = run.IsDryRun,
+            StartedAt         = run.StartedAt,
+            EndedAt           = run.EndedAt,
+            DurationMs        = run.DurationMs,
+            ErrorMessage      = run.ErrorMessage,
+            NodeRuns          = nodeRunDtos,
+        };
+
+        return new SuccessDataResult<WorkflowRunDetailDto>(detail);
     }
 
     public IDataResult<List<WorkflowRun>> GetByInstitution(int institutionId, byte? status = null, int page = 1, int pageSize = 20)

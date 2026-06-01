@@ -1,4 +1,5 @@
 using Business.Abstract;
+using Business.Models;
 using Business.Workflow.Messages;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
@@ -93,9 +94,11 @@ public class WorkflowOrchestrator : IWorkflowOrchestrator
                 continue;
             }
 
+            var enrichedContextJson = InjectWorkflowCreatorId(contextJson, definition.CreatedByUserId);
+
             var result = await StartSingleAsync(
                 definition.Id, version.Id, version.FlowJson,
-                triggerEvent, institutionId, contextJson,
+                triggerEvent, institutionId, enrichedContextJson,
                 eventId, triggeredByUserId, isDryRun);
 
             if (result.Success)
@@ -195,6 +198,26 @@ public class WorkflowOrchestrator : IWorkflowOrchestrator
         }
 
         return new SuccessDataResult<WorkflowRun>(run, "Workflow run başlatıldı.");
+    }
+
+    /// <summary>
+    /// contextJson'a WorkflowCreatorId'yi inject eder.
+    /// Her definition için farklı yaratıcı olabileceğinden StartAsync döngüsünde çağrılır.
+    /// </summary>
+    private static string InjectWorkflowCreatorId(string contextJson, int creatorId)
+    {
+        if (string.IsNullOrWhiteSpace(contextJson) || creatorId <= 0) return contextJson;
+        try
+        {
+            var ctx = JsonSerializer.Deserialize<RuleContext>(contextJson);
+            if (ctx is null) return contextJson;
+            ctx.WorkflowCreatorId = creatorId;
+            return JsonSerializer.Serialize(ctx);
+        }
+        catch
+        {
+            return contextJson;
+        }
     }
 
     /// <summary>

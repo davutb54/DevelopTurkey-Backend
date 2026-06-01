@@ -133,16 +133,7 @@ public class InstitutionUserCountDto
 }
 
 // ─── Audit Log ────────────────────────────────────────────────
-public class CapabilityAuditFilterDto
-{
-    public int? ActorUserId { get; set; }
-    public int? TargetUserId { get; set; }
-    public string? Action { get; set; }
-    public DateTime? From { get; set; }
-    public DateTime? To { get; set; }
-    public int Page { get; set; } = 1;
-    public int PageSize { get; set; } = 50;
-}
+// CapabilityAuditFilterDto: Entities.DTOs.Capability.CapabilityAuditFilterDto kullanılıyor
 
 public class CapabilityAuditLogDto
 {
@@ -150,6 +141,7 @@ public class CapabilityAuditLogDto
     public int ActorUserId { get; set; }
     public int TargetUserId { get; set; }
     public string Action { get; set; } = string.Empty;
+    public string? CapabilityCode { get; set; }
     public string? PayloadJson { get; set; }
     public DateTime CreatedAt { get; set; }
 }

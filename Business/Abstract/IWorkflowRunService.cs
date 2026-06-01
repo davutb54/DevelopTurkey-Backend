@@ -1,11 +1,14 @@
 using Core.Utilities.Results;
 using Entities.Concrete;
+using Entities.DTOs;
 
 namespace Business.Abstract;
 
 public interface IWorkflowRunService
 {
     IDataResult<WorkflowRun> GetById(Guid id);
+    IDataResult<WorkflowRunDetailDto> GetDetail(Guid runId);
+    IDataResult<List<WorkflowRunSummaryDto>> GetSummaryByDefinition(int definitionId, int page = 1, int pageSize = 20);
     IDataResult<List<WorkflowRun>> GetByDefinition(int definitionId, int page = 1, int pageSize = 20);
     IDataResult<List<WorkflowRun>> GetByInstitution(int institutionId, byte? status = null, int page = 1, int pageSize = 20);
     IDataResult<int> CountByInstitution(int institutionId, byte? status = null);

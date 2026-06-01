@@ -2,6 +2,7 @@ using Business.Abstract;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
 using Entities.Concrete;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Business.Concrete;
@@ -9,11 +10,16 @@ namespace Business.Concrete;
 public class KillSwitchManager : IKillSwitchService
 {
     private readonly ISystemKillSwitchDal _dal;
+    private readonly IConfiguration _config;
     private readonly ILogger<KillSwitchManager> _logger;
 
-    public KillSwitchManager(ISystemKillSwitchDal dal, ILogger<KillSwitchManager> logger)
+    public KillSwitchManager(
+        ISystemKillSwitchDal dal,
+        IConfiguration config,
+        ILogger<KillSwitchManager> logger)
     {
         _dal = dal;
+        _config = config;
         _logger = logger;
     }
 
@@ -21,12 +27,12 @@ public class KillSwitchManager : IKillSwitchService
 
     private SystemKillSwitch GetOrCreate()
     {
-        var existing = _dal.Get(k => k.Id == 1);
+        var existing = _dal.Get(k => k.Mode >= KillSwitchMode.Off);
         if (existing is not null) return existing;
 
+        // Id atanmıyor — Identity kolonu SQL Server'ın otomatik atamasına bırakılıyor.
         var fresh = new SystemKillSwitch
         {
-            Id = 1,
             Mode = KillSwitchMode.Off,
             UpdatedAt = DateTime.UtcNow,
         };
@@ -89,11 +95,30 @@ public class KillSwitchManager : IKillSwitchService
 
     // ── Hızlı kontrol — WorkflowOrchestrator ve Consumer'larda çağrılır ────────
 
-    public bool IsActive(byte minimumMode = KillSwitchMode.Soft)
+    /// <summary>
+    /// Efektif kill switch modunu öncelik sırasıyla belirler:
+    /// DB (aktif kayıt) > Ortam değişkeni (KILLSWITCH__DEFAULTSTATE) > appsettings.json > Off.
+    /// .NET host builder env-var'ları IConfiguration'a otomatik olarak dahil eder;
+    /// bu nedenle IConfiguration tek okuma noktası olarak yeterlidir.
+    /// </summary>
+    private byte GetEffectiveMode()
     {
-        var state = _dal.Get(k => k.Id == 1);
-        return state is not null && state.Mode >= minimumMode;
+        var dbRow = _dal.Get(k => k.Mode >= KillSwitchMode.Off);
+        if (dbRow is not null && dbRow.Mode > KillSwitchMode.Off)
+            return dbRow.Mode;
+
+        var configValue = _config["KillSwitch:DefaultState"] ?? "none";
+        return configValue.Trim().ToLowerInvariant() switch
+        {
+            "soft"      => KillSwitchMode.Soft,
+            "hard"      => KillSwitchMode.Hard,
+            "emergency" => KillSwitchMode.Emergency,
+            _           => KillSwitchMode.Off,
+        };
     }
+
+    public bool IsActive(byte minimumMode = KillSwitchMode.Soft) =>
+        GetEffectiveMode() >= minimumMode;
 
     public bool IsSoft()      => IsActive(KillSwitchMode.Soft);
     public bool IsHard()      => IsActive(KillSwitchMode.Hard);

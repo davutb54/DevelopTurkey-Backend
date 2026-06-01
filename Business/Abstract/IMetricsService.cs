@@ -1,4 +1,5 @@
 using Core.Utilities.Results;
+using Entities.DTOs.Capability;
 using Entities.DTOs.Metrics;
 
 namespace Business.Abstract;

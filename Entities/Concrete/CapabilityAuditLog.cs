@@ -8,6 +8,7 @@ namespace Entities.Concrete;
 [Index(nameof(ActorUserId), Name = "IX_CapabilityAuditLog_ActorUserId")]
 [Index(nameof(Action), Name = "IX_CapabilityAuditLog_Action")]
 [Index(nameof(CreatedAt), Name = "IX_CapabilityAuditLog_CreatedAt")]
+[Index(nameof(CapabilityCode), Name = "IX_CapabilityAuditLog_CapabilityCode")]
 public class CapabilityAuditLog : IEntity
 {
     public int Id { get; set; }
@@ -16,6 +17,10 @@ public class CapabilityAuditLog : IEntity
 
     [Required, MaxLength(50)]
     public string Action { get; set; } = string.Empty;
+
+    /// <summary>İşlem yapılan capability kodu — filtreleme ve arama için index'li.</summary>
+    [MaxLength(150)]
+    public string? CapabilityCode { get; set; }
 
     public string? PayloadJson { get; set; }
     public DateTime CreatedAt { get; set; }

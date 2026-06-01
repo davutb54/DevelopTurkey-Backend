@@ -43,33 +43,72 @@ public class SolutionManager : ISolutionService
 
     public IDataResult<Solution?> GetById(int id)
     {
-        return new SuccessDataResult<Solution?>(_solutionDal.Get(solution => solution.Id == id));
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+        var solution = currentInstitutionId.HasValue
+            ? _solutionDal.Get(s => s.Id == id && s.InstitutionId == currentInstitutionId.Value)
+            : _solutionDal.Get(s => s.Id == id);
+
+        return new SuccessDataResult<Solution?>(solution);
     }
 
     public IDataResult<List<SolutionDetailDto>> GetAll(int institutionId)
     {
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+        if (currentInstitutionId.HasValue)
+        {
+            institutionId = currentInstitutionId.Value;
+        }
         return new SuccessDataResult<List<SolutionDetailDto>>(_solutionDal.GetSolutions(s => s.InstitutionId == institutionId));
     }
 
     public IDataResult<List<SolutionDetailDto>> GetByProblem(int problemId)
     {
-        return new SuccessDataResult<List<SolutionDetailDto>>(_solutionDal.GetSolutions(solution => solution.ProblemId == problemId));
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+        var solutions = currentInstitutionId.HasValue
+            ? _solutionDal.GetSolutions(s => s.ProblemId == problemId && s.InstitutionId == currentInstitutionId.Value)
+            : _solutionDal.GetSolutions(s => s.ProblemId == problemId);
+
+        return new SuccessDataResult<List<SolutionDetailDto>>(solutions);
     }
 
     public IDataResult<List<SolutionDetailDto>> GetBySender(int senderId)
     {
-        return new SuccessDataResult<List<SolutionDetailDto>>(_solutionDal.GetSolutions(solution => solution.SenderId == senderId));
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+        var solutions = currentInstitutionId.HasValue
+            ? _solutionDal.GetSolutions(s => s.SenderId == senderId && s.InstitutionId == currentInstitutionId.Value)
+            : _solutionDal.GetSolutions(s => s.SenderId == senderId);
+
+        return new SuccessDataResult<List<SolutionDetailDto>>(solutions);
     }
 
     public IDataResult<List<SolutionDetailDto>> GetIsHighlighted()
     {
-        return new SuccessDataResult<List<SolutionDetailDto>>(_solutionDal.GetSolutions(solution => solution.IsHighlighted));
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+        var solutions = currentInstitutionId.HasValue
+            ? _solutionDal.GetSolutions(s => s.IsHighlighted && s.InstitutionId == currentInstitutionId.Value)
+            : _solutionDal.GetSolutions(s => s.IsHighlighted);
+
+        return new SuccessDataResult<List<SolutionDetailDto>>(solutions);
     }
 
     public IResult Add(Solution solution)
     {
         solution.SenderId = _clientContext.GetUserId() ?? 0;
-        solution.InstitutionId = _clientContext.GetInstitutionId() ?? 1;
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+
+        var problem = _problemService.GetById(solution.ProblemId);
+        if (!problem.Success || problem.Data == null)
+        {
+            return new ErrorResult("Sorun bulunamadı.");
+        }
+
+        if (currentInstitutionId.HasValue && problem.Data.InstitutionId != currentInstitutionId.Value)
+        {
+            return new ErrorResult("Bu kurumun sorununa çözüm ekleyemezsiniz.");
+        }
+
+        // Kurum bilgisi, hedef problemin kurumundan türetilir.
+        solution.InstitutionId = problem.Data.InstitutionId;
         solution.SendDate = DateTime.Now;
 
         if (!_featureService.IsFeatureEnabled(solution.InstitutionId, "Moderation.RequireExpertApproval"))
@@ -84,7 +123,6 @@ public class SolutionManager : ISolutionService
         // Bildirim: Problem sahibine, kendi çözümü değilse bildirim gönder
         try
         {
-            var problem = _problemService.GetById(solution.ProblemId);
             if (problem.Success && problem.Data != null && problem.Data.SenderId != solution.SenderId)
             {
                 // _notificationService.Add(new Notification
@@ -135,10 +173,16 @@ public class SolutionManager : ISolutionService
     public IResult Update(Solution solution)
     {
         var currentUserId = _clientContext.GetUserId();
-        var isModerator = _capabilityResolver.Allows(currentUserId.GetValueOrDefault(), "moderation.solution_moderate");
-
         var existingSolution = _solutionDal.Get(s => s.Id == solution.Id);
         if (existingSolution == null) return new ErrorResult("Çözüm bulunamadı");
+
+        var moderationCtx = new CapabilityRequestContext(
+            InstitutionId: existingSolution.InstitutionId,
+            Entity: "solution",
+            EntityId: existingSolution.Id);
+
+        var isModerator = currentUserId.HasValue &&
+                          _capabilityResolver.Allows(currentUserId.Value, "moderation.solution_moderate", moderationCtx);
 
         if (!isModerator && existingSolution.SenderId != currentUserId)
         {
@@ -149,6 +193,7 @@ public class SolutionManager : ISolutionService
         solution.SenderId = existingSolution.SenderId;
         solution.SendDate = existingSolution.SendDate;
         solution.ProblemId = existingSolution.ProblemId;
+        solution.InstitutionId = existingSolution.InstitutionId;
 
         if (!isModerator)
         {
@@ -177,10 +222,16 @@ public class SolutionManager : ISolutionService
     public IResult Delete(int id)
     {
         var currentUserId = _clientContext.GetUserId();
-        var isModerator = _capabilityResolver.Allows(currentUserId.GetValueOrDefault(), "moderation.solution_delete");
-
         var solution = _solutionDal.Get(s => s.Id == id);
         if (solution == null) return new ErrorResult("Çözüm bulunamadı");
+
+        var moderationCtx = new CapabilityRequestContext(
+            InstitutionId: solution.InstitutionId,
+            Entity: "solution",
+            EntityId: solution.Id);
+
+        var isModerator = currentUserId.HasValue &&
+                          _capabilityResolver.Allows(currentUserId.Value, "moderation.solution_delete", moderationCtx);
 
         if (!isModerator && solution.SenderId != currentUserId)
         {

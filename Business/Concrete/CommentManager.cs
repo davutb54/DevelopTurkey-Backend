@@ -40,28 +40,95 @@ public class CommentManager : ICommentService
 
     public IDataResult<Comment?> GetById(int id)
     {
-        return new SuccessDataResult<Comment?>(_commentDal.Get(comment => comment.Id == id));
+        var comment = _commentDal.Get(c => c.Id == id);
+        if (comment == null)
+        {
+            return new SuccessDataResult<Comment?>(null);
+        }
+
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+        if (currentInstitutionId.HasValue)
+        {
+            var solution = _solutionDal.Get(s => s.Id == comment.SolutionId);
+            if (solution == null || solution.InstitutionId != currentInstitutionId.Value)
+            {
+                return new SuccessDataResult<Comment?>(null);
+            }
+        }
+
+        return new SuccessDataResult<Comment?>(comment);
     }
 
     public IDataResult<List<CommentDetailDto>> GetAll()
     {
-        return new SuccessDataResult<List<CommentDetailDto>>(_commentDal.GetCommentDetails());
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+        if (!currentInstitutionId.HasValue)
+        {
+            return new SuccessDataResult<List<CommentDetailDto>>(_commentDal.GetCommentDetails());
+        }
+
+        var allowedSolutionIds = _solutionDal
+            .GetAll(s => s.InstitutionId == currentInstitutionId.Value && !s.IsDeleted)
+            .Select(s => s.Id)
+            .ToList();
+
+        if (allowedSolutionIds.Count == 0)
+        {
+            return new SuccessDataResult<List<CommentDetailDto>>(new List<CommentDetailDto>());
+        }
+
+        var comments = _commentDal.GetCommentDetails(c => allowedSolutionIds.Contains(c.SolutionId));
+        return new SuccessDataResult<List<CommentDetailDto>>(comments);
     }
 
     public IDataResult<List<CommentDetailDto>> GetByParentCommentId(int parentCommentId)
     {
-        return new SuccessDataResult<List<CommentDetailDto>>(_commentDal.GetCommentDetails(comment => comment.ParentCommentId == parentCommentId));
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+        if (currentInstitutionId.HasValue)
+        {
+            var parent = _commentDal.Get(c => c.Id == parentCommentId);
+            if (parent == null)
+            {
+                return new SuccessDataResult<List<CommentDetailDto>>(new List<CommentDetailDto>());
+            }
+
+            var parentSolution = _solutionDal.Get(s => s.Id == parent.SolutionId);
+            if (parentSolution == null || parentSolution.InstitutionId != currentInstitutionId.Value)
+            {
+                return new SuccessDataResult<List<CommentDetailDto>>(new List<CommentDetailDto>());
+            }
+        }
+
+        return new SuccessDataResult<List<CommentDetailDto>>(
+            _commentDal.GetCommentDetails(comment => comment.ParentCommentId == parentCommentId));
     }
 
     public IDataResult<List<CommentDetailDto>> GetBySolution(int solutionId)
     {
-        return new SuccessDataResult<List<CommentDetailDto>>(_commentDal.GetCommentDetails(comment => comment.SolutionId == solutionId));
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+        if (currentInstitutionId.HasValue)
+        {
+            var solution = _solutionDal.Get(s => s.Id == solutionId);
+            if (solution == null || solution.InstitutionId != currentInstitutionId.Value)
+            {
+                return new SuccessDataResult<List<CommentDetailDto>>(new List<CommentDetailDto>());
+            }
+        }
+
+        return new SuccessDataResult<List<CommentDetailDto>>(
+            _commentDal.GetCommentDetails(comment => comment.SolutionId == solutionId));
     }
 
     public IResult Add(Comment comment)
     {
         var solution = _solutionDal.Get(s => s.Id == comment.SolutionId);
         if (solution == null) return new ErrorResult("Çözüm bulunamadı.");
+
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+        if (currentInstitutionId.HasValue && solution.InstitutionId != currentInstitutionId.Value)
+        {
+            return new ErrorResult("Bu kurumun içeriğine yorum ekleyemezsiniz.");
+        }
 
         if (comment.ParentCommentId.HasValue && !_featureService.IsFeatureEnabled(solution.InstitutionId, "Social.EnableNestedComments"))
         {
@@ -111,10 +178,17 @@ public class CommentManager : ICommentService
     public IResult Update(CommentUpdateDto commentUpdateDto)
     {
         var currentUserId = _clientContext.GetUserId();
-        var isModerator = _capabilityResolver.Allows(currentUserId.GetValueOrDefault(), "moderation.comment_moderate");
-
         var comment = _commentDal.Get(c => c.Id == commentUpdateDto.Id);
         if (comment == null) return new ErrorResult("Yorum Bulunamadı");
+
+        var solution = _solutionDal.Get(s => s.Id == comment.SolutionId);
+        var moderationCtx = new CapabilityRequestContext(
+            InstitutionId: solution?.InstitutionId,
+            Entity: "comment",
+            EntityId: comment.Id);
+
+        var isModerator = currentUserId.HasValue &&
+                          _capabilityResolver.Allows(currentUserId.Value, "moderation.comment_moderate", moderationCtx);
 
         if (!isModerator && comment.SenderId != currentUserId)
         {
@@ -137,7 +211,6 @@ public class CommentManager : ICommentService
         _logService.LogInfo("Content", "Update", $"Yorum güncellendi - CommentId: {comment.Id}");
 
         // Etiketlemeleri işle (güncellemede de bildirim gitsin)
-        var solution = _solutionDal.Get(s => s.Id == comment.SolutionId);
         if (solution != null)
         {
             _mentionService.ProcessMentions(comment.Text, comment.SenderId, solution.InstitutionId, $"/problem/{solution.ProblemId}", solution.Title);
@@ -149,10 +222,17 @@ public class CommentManager : ICommentService
     public IResult Delete(int id)
     {
         var currentUserId = _clientContext.GetUserId();
-        var isModerator = _capabilityResolver.Allows(currentUserId.GetValueOrDefault(), "moderation.comment_delete");
-
         var comment = _commentDal.Get(comment => comment.Id == id);
         if (comment == null) return new ErrorResult("Yorum Bulunamadı");
+
+        var solution = _solutionDal.Get(s => s.Id == comment.SolutionId);
+        var moderationCtx = new CapabilityRequestContext(
+            InstitutionId: solution?.InstitutionId,
+            Entity: "comment",
+            EntityId: comment.Id);
+
+        var isModerator = currentUserId.HasValue &&
+                          _capabilityResolver.Allows(currentUserId.Value, "moderation.comment_delete", moderationCtx);
 
         if (!isModerator && comment.SenderId != currentUserId)
         {

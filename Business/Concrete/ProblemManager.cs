@@ -54,29 +54,52 @@ public class ProblemManager : IProblemService
 
     public IDataResult<ProblemDetailDto> GetById(int id)
     {
-        return new SuccessDataResult<ProblemDetailDto>(_problemDal.GetProblemDetail(problem => problem.Id == id));
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+        var problem = currentInstitutionId.HasValue
+            ? _problemDal.GetProblemDetail(p => p.Id == id && p.InstitutionId == currentInstitutionId.Value)
+            : _problemDal.GetProblemDetail(p => p.Id == id);
+
+        return new SuccessDataResult<ProblemDetailDto>(problem);
     }
 
     public IDataResult<List<Problem>> GetAll()
     {
-        return new SuccessDataResult<List<Problem>>(_problemDal.GetAll());
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+        var problems = currentInstitutionId.HasValue
+            ? _problemDal.GetAll(p => p.InstitutionId == currentInstitutionId.Value)
+            : _problemDal.GetAll();
+
+        return new SuccessDataResult<List<Problem>>(problems);
     }
 
     public IDataResult<List<ProblemDetailDto>> GetByTopic(int topicId)
     {
-        var problems = _problemDal.GetProblemsDetails(problem => problem.IsDeleted == false);
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+        var problems = currentInstitutionId.HasValue
+            ? _problemDal.GetProblemsDetails(p => p.InstitutionId == currentInstitutionId.Value)
+            : _problemDal.GetProblemsDetails();
         var filteredProblems = problems.Where(p => p.Topics != null && p.Topics.Any(t => t.Id == topicId)).ToList();
         return new SuccessDataResult<List<ProblemDetailDto>>(filteredProblems);
     }
 
     public IDataResult<List<ProblemDetailDto>> GetBySender(int senderId)
     {
-        return new SuccessDataResult<List<ProblemDetailDto>>(_problemDal.GetProblemsDetails(problem => problem.SenderId == senderId));
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+        var problems = currentInstitutionId.HasValue
+            ? _problemDal.GetProblemsDetails(p => p.SenderId == senderId && p.InstitutionId == currentInstitutionId.Value)
+            : _problemDal.GetProblemsDetails(p => p.SenderId == senderId);
+
+        return new SuccessDataResult<List<ProblemDetailDto>>(problems);
     }
 
     public IDataResult<List<ProblemDetailDto>> GetIsHighlighted()
     {
-        return new SuccessDataResult<List<ProblemDetailDto>>(_problemDal.GetProblemsDetails(problem => problem.IsHighlighted));
+        var currentInstitutionId = _clientContext.GetInstitutionId();
+        var problems = currentInstitutionId.HasValue
+            ? _problemDal.GetProblemsDetails(p => p.IsHighlighted && p.InstitutionId == currentInstitutionId.Value)
+            : _problemDal.GetProblemsDetails(p => p.IsHighlighted);
+
+        return new SuccessDataResult<List<ProblemDetailDto>>(problems);
     }
 
     public IResult Add(Problem problem, List<int> topicIds)
@@ -135,13 +158,20 @@ public class ProblemManager : IProblemService
     public IResult Update(Problem problem, List<int> topicIds)
     {
         var currentUserId = _clientContext.GetUserId();
-        var isModerator = _capabilityResolver.Allows(currentUserId.GetValueOrDefault(), "moderation.problem_moderate");
         var existingProblem = _problemDal.Get(p => p.Id == problem.Id);
 
         if (existingProblem == null)
         {
             return new ErrorResult("Kayıt bulunamadı");
         }
+
+        var moderationCtx = new CapabilityRequestContext(
+            InstitutionId: existingProblem.InstitutionId,
+            Entity: "problem",
+            EntityId: existingProblem.Id);
+
+        var isModerator = currentUserId.HasValue &&
+                          _capabilityResolver.Allows(currentUserId.Value, "moderation.problem_moderate", moderationCtx);
 
         // TODO: İleride Moderator rolü (Örn: IsOfficial) eklendiğinde, moderatörün
         // kendi kurumuna (InstitutionId) ait olmayan problemleri güncellemesi engellenmelidir.
@@ -207,10 +237,16 @@ public class ProblemManager : IProblemService
     public IResult Delete(int id)
     {
         var currentUserId = _clientContext.GetUserId();
-        var isModerator = _capabilityResolver.Allows(currentUserId.GetValueOrDefault(), "moderation.problem_delete");
-
         var problem = _problemDal.Get(p => p.Id == id);
         if (problem == null) return new ErrorResult("Kayıt bulunamadı");
+
+        var moderationCtx = new CapabilityRequestContext(
+            InstitutionId: problem.InstitutionId,
+            Entity: "problem",
+            EntityId: problem.Id);
+
+        var isModerator = currentUserId.HasValue &&
+                          _capabilityResolver.Allows(currentUserId.Value, "moderation.problem_delete", moderationCtx);
 
         if (!isModerator && problem.SenderId != currentUserId)
         {
@@ -553,5 +589,39 @@ public class ProblemManager : IProblemService
             return new SuccessResult("Kategori sorundan başarıyla kaldırıldı.");
         }
         return new ErrorResult("Bu sorunda böyle bir kategori bulunamadı.");
+    }
+
+    public IResult AssignToInstitution(int problemId, int institutionId)
+    {
+        var problem = _problemDal.Get(p => p.Id == problemId && !p.IsDeleted);
+        if (problem is null)
+            return new ErrorResult($"Problem bulunamadı (ID: {problemId}).");
+
+        problem.InstitutionId = institutionId;
+        _problemDal.Update(problem);
+        _logService.LogInfo("WorkflowAction", "AssignToInstitution",
+            $"Problem {problemId} kuruma atandı (InstitutionId: {institutionId}).");
+        return new SuccessResult($"Problem (ID: {problemId}) kuruma atandı.");
+    }
+
+    public IResult SetStatus(int problemId, string status, bool value)
+    {
+        var problem = _problemDal.Get(p => p.Id == problemId && !p.IsDeleted);
+        if (problem is null)
+            return new ErrorResult($"Problem bulunamadı (ID: {problemId}).");
+
+        switch (status.ToLowerInvariant())
+        {
+            case "resolved":    problem.IsResolved    = value; break;
+            case "highlighted": problem.IsHighlighted = value; break;
+            case "reported":    problem.IsReported    = value; break;
+            default:
+                return new ErrorResult($"Geçersiz status değeri: '{status}'. Kabul edilenler: resolved, highlighted, reported.");
+        }
+
+        _problemDal.Update(problem);
+        _logService.LogInfo("WorkflowAction", "SetStatus",
+            $"Problem {problemId} durumu güncellendi: {status}={value}.");
+        return new SuccessResult($"Problem (ID: {problemId}) {status} → {value}.");
     }
 }

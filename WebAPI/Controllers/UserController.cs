@@ -1,5 +1,7 @@
 using Business.Abstract;
 using Core.Entities.Concrete;
+using Core.Utilities.Authorization;
+using Core.Utilities.Context;
 using Entities.DTOs;
 using Entities.DTOs.User;
 using Microsoft.AspNetCore.Hosting;
@@ -31,13 +33,78 @@ namespace WebAPI.Controllers
         [Microsoft.AspNetCore.Authorization.Authorize]
         public IActionResult GetById(int id)
         {
-            var result = _userService.GetById(id);
-            return Ok(result);
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int currentUserId) || currentUserId <= 0)
+            {
+                return Unauthorized("Geçersiz token.");
+            }
+
+            // Self-read her zaman serbest
+            if (id == currentUserId)
+            {
+                var self = _userService.GetById(id);
+                return Ok(self);
+            }
+
+            // Başkasının profil detayları sadece admin.user_read ile
+            var resolver = HttpContext.RequestServices.GetService<ICapabilityResolver>();
+            var clientContext = HttpContext.RequestServices.GetService<IClientContext>();
+            var institutionId = clientContext?.GetInstitutionId();
+
+            if (resolver == null)
+            {
+                return StatusCode(500, "Capability resolver bulunamadı.");
+            }
+
+            // Global admin (ctx=null) ise izin ver
+            if (resolver.Allows(currentUserId, "admin.user_read", ctx: null))
+            {
+                var anyUser = _userService.GetById(id);
+                return Ok(anyUser);
+            }
+
+            // Kurum-scoped admin ise sadece kendi kurumundaki kullanıcıları okuyabilsin
+            if (!institutionId.HasValue)
+            {
+                return Forbid();
+            }
+
+            var ctx = new CapabilityRequestContext(InstitutionId: institutionId.Value);
+            if (!resolver.Allows(currentUserId, "admin.user_read", ctx))
+            {
+                return Forbid();
+            }
+
+            var target = _userService.GetById(id);
+            if (!target.Success || target.Data == null)
+            {
+                return Ok(target);
+            }
+
+            if (target.Data.InstitutionId != institutionId.Value)
+            {
+                return Forbid();
+            }
+
+            return Ok(target);
         }
 
         [HttpGet("getpublicprofile")]
         public IActionResult GetPublicProfile([FromQuery] int id, [FromQuery] int institutionId)
         {
+            var resolver = HttpContext.RequestServices.GetService<ICapabilityResolver>();
+            var clientContext = HttpContext.RequestServices.GetService<IClientContext>();
+            var currentUserId = clientContext?.GetUserId() ?? 0;
+            var currentInstitutionId = clientContext?.GetInstitutionId();
+
+            var isGlobalAdminUserRead = resolver != null && currentUserId > 0 &&
+                                        resolver.Allows(currentUserId, "admin.user_read", ctx: null);
+
+            if (!isGlobalAdminUserRead && currentInstitutionId.HasValue)
+            {
+                institutionId = currentInstitutionId.Value;
+            }
+
             var result = _userService.GetPublicProfile(id, institutionId);
             if (result.Success)
             {
@@ -49,6 +116,19 @@ namespace WebAPI.Controllers
         [HttpGet("getpublicprofilebyusername")]
         public IActionResult GetPublicProfileByUserName([FromQuery] string username, [FromQuery] int institutionId)
         {
+            var resolver = HttpContext.RequestServices.GetService<ICapabilityResolver>();
+            var clientContext = HttpContext.RequestServices.GetService<IClientContext>();
+            var currentUserId = clientContext?.GetUserId() ?? 0;
+            var currentInstitutionId = clientContext?.GetInstitutionId();
+
+            var isGlobalAdminUserRead = resolver != null && currentUserId > 0 &&
+                                        resolver.Allows(currentUserId, "admin.user_read", ctx: null);
+
+            if (!isGlobalAdminUserRead && currentInstitutionId.HasValue)
+            {
+                institutionId = currentInstitutionId.Value;
+            }
+
             var result = _userService.GetPublicProfileByUserName(username, institutionId);
             if (result.Success)
             {
@@ -88,6 +168,20 @@ namespace WebAPI.Controllers
         [Microsoft.AspNetCore.Authorization.Authorize]
         public IActionResult SearchUsersForMention([FromQuery] string searchText, [FromQuery] int? institutionId)
         {
+            var resolver = HttpContext.RequestServices.GetService<ICapabilityResolver>();
+            var clientContext = HttpContext.RequestServices.GetService<IClientContext>();
+            var currentUserId = clientContext?.GetUserId() ?? 0;
+            var currentInstitutionId = clientContext?.GetInstitutionId();
+
+            var isGlobalAdminUserRead = resolver != null && currentUserId > 0 &&
+                                        resolver.Allows(currentUserId, "admin.user_read", ctx: null);
+
+            // Global admin değilse kurum parametresini token'dan zorla (cross-tenant enumeration engeli)
+            if (!isGlobalAdminUserRead)
+            {
+                institutionId = currentInstitutionId;
+            }
+
             var filter = new UserFilterDto
             {
                 SearchText = searchText,

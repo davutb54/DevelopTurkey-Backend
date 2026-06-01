@@ -125,18 +125,21 @@ public static class CapabilityDefaults
         "expert.csharp_execute",
         // user (30)
         ..NewUser,
-        // workflow.action (18)
+        // workflow.action (23)
         "workflow.action.send_email",
         "workflow.action.send_notification",
         "workflow.action.send_bulk_notification",
         "workflow.action.ban_user",
         "workflow.action.unban_user",
         "workflow.action.warn_user",
-        "workflow.action.change_user_role",
+        "workflow.action.grant_capability",
+        "workflow.action.apply_capability_template",
         "workflow.action.resolve_problem",
         "workflow.action.highlight_problem",
         "workflow.action.delete_problem",
         "workflow.action.report_problem",
+        "workflow.action.assign_problem_institution",
+        "workflow.action.change_problem_status",
         "workflow.action.approve_solution",
         "workflow.action.reject_solution",
         "workflow.action.highlight_solution",
@@ -144,6 +147,12 @@ public static class CapabilityDefaults
         "workflow.action.delete_comment",
         "workflow.action.log_event",
         "workflow.action.webhook",
+        "workflow.action.create_announcement",
+        "workflow.action.trigger_workflow",
+        // admin: yeni
+        "admin.announcement_read",
+        "admin.announcement_create",
+        "admin.announcement_delete",
     ];
 
     public static readonly string[] SystemUser =
@@ -155,11 +164,14 @@ public static class CapabilityDefaults
         "workflow.action.ban_user",
         "workflow.action.unban_user",
         "workflow.action.warn_user",
-        "workflow.action.change_user_role",
+        "workflow.action.grant_capability",
+        "workflow.action.apply_capability_template",
         "workflow.action.resolve_problem",
         "workflow.action.highlight_problem",
         "workflow.action.delete_problem",
         "workflow.action.report_problem",
+        "workflow.action.assign_problem_institution",
+        "workflow.action.change_problem_status",
         "workflow.action.approve_solution",
         "workflow.action.reject_solution",
         "workflow.action.highlight_solution",
@@ -167,5 +179,7 @@ public static class CapabilityDefaults
         "workflow.action.delete_comment",
         "workflow.action.log_event",
         "workflow.action.webhook",
+        "workflow.action.create_announcement",
+        "workflow.action.trigger_workflow",
     ];
 }

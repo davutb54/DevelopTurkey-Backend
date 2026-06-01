@@ -21,6 +21,12 @@
     <ProjectReference Include="..\Core\Core.csproj" />
   </ItemGroup>
 
+  <!-- Sandbox'u WebAPI çıktısı yanındaki sandbox/ klasörüne publish et -->
+  <Target Name="PublishCSharpSandbox" AfterTargets="Build">
+    <Message Text="[DevelopTurkey] CSharpSandbox publish ediliyor → $(OutputPath)sandbox" Importance="High" />
+    <Exec Command="dotnet publish &quot;$(MSBuildThisFileDirectory)..\CSharpSandbox\CSharpSandbox.csproj&quot; -c $(Configuration) -o &quot;$(OutputPath)sandbox&quot; --no-self-contained --nologo -v quiet" />
+  </Target>
+
   <ItemGroup>
     <Folder Include="wwwroot\uploads\profiles\" />
     <Folder Include="wwwroot\uploads\problems\" />

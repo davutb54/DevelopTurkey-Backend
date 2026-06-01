@@ -3,6 +3,7 @@ using Core.Utilities.Authorization;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
 using DataAccess.Concrete.EntityFramework;
+using Entities.DTOs.Capability;
 using Entities.DTOs.Metrics;
 using Microsoft.Extensions.Caching.Memory;
 using System.Diagnostics;
@@ -314,6 +315,7 @@ public class MetricsManager : IMetricsService
         if (filter.ActorUserId.HasValue)  query = query.Where(a => a.ActorUserId == filter.ActorUserId.Value);
         if (filter.TargetUserId.HasValue) query = query.Where(a => a.TargetUserId == filter.TargetUserId.Value);
         if (!string.IsNullOrWhiteSpace(filter.Action)) query = query.Where(a => a.Action == filter.Action);
+        if (!string.IsNullOrWhiteSpace(filter.CapabilityCode)) query = query.Where(a => a.CapabilityCode == filter.CapabilityCode);
         if (filter.From.HasValue) query = query.Where(a => a.CreatedAt >= filter.From.Value);
         if (filter.To.HasValue)   query = query.Where(a => a.CreatedAt <= filter.To.Value);
 
@@ -325,7 +327,8 @@ public class MetricsManager : IMetricsService
             .Select(a => new CapabilityAuditLogDto
             {
                 Id = a.Id, ActorUserId = a.ActorUserId, TargetUserId = a.TargetUserId,
-                Action = a.Action, PayloadJson = a.PayloadJson, CreatedAt = a.CreatedAt,
+                Action = a.Action, CapabilityCode = a.CapabilityCode,
+                PayloadJson = a.PayloadJson, CreatedAt = a.CreatedAt,
             })
             .ToList();
 

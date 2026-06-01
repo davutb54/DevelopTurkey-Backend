@@ -29,22 +29,32 @@ public sealed class WorkflowEventHandler : IWorkflowEventHandler
     private readonly IDynamicRuleService _dynamicRuleService;
     private readonly IMemoryCache _cache;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IKillSwitchService _killSwitch;
     private readonly ILogger<WorkflowEventHandler> _logger;
 
     public WorkflowEventHandler(
         IDynamicRuleService dynamicRuleService,
         IMemoryCache cache,
         IServiceScopeFactory scopeFactory,
+        IKillSwitchService killSwitch,
         ILogger<WorkflowEventHandler> logger)
     {
         _dynamicRuleService = dynamicRuleService;
         _cache = cache;
         _scopeFactory = scopeFactory;
+        _killSwitch = killSwitch;
         _logger = logger;
     }
 
     public async Task HandleAsync(string eventName, RuleContext context)
     {
+        if (_killSwitch.IsSoft())
+        {
+            _logger.LogWarning(
+                "[WorkflowEventHandler] Kill switch aktif — event işlenmedi. Event={Event}", eventName);
+            return;
+        }
+
         var institutionId = context.InstitutionId ?? 0;
         var rules = await GetRulesAsync(eventName, institutionId);
 
@@ -142,6 +152,10 @@ public sealed class WorkflowEventHandler : IWorkflowEventHandler
                     "[WorkflowEventHandler] Kural çalıştırılıyor. RuleId={RuleId} ({RuleName})",
                     ruleId, ruleName);
 
+                // Capability kontrolü workflow'u yaratan admin üzerinden yapılsın;
+                // tetikleyen kullanıcı (örn. yeni kayıt olan) yetersiz yetkiye sahip olabilir.
+                context.WorkflowCreatorId = rule.CreatedByUserId;
+
                 // İ7: Timeout — interpreter sonsuza dek hung kalmasın.
                 using var cts = new CancellationTokenSource(RuleExecutionTimeout);
                 var execTask = interpreter.ExecuteWorkflowAsync(flowJson, context);
@@ -237,7 +251,7 @@ public sealed class WorkflowEventHandler : IWorkflowEventHandler
                         TotalNodeCount    = totalNodes,
                         ExecutedNodeCount = executedNodes,
                         DurationMs        = sw.ElapsedMilliseconds,
-                        ExecutedAt        = DateTime.UtcNow,
+                        ExecutedAt        = DateTime.Now,
                     });
                 }
                 catch (Exception logEx)
