@@ -64,6 +64,14 @@ public class CapabilityTemplatesController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
+    [HttpPost("{id:int}/revoke")]
+    [RequireCapability("admin.capability_revoke")]
+    public async Task<IActionResult> RevokeApplied(int id, [FromBody] RevokeAppliedTemplateDto dto)
+    {
+        var result = await _templateService.RevokeAppliedAsync(id, dto);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
     [HttpPut("{id:int}/deactivate")]
     [RequireCapability("admin.capability_catalog_write")]
     public IActionResult Deactivate(int id)

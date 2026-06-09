@@ -14,4 +14,6 @@ public class FeatureDefinition : IEntity
     public string? OptionsJson { get; set; }       // Select tipi için seçenekler: ["Seçenek1","Seçenek2"]
     public bool IsSystemLevel { get; set; } = false; // true ise sadece SuperAdmin değiştirebilir
     public int OrderIndex { get; set; } = 0;       // Grup içi sıralama
+    // "Global" = platform geneli, kurum override'ı yok; "Institution" = kuruma özgü
+    public string Scope { get; set; } = "Institution";
 }

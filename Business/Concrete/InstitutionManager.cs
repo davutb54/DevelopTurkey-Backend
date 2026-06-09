@@ -5,6 +5,7 @@ using Core.Utilities.Results;
 using DataAccess.Abstract;
 using Entities.Concrete;
 using Entities.DTOs;
+using System.Linq;
 
 namespace Business.Concrete;
 
@@ -44,6 +45,36 @@ public class InstitutionManager : IInstitutionService
             return new ErrorDataResult<Institution>(institution,"Belirtilen domain ile kurum bulunamadı");
         }
         return new SuccessDataResult<Institution>(institution);
+    }
+
+    public IDataResult<InstitutionPublicInfoDto> GetPublicInfo(string domain)
+    {
+        var institution = _institutionDal.Get(i => i.Domain == domain);
+        if (institution == null)
+            return new ErrorDataResult<InstitutionPublicInfoDto>(default, "Belirtilen domain ile kurum bulunamadı");
+
+        return new SuccessDataResult<InstitutionPublicInfoDto>(new InstitutionPublicInfoDto
+        {
+            Id           = institution.Id,
+            Name         = institution.Name,
+            LogoUrl      = institution.LogoUrl,
+            PrimaryColor = institution.PrimaryColor,
+        });
+    }
+
+    public IDataResult<InstitutionPublicInfoDto> GetPublicInfoBySubdomain(string slug)
+    {
+        var institution = _institutionDal.Get(i => i.Subdomain == slug);
+        if (institution == null)
+            return new ErrorDataResult<InstitutionPublicInfoDto>(default, "Belirtilen subdomain ile kurum bulunamadı");
+
+        return new SuccessDataResult<InstitutionPublicInfoDto>(new InstitutionPublicInfoDto
+        {
+            Id           = institution.Id,
+            Name         = institution.Name,
+            LogoUrl      = institution.LogoUrl,
+            PrimaryColor = institution.PrimaryColor,
+        });
     }
 
     public IResult Add(Institution institution)

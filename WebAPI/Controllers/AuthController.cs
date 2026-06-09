@@ -31,6 +31,8 @@ namespace WebAPI.Controllers
         private readonly IValidator<UserForPasswordUpdateDto> _passwordUpdateValidator;
         private readonly ICapabilityResolver _capabilityResolver;
         private readonly IUserCapabilityService _userCapabilityService;
+        private readonly ISecurityEventService _securityEventService;
+        private readonly ICapabilityTemplateService _capabilityTemplateService;
 
         public AuthController(
             IEmailVerificationService emailVerificationService,
@@ -44,7 +46,9 @@ namespace WebAPI.Controllers
             ILogService logService,
             IValidator<UserForPasswordUpdateDto> passwordUpdateValidator,
             ICapabilityResolver capabilityResolver,
-            IUserCapabilityService userCapabilityService)
+            IUserCapabilityService userCapabilityService,
+            ISecurityEventService securityEventService,
+            ICapabilityTemplateService capabilityTemplateService)
         {
             _emailVerificationService = emailVerificationService;
             _userService = userService;
@@ -58,6 +62,8 @@ namespace WebAPI.Controllers
             _passwordUpdateValidator = passwordUpdateValidator;
             _capabilityResolver = capabilityResolver;
             _userCapabilityService = userCapabilityService;
+            _securityEventService = securityEventService;
+            _capabilityTemplateService = capabilityTemplateService;
         }
 
         [HttpPost("login")]
@@ -81,8 +87,10 @@ namespace WebAPI.Controllers
             var userToLogin = _userService.Login(userForLoginDto);
             if (!userToLogin.Success)
             {
-                var failIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+                var failIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
                 _logService.LogWarning("Auth", "Login", $"Başarısız giriş denemesi: {userForLoginDto.UserName} - IP: {failIp}");
+                _securityEventService.LogEvent("failed_login", "medium", failIp,
+                    "/api/auth/login", $"Username: {userForLoginDto.UserName}");
                 _ = _eventBus.PublishAsync("auth.login_failed", new RuleContext
                 {
                     Metadata = new Dictionary<string, object?>
@@ -200,14 +208,31 @@ namespace WebAPI.Controllers
             {
                 var user = _userService.GetByUserName(userForRegisterDto.UserName);
 
-                // Yeni kullanıcıya varsayılan user.* capability'lerini grant et
-                foreach (var code in CapabilityDefaults.NewUser)
+                // Yeni kullanıcıya "Standart Kullanıcı" şablonunu uygula.
+                // Şablon bulunamazsa hardcoded listeye geri dön (fallback).
+                var stdTemplate = _capabilityTemplateService.GetBySlug("standard-user");
+                if (stdTemplate.Success && stdTemplate.Data?.LatestVersion != null)
                 {
-                    await _userCapabilityService.GrantAsync(user.Id, new GrantCapabilityDto
+                    await _capabilityTemplateService.ApplyAsync(
+                        stdTemplate.Data.Id,
+                        new ApplyTemplateDto
+                        {
+                            TemplateVersionId = stdTemplate.Data.LatestVersion.Id,
+                            UserIds = [user.Id],
+                            InstitutionId = user.InstitutionId == 0 ? null : user.InstitutionId,
+                            Reason = "Yeni üyelik kaydı",
+                        });
+                }
+                else
+                {
+                    foreach (var code in CapabilityDefaults.NewUser)
                     {
-                        CapabilityCode = code,
-                        Reason = "default_on_register",
-                    });
+                        await _userCapabilityService.GrantAsync(user.Id, new GrantCapabilityDto
+                        {
+                            CapabilityCode = code,
+                            Reason = "default_on_register",
+                        });
+                    }
                 }
 
                 var tokenResult = _userService.CreateAccessToken(user);

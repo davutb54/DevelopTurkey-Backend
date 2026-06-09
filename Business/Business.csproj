@@ -21,6 +21,7 @@
     <PackageReference Include="Google.Apis.Auth" Version="1.74.0" />
     <PackageReference Include="MassTransit" Version="8.3.6" />
     <PackageReference Include="MassTransit.RabbitMQ" Version="8.3.6" />
+    <PackageReference Include="Sqids" Version="3.0.0" />
   </ItemGroup>
 
 </Project>

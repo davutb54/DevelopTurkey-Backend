@@ -90,9 +90,19 @@ public class DynamicRuleController : ControllerBase
     }
 
     [HttpPost("save")]
-    [RequireCapability("admin.rule_create")]
     public async Task<IActionResult> Save([FromBody] SaveWorkflowDto dto)
     {
+        var userId = _clientContext.GetUserId();
+        if (!userId.HasValue)
+            return Unauthorized();
+
+        var resolver = HttpContext.RequestServices.GetRequiredService<ICapabilityResolver>();
+        bool isCreate = !dto.Id.HasValue || dto.Id.Value <= 0;
+        string requiredCap = isCreate ? "admin.rule_create" : "admin.rule_update";
+
+        if (!resolver.Allows(userId.Value, requiredCap, ctx: null))
+            return Forbid();
+
         var result = await _dynamicRuleService.SaveWorkflowAsync(dto);
         return result.Success ? Ok(result) : BadRequest(result);
     }

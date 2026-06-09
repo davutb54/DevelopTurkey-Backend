@@ -1,7 +1,9 @@
+using Business.Abstract;
 using Core.Utilities.Authorization;
 using Core.Utilities.Context;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using System.Security.Claims;
 
 namespace WebAPI.Filters;
 
@@ -36,6 +38,18 @@ public sealed class RequireCapabilityAttribute : Attribute, IAsyncAuthorizationF
 
         if (!policy.Allows(CapabilityCode, ctx))
         {
+            // Log 403 capability denial as a security event
+            var secSvc = context.HttpContext.RequestServices.GetService<ISecurityEventService>();
+            if (secSvc != null)
+            {
+                var ip = context.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var path = context.HttpContext.Request.Path.Value;
+                var userIdStr = context.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                int? userId = int.TryParse(userIdStr, out var uid) ? uid : null;
+                secSvc.LogEvent("capability_denied", "medium", ip, path,
+                    $"Required: {CapabilityCode}", userId);
+            }
+
             context.Result = new ObjectResult(new
             {
                 success = false,

@@ -116,6 +116,13 @@ public class UserManager : IUserService
         return new SuccessDataResult<List<UserDetailDto>>(_userDal.GetUserDetails(), Messages.UserGetAllOk);
     }
 
+    public IDataResult<List<UserDetailDto>> GetAllByInstitutions(IEnumerable<int> institutionIds)
+    {
+        var ids = institutionIds.ToHashSet();
+        var users = _userDal.GetUserDetails(u => ids.Contains(u.InstitutionId));
+        return new SuccessDataResult<List<UserDetailDto>>(users, Messages.UserGetAllOk);
+    }
+
     public IDataResult<(List<UserDetailDto> Items, int TotalCount)> GetAllPaged(UserFilterDto filter)
     {
         var result = _userDal.GetUserDetailsPaged(filter);

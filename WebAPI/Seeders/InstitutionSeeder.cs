@@ -5,7 +5,7 @@ namespace WebAPI.Seeders;
 
 public static class InstitutionSeeder
 {
-    public const string PublicDomain = "public";
+    public const string PublicDomain = "so7le.com";
 
     public static void Seed(DevelopTurkeyContext context)
     {

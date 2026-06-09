@@ -18,8 +18,9 @@ public interface ISolutionService
 	IResult ReportSolution(int id);
 	IResult UnReportSolution(int id);
 	IResult ToggleHighlight(int id);
-	IDataResult<List<SolutionDetailDto>> GetPendingExpertSolutions();
+	IDataResult<List<SolutionDetailDto>> GetPendingExpertSolutions(int? institutionId = null);
 	IResult ApproveSolution(int id);
 	IResult RejectSolution(int id);
-    IDataResult<List<SolutionDetailDto>> GetAllForAdmin();
+    IDataResult<List<SolutionDetailDto>> GetAllForAdmin(int? institutionId = null);
+    int? GetSolutionInstitution(int solutionId);
 }

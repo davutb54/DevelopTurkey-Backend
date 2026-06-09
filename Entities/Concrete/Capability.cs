@@ -18,6 +18,12 @@ public class Capability : IEntity
     [MaxLength(50)]
     public string? Category { get; set; }
 
+    [MaxLength(100)]
+    public string? GroupKey { get; set; }
+
+    [MaxLength(10)]
+    public string PageScope { get; set; } = "Action";
+
     public bool IsSystem { get; set; } = false;
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; }

@@ -12,6 +12,7 @@ public interface IUserService
     IDataResult<UserPublicProfileDto?> GetPublicProfile(int id, int institutionId);
     IDataResult<UserPublicProfileDto?> GetPublicProfileByUserName(string username, int institutionId);
     IDataResult<List<UserDetailDto>> GetAll();
+    IDataResult<List<UserDetailDto>> GetAllByInstitutions(IEnumerable<int> institutionIds);
     IDataResult<(List<UserDetailDto> Items, int TotalCount)> GetAllPaged(UserFilterDto filter);
     IResult Login(UserForLoginDto userForLoginDto);
     IDataResult<AccessToken> GoogleLogin(UserForGoogleLoginDto googleLoginDto);

@@ -15,6 +15,7 @@ public class CapabilityTemplateManager : ICapabilityTemplateService
     private readonly ITemplateItemDal _itemDal;
     private readonly ICapabilityDal _capabilityDal;
     private readonly IUserCapabilityService _userCapabilityService;
+    private readonly IUserAppliedTemplateDal _appliedDal;
     private readonly IClientContext _clientContext;
 
     public CapabilityTemplateManager(
@@ -23,6 +24,7 @@ public class CapabilityTemplateManager : ICapabilityTemplateService
         ITemplateItemDal itemDal,
         ICapabilityDal capabilityDal,
         IUserCapabilityService userCapabilityService,
+        IUserAppliedTemplateDal appliedDal,
         IClientContext clientContext)
     {
         _templateDal = templateDal;
@@ -30,6 +32,7 @@ public class CapabilityTemplateManager : ICapabilityTemplateService
         _itemDal = itemDal;
         _capabilityDal = capabilityDal;
         _userCapabilityService = userCapabilityService;
+        _appliedDal = appliedDal;
         _clientContext = clientContext;
     }
 
@@ -53,6 +56,24 @@ public class CapabilityTemplateManager : ICapabilityTemplateService
         }
 
         return new SuccessDataResult<List<CapabilityTemplateDto>>(dtos);
+    }
+
+    public IDataResult<CapabilityTemplateDto?> GetBySlug(string slug)
+    {
+        var tmpl = _templateDal.Get(t => t.Slug == slug && t.Status == 1);
+        if (tmpl == null)
+            return new ErrorDataResult<CapabilityTemplateDto?>(null, "Şablon bulunamadı.");
+
+        var dto = ToDto(tmpl);
+        var latestVersion = _versionDal
+            .GetAll(v => v.TemplateId == tmpl.Id && v.IsPublished)
+            .OrderByDescending(v => v.Version)
+            .FirstOrDefault();
+
+        if (latestVersion != null)
+            dto.LatestVersion = BuildVersionDto(latestVersion, includeItems: false);
+
+        return new SuccessDataResult<CapabilityTemplateDto?>(dto);
     }
 
     public IDataResult<CapabilityTemplateDto> GetById(int id)
@@ -105,6 +126,7 @@ public class CapabilityTemplateManager : ICapabilityTemplateService
         {
             Name = dto.Name,
             Description = dto.Description,
+            Kind = dto.Kind,
             Status = 1,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = actorId,
@@ -192,6 +214,8 @@ public class CapabilityTemplateManager : ICapabilityTemplateService
 
         var appliedCount = 0;
         var skippedCount = 0;
+        var actorId = _clientContext.GetUserId() ?? 0;
+        var now = DateTime.UtcNow;
 
         foreach (var userId in dto.UserIds)
         {
@@ -213,10 +237,58 @@ public class CapabilityTemplateManager : ICapabilityTemplateService
                 if (result.Success) appliedCount++;
                 else skippedCount++;
             }
+
+            // Takip kaydı — revoke için gerekli (mevcut aktif kayıt varsa güncelleme yok)
+            var alreadyTracked = _appliedDal.Get(a =>
+                a.UserId == userId && a.TemplateId == templateId && a.RevokedAt == null);
+            if (alreadyTracked == null)
+            {
+                _appliedDal.Add(new UserAppliedTemplate
+                {
+                    UserId            = userId,
+                    TemplateId        = templateId,
+                    TemplateVersionId = dto.TemplateVersionId,
+                    InstitutionId     = dto.InstitutionId,
+                    AppliedAt         = now,
+                    AppliedBy         = actorId,
+                });
+            }
         }
 
         return new SuccessResult(
             $"Şablon uygulandı. {appliedCount} grant eklendi, {skippedCount} zaten vardı (atlandı).");
+    }
+
+    public async Task<IResult> RevokeAppliedAsync(int templateId, RevokeAppliedTemplateDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Reason))
+            return new ErrorResult("Gerekçe zorunludur.");
+
+        var applied = _appliedDal.Get(a =>
+            a.UserId == dto.UserId && a.TemplateId == templateId && a.RevokedAt == null);
+
+        if (applied == null)
+            return new ErrorResult("Bu kullanıcıya uygulanmış aktif şablon kaydı bulunamadı.");
+
+        var items = _itemDal.GetAll(i => i.TemplateVersionId == applied.TemplateVersionId);
+        var capIds = items.Select(i => i.CapabilityId).ToList();
+        var caps = _capabilityDal.GetAll(c => capIds.Contains(c.Id) && c.IsActive);
+
+        foreach (var cap in caps)
+        {
+            await _userCapabilityService.RevokeAsync(dto.UserId, new RevokeCapabilityDto
+            {
+                CapabilityCode = cap.Code,
+                InstitutionId  = applied.InstitutionId ?? dto.InstitutionId,
+                Reason         = $"template_revoke:{templateId} — {dto.Reason}",
+            });
+        }
+
+        applied.RevokedAt = DateTime.UtcNow;
+        applied.RevokedBy = _clientContext.GetUserId() ?? 0;
+        _appliedDal.Update(applied);
+
+        return new SuccessResult($"Şablon yetkilereri ({caps.Count()} adet) kullanıcıdan kaldırıldı.");
     }
 
     public IResult Deactivate(int id)
@@ -236,6 +308,8 @@ public class CapabilityTemplateManager : ICapabilityTemplateService
     {
         Id = t.Id,
         Name = t.Name,
+        Slug = t.Slug,
+        Kind = t.Kind,
         Description = t.Description,
         IsActive = t.Status == 1,
         CreatedAt = t.CreatedAt,

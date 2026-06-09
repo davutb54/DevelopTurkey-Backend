@@ -18,23 +18,27 @@ public class CommentManager : ICommentService
     private readonly ILogService _logService;
     private readonly IClientContext _clientContext;
     private readonly ISolutionDal _solutionDal;
+    private readonly IProblemDal _problemDal;
     private readonly INotificationService _notificationService;
     private readonly IInstitutionFeatureService _featureService;
     private readonly IMentionService _mentionService;
     private readonly IWorkflowEventBus _eventBus;
     private readonly ICapabilityResolver _capabilityResolver;
+    private readonly IUserTitleDal _userTitleDal;
 
-    public CommentManager(ICommentDal commentDal, ILogService logService, IClientContext clientContext, ISolutionDal solutionDal, INotificationService notificationService, IInstitutionFeatureService featureService, IMentionService mentionService, IWorkflowEventBus eventBus, ICapabilityResolver capabilityResolver)
+    public CommentManager(ICommentDal commentDal, ILogService logService, IClientContext clientContext, ISolutionDal solutionDal, IProblemDal problemDal, INotificationService notificationService, IInstitutionFeatureService featureService, IMentionService mentionService, IWorkflowEventBus eventBus, ICapabilityResolver capabilityResolver, IUserTitleDal userTitleDal)
     {
         _commentDal = commentDal;
         _logService = logService;
         _clientContext = clientContext;
         _solutionDal = solutionDal;
+        _problemDal = problemDal;
         _notificationService = notificationService;
         _featureService = featureService;
         _mentionService = mentionService;
         _eventBus = eventBus;
         _capabilityResolver = capabilityResolver;
+        _userTitleDal = userTitleDal;
     }
 
 
@@ -62,22 +66,24 @@ public class CommentManager : ICommentService
     public IDataResult<List<CommentDetailDto>> GetAll()
     {
         var currentInstitutionId = _clientContext.GetInstitutionId();
+        List<CommentDetailDto> comments;
         if (!currentInstitutionId.HasValue)
         {
-            return new SuccessDataResult<List<CommentDetailDto>>(_commentDal.GetCommentDetails());
+            comments = _commentDal.GetCommentDetails();
         }
-
-        var allowedSolutionIds = _solutionDal
-            .GetAll(s => s.InstitutionId == currentInstitutionId.Value && !s.IsDeleted)
-            .Select(s => s.Id)
-            .ToList();
-
-        if (allowedSolutionIds.Count == 0)
+        else
         {
-            return new SuccessDataResult<List<CommentDetailDto>>(new List<CommentDetailDto>());
-        }
+            var allowedSolutionIds = _solutionDal
+                .GetAll(s => s.InstitutionId == currentInstitutionId.Value && !s.IsDeleted)
+                .Select(s => s.Id)
+                .ToList();
 
-        var comments = _commentDal.GetCommentDetails(c => allowedSolutionIds.Contains(c.SolutionId));
+            if (allowedSolutionIds.Count == 0)
+                return new SuccessDataResult<List<CommentDetailDto>>(new List<CommentDetailDto>());
+
+            comments = _commentDal.GetCommentDetails(c => allowedSolutionIds.Contains(c.SolutionId));
+        }
+        EnrichBadges(comments);
         return new SuccessDataResult<List<CommentDetailDto>>(comments);
     }
 
@@ -88,19 +94,16 @@ public class CommentManager : ICommentService
         {
             var parent = _commentDal.Get(c => c.Id == parentCommentId);
             if (parent == null)
-            {
                 return new SuccessDataResult<List<CommentDetailDto>>(new List<CommentDetailDto>());
-            }
 
             var parentSolution = _solutionDal.Get(s => s.Id == parent.SolutionId);
             if (parentSolution == null || parentSolution.InstitutionId != currentInstitutionId.Value)
-            {
                 return new SuccessDataResult<List<CommentDetailDto>>(new List<CommentDetailDto>());
-            }
         }
 
-        return new SuccessDataResult<List<CommentDetailDto>>(
-            _commentDal.GetCommentDetails(comment => comment.ParentCommentId == parentCommentId));
+        var comments = _commentDal.GetCommentDetails(comment => comment.ParentCommentId == parentCommentId);
+        EnrichBadges(comments);
+        return new SuccessDataResult<List<CommentDetailDto>>(comments);
     }
 
     public IDataResult<List<CommentDetailDto>> GetBySolution(int solutionId)
@@ -110,13 +113,12 @@ public class CommentManager : ICommentService
         {
             var solution = _solutionDal.Get(s => s.Id == solutionId);
             if (solution == null || solution.InstitutionId != currentInstitutionId.Value)
-            {
                 return new SuccessDataResult<List<CommentDetailDto>>(new List<CommentDetailDto>());
-            }
         }
 
-        return new SuccessDataResult<List<CommentDetailDto>>(
-            _commentDal.GetCommentDetails(comment => comment.SolutionId == solutionId));
+        var comments = _commentDal.GetCommentDetails(comment => comment.SolutionId == solutionId);
+        EnrichBadges(comments);
+        return new SuccessDataResult<List<CommentDetailDto>>(comments);
     }
 
     public IResult Add(Comment comment)
@@ -133,6 +135,12 @@ public class CommentManager : ICommentService
         if (comment.ParentCommentId.HasValue && !_featureService.IsFeatureEnabled(solution.InstitutionId, "Social.EnableNestedComments"))
         {
             return new ErrorResult("Bu kurumda alt yorumlar (yanıtlar) devre dışıdır.");
+        }
+
+        var problem = _problemDal.Get(p => p.Id == solution.ProblemId);
+        if (problem?.IsClosed == true)
+        {
+            return new ErrorResult("Bu sorun kapatılmıştır, yeni yorum eklenemiyor.");
         }
 
         comment.SenderId = _clientContext.GetUserId() ?? 0;
@@ -263,5 +271,29 @@ public class CommentManager : ICommentService
         _logService.LogWarning("Content", "Delete", $"Yorum silindi - CommentId: {id} (Alt Yanıtlarıyla Birlikte)");
 
         return new SuccessResult(Messages.CommentDeleted);
+    }
+
+    private void EnrichBadges(List<CommentDetailDto> comments)
+    {
+        if (comments.Count == 0) return;
+
+        var senderIds = comments.Select(c => c.SenderId).Distinct().ToList();
+
+        var allTitles = _userTitleDal.GetAll(t => senderIds.Contains(t.UserId) && t.IsVisible);
+        var titleMap = allTitles.GroupBy(t => t.UserId).ToDictionary(
+            g => g.Key,
+            g => g.ToList());
+
+        foreach (var c in comments)
+        {
+            var titles = titleMap.GetValueOrDefault(c.SenderId, new List<UserTitle>());
+            c.SenderIsExpert   = titles.Any(t => t.Kind == "expert");
+            c.SenderIsOfficial = titles.Any(t => t.Kind == "official");
+            c.SenderTitles = titles.Select(t => new UserTitleDto
+            {
+                Id = t.Id, UserId = t.UserId, Label = t.Label, Kind = t.Kind,
+                Color = t.Color, Icon = t.Icon, IsVisible = t.IsVisible, AssignedAt = t.AssignedAt
+            }).ToList();
+        }
     }
 }

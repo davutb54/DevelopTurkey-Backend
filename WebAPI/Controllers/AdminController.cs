@@ -2,6 +2,7 @@ using Business.Abstract;
 using Business.Models;
 using Core.Entities.Concrete;
 using Core.Utilities.Authorization;
+using Core.Utilities.Hashing;
 using Entities.Concrete;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
@@ -34,6 +35,7 @@ namespace WebAPI.Controllers
         private readonly IInstitutionFeatureService _institutionFeatureService;
         private readonly IWorkflowEventBus _eventBus;
         private readonly ICapabilityResolver _capabilityResolver;
+        private readonly IHashidsService _hashids;
 
         public AdminController(IUserService userService, IProblemService problemService,
             ISolutionService solutionService, ILogService logService, ITopicService topicService,
@@ -44,7 +46,8 @@ namespace WebAPI.Controllers
             IAboutPageSectionService aboutPageSectionService,
             IInstitutionFeatureService institutionFeatureService,
             IWorkflowEventBus eventBus,
-            ICapabilityResolver capabilityResolver)
+            ICapabilityResolver capabilityResolver,
+            IHashidsService hashids)
         {
             _userService = userService;
             _problemService = problemService;
@@ -61,12 +64,33 @@ namespace WebAPI.Controllers
             _institutionFeatureService = institutionFeatureService;
             _eventBus = eventBus;
             _capabilityResolver = capabilityResolver;
+            _hashids = hashids;
+        }
+
+        private void EncodeProblems(IEnumerable<ProblemDetailDto>? items)
+        {
+            if (items == null) return;
+            foreach (var p in items) p.PublicId = _hashids.Encode(p.Id);
+        }
+
+        private void EncodeSolutions(IEnumerable<SolutionDetailDto>? items)
+        {
+            if (items == null) return;
+            foreach (var s in items)
+            {
+                s.PublicId        = _hashids.Encode(s.Id);
+                s.ProblemPublicId = _hashids.Encode(s.ProblemId);
+            }
         }
 
         [HttpPost("banuser")]
         [RequireCapability("admin.user_ban")]
         public IActionResult BanUser(int userId)
         {
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            if (!HasInstitutionAccess(currentUserId, "admin.user_ban", userId))
+                return Forbid();
+
             var result = _userService.BanUser(userId);
             return result.Success ? Ok(result.Message) : BadRequest(result.Message);
         }
@@ -76,7 +100,11 @@ namespace WebAPI.Controllers
         [RequireCapability("moderation.content_review")]
         public IActionResult GetReportedProblems()
         {
-            var result = _problemService.GetReportedProblems();
+            var actorId = GetActorId();
+            var inst = GetScopedInstitution(actorId, "moderation.content_review");
+            if (inst == -1) return Forbid();
+            var result = _problemService.GetReportedProblems(inst);
+            EncodeProblems(result.Data);
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
@@ -84,6 +112,8 @@ namespace WebAPI.Controllers
         [RequireCapability("moderation.problem_delete")]
         public IActionResult DeleteProblem(int id)
         {
+            var actorId = GetActorId();
+            if (!HasProblemAccess(actorId, "moderation.problem_delete", id)) return Forbid();
             var result = _problemService.Delete(id);
             return result.Success ? Ok(result.Message) : BadRequest(result.Message);
         }
@@ -116,6 +146,10 @@ namespace WebAPI.Controllers
         [RequireCapability("admin.user_unban")]
         public IActionResult UnbanUser(int userId)
         {
+            var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            if (!HasInstitutionAccess(currentUserId, "admin.user_unban", userId))
+                return Forbid();
+
             var result = _userService.UnbanUser(userId);
             return result.Success ? Ok(result.Message) : BadRequest(result.Message);
         }
@@ -205,6 +239,8 @@ namespace WebAPI.Controllers
         [RequireCapability("admin.user_update")]
         public IActionResult ChangeUserInstitution(int userId, int newInstitutionId)
         {
+            var actorId = GetActorId();
+            if (!HasUserAccess(actorId, "admin.user_update", userId)) return Forbid();
             var result = _userService.ChangeUserInstitution(userId, newInstitutionId);
             return result.Success ? Ok(result.Message) : BadRequest(result.Message);
         }
@@ -213,6 +249,8 @@ namespace WebAPI.Controllers
         [RequireCapability("moderation.problem_highlight")]
         public IActionResult ToggleProblemHighlight(int problemId)
         {
+            var actorId = GetActorId();
+            if (!HasProblemAccess(actorId, "moderation.problem_highlight", problemId)) return Forbid();
             var result = _problemService.ToggleHighlight(problemId);
             return result.Success ? Ok(result.Message) : BadRequest(result.Message);
         }
@@ -221,6 +259,8 @@ namespace WebAPI.Controllers
         [RequireCapability("moderation.solution_highlight")]
         public IActionResult ToggleSolutionHighlight(int solutionId)
         {
+            var actorId = GetActorId();
+            if (!HasSolutionAccess(actorId, "moderation.solution_highlight", solutionId)) return Forbid();
             var result = _solutionService.ToggleHighlight(solutionId);
             return result.Success ? Ok(result.Message) : BadRequest(result.Message);
         }
@@ -229,6 +269,8 @@ namespace WebAPI.Controllers
         [RequireCapability("moderation.problem_resolve")]
         public IActionResult ToggleProblemResolved(int problemId)
         {
+            var actorId = GetActorId();
+            if (!HasProblemAccess(actorId, "moderation.problem_resolve", problemId)) return Forbid();
             var result = _problemService.ToggleResolved(problemId);
             return result.Success ? Ok(result.Message) : BadRequest(result.Message);
         }
@@ -237,7 +279,11 @@ namespace WebAPI.Controllers
         [RequireCapability("expert.solution_approve")]
         public IActionResult GetPendingExpertSolutions()
         {
-            var result = _solutionService.GetPendingExpertSolutions();
+            var actorId = GetActorId();
+            var inst = GetScopedInstitution(actorId, "expert.solution_approve");
+            if (inst == -1) return Forbid();
+            var result = _solutionService.GetPendingExpertSolutions(inst);
+            EncodeSolutions(result.Data);
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
@@ -245,6 +291,8 @@ namespace WebAPI.Controllers
         [RequireCapability("expert.solution_approve")]
         public IActionResult ApproveSolution(int solutionId)
         {
+            var actorId = GetActorId();
+            if (!HasSolutionAccess(actorId, "expert.solution_approve", solutionId)) return Forbid();
             var result = _solutionService.ApproveSolution(solutionId);
             return result.Success ? Ok(result.Message) : BadRequest(result.Message);
         }
@@ -253,6 +301,8 @@ namespace WebAPI.Controllers
         [RequireCapability("expert.solution_reject")]
         public IActionResult RejectSolution(int solutionId)
         {
+            var actorId = GetActorId();
+            if (!HasSolutionAccess(actorId, "expert.solution_reject", solutionId)) return Forbid();
             var result = _solutionService.RejectSolution(solutionId);
             return result.Success ? Ok(result.Message) : BadRequest(result.Message);
         }
@@ -261,7 +311,11 @@ namespace WebAPI.Controllers
         [RequireCapability("admin.user_read")]
         public IActionResult GetAllProblems()
         {
-            var result = _problemService.GetAllForAdmin();
+            var actorId = GetActorId();
+            var inst = GetScopedInstitution(actorId, "admin.user_read");
+            if (inst == -1) return Forbid();
+            var result = _problemService.GetAllForAdmin(inst);
+            EncodeProblems(result.Data);
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
@@ -269,7 +323,11 @@ namespace WebAPI.Controllers
         [RequireCapability("admin.user_read")]
         public IActionResult GetAllSolutions()
         {
-            var result = _solutionService.GetAllForAdmin();
+            var actorId = GetActorId();
+            var inst = GetScopedInstitution(actorId, "admin.user_read");
+            if (inst == -1) return Forbid();
+            var result = _solutionService.GetAllForAdmin(inst);
+            EncodeSolutions(result.Data);
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
@@ -277,6 +335,8 @@ namespace WebAPI.Controllers
         [RequireCapability("moderation.problem_moderate")]
         public IActionResult RemoveTopicFromProblem(int problemId, int topicId)
         {
+            var actorId = GetActorId();
+            if (!HasProblemAccess(actorId, "moderation.problem_moderate", problemId)) return Forbid();
             var result = _problemService.RemoveTopicFromProblem(problemId, topicId);
             return result.Success ? Ok(result.Message) : BadRequest(result.Message);
         }
@@ -334,6 +394,8 @@ namespace WebAPI.Controllers
         public IActionResult IssueWarning([FromBody] IssueWarningDto dto)
         {
             var adminId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            if (!HasInstitutionAccess(adminId, "moderation.user_warn", dto.UserId))
+                return Forbid();
             var warning = new UserWarning
             {
                 UserId = dto.UserId,
@@ -373,6 +435,8 @@ namespace WebAPI.Controllers
         [RequireCapability("admin.user_warning_read_all")]
         public IActionResult GetUserWarnings(int userId)
         {
+            var actorId = GetActorId();
+            if (!HasUserAccess(actorId, "admin.user_warning_read_all", userId)) return Forbid();
             var result = _userWarningService.GetByUserId(userId);
             return result.Success ? Ok(result) : BadRequest(result);
         }
@@ -471,5 +535,76 @@ namespace WebAPI.Controllers
             var result = _aboutPageSectionService.Delete(id);
             return result.Success ? Ok(result) : BadRequest(result);
         }
+
+        // ── YARDIMCI METODLAR ─────────────────────────────────────────────────────
+
+        private int GetActorId()
+            => int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+
+        // Çağıranın bu yetki için kapsam durumunu döner:
+        //   null  → global admin, hiçbir kısıtlama yok
+        //   -2    → global admin (null yerine integer context gereken yerlerde kullan)
+        //   ≥ 0   → scoped, bu institution ID'sine kısıtlı
+        //   -1    → erişim yok
+        private int? GetScopedInstitution(int actorId, string capabilityCode)
+        {
+            if (_capabilityResolver.Allows(actorId, capabilityCode, ctx: null))
+                return null; // globally granted
+
+            var snapshot = HttpContext.RequestServices.GetService<ICapabilitySnapshot>();
+
+            // admin.cross_institution_read sahipleri, sahip oldukları herhangi bir
+            // capability'yi (scoped dahil) tüm kurumlar için global olarak kullanabilir.
+            if (_capabilityResolver.Allows(actorId, "admin.cross_institution_read", ctx: null))
+            {
+                var now = DateTime.UtcNow;
+                bool hasAnywhere = snapshot?.Get(actorId)
+                    .Any(e => e.CapabilityCode.Equals(capabilityCode, StringComparison.OrdinalIgnoreCase)
+                              && (!e.ExpiresAt.HasValue || e.ExpiresAt.Value > now)) ?? false;
+                return hasAnywhere ? null : -1;
+            }
+
+            var clientContext = HttpContext.RequestServices.GetService<Core.Utilities.Context.IClientContext>();
+            var actorInst = clientContext?.GetInstitutionId();
+
+            if (snapshot == null || !actorInst.HasValue)
+                return -1;
+
+            var hasScoped = snapshot.Get(actorId)
+                .Any(e => e.CapabilityCode.Equals(capabilityCode, StringComparison.OrdinalIgnoreCase)
+                          && e.InstitutionId == actorInst.Value);
+
+            return hasScoped ? actorInst.Value : -1;
+        }
+
+        private bool HasUserAccess(int actorId, string capabilityCode, int targetUserId)
+        {
+            var inst = GetScopedInstitution(actorId, capabilityCode);
+            if (inst == null) return true;
+            if (inst == -1) return false;
+            var target = _userService.GetById(targetUserId);
+            return target.Success && target.Data?.InstitutionId == inst.Value;
+        }
+
+        private bool HasProblemAccess(int actorId, string capabilityCode, int problemId)
+        {
+            var inst = GetScopedInstitution(actorId, capabilityCode);
+            if (inst == null) return true;
+            if (inst == -1) return false;
+            return _problemService.GetProblemInstitution(problemId) == inst.Value;
+        }
+
+        private bool HasSolutionAccess(int actorId, string capabilityCode, int solutionId)
+        {
+            var inst = GetScopedInstitution(actorId, capabilityCode);
+            if (inst == null) return true;
+            if (inst == -1) return false;
+            return _solutionService.GetSolutionInstitution(solutionId) == inst.Value;
+        }
+
+        // Eskiden HasInstitutionAccess olarak kullanılan metodun yeni adı
+        [System.Obsolete("HasUserAccess kullanın.")]
+        private bool HasInstitutionAccess(int actorId, string capabilityCode, int targetUserId)
+            => HasUserAccess(actorId, capabilityCode, targetUserId);
     }
 }

@@ -26,9 +26,9 @@ public static class BootstrapAdminSeeder
 
             user = new User
             {
-                UserName        = "superadmin",
+                UserName        = section["Username"] ?? "superadmin",
                 Name            = section["Name"] ?? "Bootstrap Admin",
-                Surname         = "Admin",
+                Surname         = section["Surname"] ?? "Admin",
                 Email           = email,
                 PasswordHash    = hash,
                 PasswordSalt    = salt,

@@ -23,4 +23,10 @@ public class Problem : IEntity
 
     public int InstitutionId { get; set; }
     public int? CustomHierarchyId { get; set; }
+
+    public bool IsClosed { get; set; } = false;
+    public DateTime? ClosedAt { get; set; }
+    public int? ClosedByUserId { get; set; }
+    public string? CloseReason { get; set; }
+    public bool IsHidden { get; set; } = false;
 }

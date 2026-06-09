@@ -16,6 +16,7 @@ public class ProblemUpdateDto
 
     public string? ImageUrls { get; set; }
     public List<IFormFile>? Images { get; set; }
+    public List<IFormFile>? Videos { get; set; }
 
     public bool ClearLocation { get; set; }
 

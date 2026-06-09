@@ -54,6 +54,9 @@ builder.Services.AddScoped<IProblemDal, EfProblemDal>();
 builder.Services.AddScoped<IProblemUpvoteService, ProblemUpvoteManager>();
 builder.Services.AddScoped<IProblemUpvoteDal, EfProblemUpvoteDal>();
 
+builder.Services.AddScoped<IProblemViewService, ProblemViewManager>();
+builder.Services.AddScoped<IProblemViewDal, EfProblemViewDal>();
+
 builder.Services.AddScoped<ISolutionService, SolutionManager>();
 builder.Services.AddScoped<ISolutionDal, EfSolutionDal>();
 
@@ -86,6 +89,7 @@ builder.Services.AddScoped<IMetricsService, MetricsManager>();
 builder.Services.AddSingleton<Core.CrossCuttingConcerns.Monitoring.ISystemMonitor, Core.CrossCuttingConcerns.Monitoring.SystemMonitorManager>();
 
 builder.Services.AddScoped<Core.Utilities.Context.IClientContext, WebAPI.Context.WebClientContext>();
+builder.Services.AddScoped<Core.Utilities.Context.ITenantProvider, WebAPI.Context.WebTenantProvider>();
 builder.Services.AddScoped<IProblemTopicDal, EfProblemTopicDal>();
 
 builder.Services.AddScoped<IFeedbackDal, EfFeedbackDal>();
@@ -93,6 +97,12 @@ builder.Services.AddScoped<IFeedbackService, FeedbackManager>();
 
 builder.Services.AddScoped<IAnnouncementDal, EfAnnouncementDal>();
 builder.Services.AddScoped<IAnnouncementService, AnnouncementManager>();
+
+builder.Services.AddScoped<IUserTitleDal, EfUserTitleDal>();
+builder.Services.AddScoped<IUserTitleService, UserTitleManager>();
+
+builder.Services.AddScoped<IOfficialResponseDal, EfOfficialResponseDal>();
+builder.Services.AddScoped<IOfficialResponseService, OfficialResponseManager>();
 
 builder.Services.AddScoped<ISystemSettingsDal, EfSystemSettingsDal>();
 builder.Services.AddScoped<ISystemSettingsService, SystemSettingsManager>();
@@ -161,6 +171,7 @@ builder.Services.AddScoped<IWorkflowActionHandler, AssignProblemToInstitutionAct
 builder.Services.AddScoped<IWorkflowActionHandler, ChangeProblemStatusActionHandler>();
 builder.Services.AddScoped<IWorkflowActionHandler, CreateAnnouncementActionHandler>();
 builder.Services.AddScoped<IWorkflowActionHandler, TriggerWorkflowActionHandler>();
+builder.Services.AddScoped<IWorkflowActionHandler, SendChatMessageActionHandler>();
 
 builder.Services.AddScoped<IWorkflowActionDispatcher, WorkflowActionDispatcher>();
 builder.Services.AddScoped<IWorkflowInterpreterService, WorkflowInterpreterManager>();
@@ -193,6 +204,7 @@ builder.Services.AddScoped<ICapabilityTemplateDal, EfCapabilityTemplateDal>();
 builder.Services.AddScoped<ITemplateVersionDal, EfTemplateVersionDal>();
 builder.Services.AddScoped<ITemplateItemDal, EfTemplateItemDal>();
 builder.Services.AddScoped<ICapabilityAuditLogDal, EfCapabilityAuditLogDal>();
+builder.Services.AddScoped<IUserAppliedTemplateDal, EfUserAppliedTemplateDal>();
 
 builder.Services.AddScoped<ICapabilityService, CapabilityManager>();
 builder.Services.AddScoped<ICapabilityAuditService, CapabilityAuditManager>();
@@ -210,6 +222,25 @@ builder.Services.AddHostedService<WebAPI.HostedServices.CapabilitySnapshotInitia
 // Kill Switch
 builder.Services.AddScoped<ISystemKillSwitchDal, EfSystemKillSwitchDal>();
 builder.Services.AddScoped<IKillSwitchService, KillSwitchManager>();
+
+// Sqids ID obfuscation (singleton — deterministic, no state)
+builder.Services.AddSingleton<Core.Utilities.Hashing.IHashidsService, Business.Concrete.HashidsService>();
+
+// Security event log
+builder.Services.AddScoped<ISecurityEventDal, EfSecurityEventDal>();
+builder.Services.AddScoped<ISecurityEventService, SecurityEventManager>();
+
+// Epic G — Medya Yaşam Döngüsü
+builder.Services.AddScoped<IMediaAssetDal, EfMediaAssetDal>();
+builder.Services.AddScoped<IMediaAssetService, MediaAssetManager>();
+builder.Services.AddHostedService<WebAPI.HostedServices.MediaCleanupHostedService>();
+
+// Epic E — Sohbet Sistemi
+builder.Services.AddScoped<IConversationDal, EfConversationDal>();
+builder.Services.AddScoped<IConversationParticipantDal, EfConversationParticipantDal>();
+builder.Services.AddScoped<IMessageDal, EfMessageDal>();
+builder.Services.AddScoped<IConversationService, ConversationManager>();
+builder.Services.AddScoped<IMessageService, MessageManager>();
 
 // Faz 2 — Durable Pipeline DAL'ları
 builder.Services.AddScoped<IWorkflowDefinitionDal, EfWorkflowDefinitionDal>();
@@ -354,6 +385,20 @@ builder.Services.AddValidatorsFromAssemblyContaining<Business.ValidationRules.Fl
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = 429;
+    options.OnRejected = (context, _) =>
+    {
+        var secSvc = context.HttpContext.RequestServices.GetService<ISecurityEventService>();
+        if (secSvc != null)
+        {
+            var ip  = context.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var path = context.HttpContext.Request.Path.Value;
+            var userIdStr = context.HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            int? userId = int.TryParse(userIdStr, out var uid) ? uid : null;
+            secSvc.LogEvent("rate_limited", "medium", ip, path, null, userId);
+        }
+        context.HttpContext.Response.StatusCode = 429;
+        return ValueTask.CompletedTask;
+    };
 
     // Ortak PartitionKey oluşturucu (Aynı modeme bağlı cihazları ayırmak için IP + User-Agent)
     string GetPartitionKey(HttpContext context)
@@ -478,7 +523,8 @@ if (!app.Environment.IsDevelopment())
 {
     app.Use(async (context, next) =>
     {
-        if (context.Request.Path.Value.StartsWith("/api"))
+        if (context.Request.Path.Value.StartsWith("/api") &&
+            !context.Request.Path.Value.StartsWith("/api/hubs/"))
         {
             var expectedToken = builder.Configuration["ApiSettings:SiteToken"];
             var hasHeader = context.Request.Headers.TryGetValue("X-Site-Token", out var token);
@@ -501,10 +547,13 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<WebAPI.Middlewares.MaintenanceMiddleware>();
 app.UseAuthorization();
+app.UseMiddleware<WebAPI.Middlewares.TenantResolutionMiddleware>(); // auth sonrası: claim'ler hazır
 app.UseMiddleware<WebAPI.Middlewares.IpWhitelistMiddleware>();
+app.UseMiddleware<WebAPI.Middlewares.EnumerationDetectionMiddleware>();
 
 app.MapControllers();
 app.MapHub<NotificationHub>("/api/hubs/notification");
+app.MapHub<WebAPI.Hubs.ChatHub>("/api/hubs/chat");
 
 // Seeders
 using (var scope = app.Services.CreateScope())
@@ -516,6 +565,7 @@ using (var scope = app.Services.CreateScope())
     WebAPI.Seeders.EmailTemplateSeeder.Seed(context);
     WebAPI.Seeders.WorkflowReferenceSeeder.Seed(context);
     WebAPI.Seeders.CapabilitySeeder.Seed(context);
+    WebAPI.Seeders.CapabilityTemplateSeeder.Seed(context);
     WebAPI.Seeders.BootstrapAdminSeeder.Seed(context, config);
     WebAPI.Seeders.SystemUserSeeder.Seed(context, config);
     WebAPI.Seeders.TestDataSeeder.Seed(context, config);   // dev ortamı test verisi

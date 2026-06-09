@@ -46,9 +46,10 @@ public static class FeatureSeeder
         var definitions = new List<FeatureDefinition>
         {
             // --- Kimlik ve Erişim ---
-            new() { GroupId = identity.Id, Key = "Identity.AllowGoogleLogin", DisplayName = "Google ile Giriş", Description = "Kullanıcıların Google OAuth 2.0 ile giriş yapmasına izin verir.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 1 },
+            // Scope = "Global": OAuth/güvenlik altyapısı tüm platformu etkiler, kurum override'ı anlamsız
+            new() { GroupId = identity.Id, Key = "Identity.AllowGoogleLogin", DisplayName = "Google ile Giriş", Description = "Kullanıcıların Google OAuth 2.0 ile giriş yapmasına izin verir.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 1, Scope = "Global" },
             new() { GroupId = identity.Id, Key = "Identity.RequireEmailVerification", DisplayName = "Zorunlu E-Posta Doğrulaması", Description = "Kayıt sonrası e-posta doğrulaması zorunlu olur.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 2 },
-            new() { GroupId = identity.Id, Key = "Identity.EnableCaptcha", DisplayName = "Bot Koruması (Captcha)", Description = "Giriş ve kayıt ekranlarında Cloudflare Turnstile koruması.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 3 },
+            new() { GroupId = identity.Id, Key = "Identity.EnableCaptcha", DisplayName = "Bot Koruması (Captcha)", Description = "Giriş ve kayıt ekranlarında Cloudflare Turnstile koruması.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 3, Scope = "Global" },
             new() { GroupId = identity.Id, Key = "Identity.AllowImpersonation", DisplayName = "Yönetici Sudo Geçişi", Description = "Yöneticilerin başka kullanıcı hesabına şifresiz geçiş yapabilmesi.", InputType = "Boolean", DefaultValue = "false", OrderIndex = 4, IsSystemLevel = true },
             new() { GroupId = identity.Id, Key = "Identity.SessionTimeoutMinutes", DisplayName = "Oturum Zaman Aşımı (Dakika)", Description = "Kullanıcı oturumunun kaç dakika sonra zaman aşımına uğrayacağı.", InputType = "Number", DefaultValue = "60", OrderIndex = 5 },
             new() { GroupId = identity.Id, Key = "Identity.MaxLoginAttempts", DisplayName = "Maksimum Giriş Denemesi", Description = "Hesap kilitlenmeden önce izin verilen maksimum başarısız giriş sayısı.", InputType = "Number", DefaultValue = "5", OrderIndex = 6 },
@@ -66,6 +67,7 @@ public static class FeatureSeeder
             new() { GroupId = content.Id, Key = "Content.EnableCustomHierarchy", DisplayName = "Özel Hiyerarşi Aktif", Description = "Şehir seçimi yerine kurumun tanımladığı hiyerarşik yapıyı kullanır.", InputType = "Boolean", DefaultValue = "false", OrderIndex = 10 },
             new() { GroupId = content.Id, Key = "Content.RequireLocationSelection", DisplayName = "Bölge/Hiyerarşi Seçimi Zorunlu", Description = "Sorun eklerken Şehir veya Özel Hiyerarşi seçimini zorunlu tutar.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 11 },
             new() { GroupId = content.Id, Key = "Content.EnableInstantSolution", DisplayName = "Sorun Anında Çözüm Ekleme", Description = "Sorun oluşturulurken aynı ekranda çözüm önerisi eklenmesine izin verir.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 12 },
+            new() { GroupId = content.Id, Key = "Content.EnableVideo", DisplayName = "Video Yükleme", Description = "Sorun ve çözümlere .mp4 / .webm video yüklenmesine izin verir (maks. 100 MB). Varsayılan KAPALI.", InputType = "Boolean", DefaultValue = "false", OrderIndex = 13 },
 
             // --- Sosyal Etkileşim ---
             new() { GroupId = social.Id, Key = "Social.EnableUpvote", DisplayName = "İçerik Oylama Sistemi", Description = "Sorunlar için 'Ben de Yaşıyorum' ve çözümler için oy sistemi.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 1 },
@@ -74,18 +76,26 @@ public static class FeatureSeeder
             new() { GroupId = social.Id, Key = "Social.EnableSavedSolutions", DisplayName = "Çözüm Kaydetme", Description = "Kullanıcıların çözümleri kaydedebilmesi.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 4 },
             new() { GroupId = social.Id, Key = "Social.EnableMentions", DisplayName = "Kullanıcı Etiketleme (@mention)", Description = "Kullanıcıların birbirlerini etiketlemesine izin verir.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 5 },
             new() { GroupId = social.Id, Key = "Social.EnableSharing", DisplayName = "Sosyal Medya Paylaşımı", Description = "Sorunların ve çözümlerin WhatsApp, Twitter, Instagram gibi platformlarda paylaşılmasını sağlar.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 6 },
+            // Görünürlük (Select) — kim neyi görebilir
+            new() { GroupId = social.Id, Key = "Social.ProblemViewersVisibility", DisplayName = "Görüntüleyenler Görünürlüğü", Description = "Bir sorunu kimlerin görüntülediğini kimler görebilir.", InputType = "Select", DefaultValue = "admin_only", OrderIndex = 7, OptionsJson = "[\"closed\",\"public\",\"admin_only\",\"admin_and_owner\",\"owner_only\"]" },
+            new() { GroupId = social.Id, Key = "Social.ProblemUpvotersVisibility", DisplayName = "Sorun Oylayanlar Görünürlüğü", Description = "'Ben de Yaşıyorum' oy listesini kimler görebilir.", InputType = "Select", DefaultValue = "admin_and_owner", OrderIndex = 8, OptionsJson = "[\"closed\",\"public\",\"admin_only\",\"admin_and_owner\",\"owner_only\"]" },
+            new() { GroupId = social.Id, Key = "Social.SolutionVotersVisibility", DisplayName = "Çözüm Oylayanlar Görünürlüğü", Description = "Çözüm oylarını (olumlu/olumsuz) kimler görebilir.", InputType = "Select", DefaultValue = "admin_and_owner", OrderIndex = 9, OptionsJson = "[\"closed\",\"public\",\"admin_only\",\"admin_and_owner\",\"owner_only\"]" },
+            new() { GroupId = social.Id, Key = "Social.ProblemParticipantsVisibility", DisplayName = "Katılımcılar Görünürlüğü", Description = "Bir soruna yorum/çözüm/oy ile katılan kullanıcı listesini kimler görebilir.", InputType = "Select", DefaultValue = "public", OrderIndex = 10, OptionsJson = "[\"closed\",\"public\",\"admin_only\",\"admin_and_owner\",\"owner_only\"]" },
 
             // --- Moderasyon ve Uzmanlık ---
-            new() { GroupId = moderation.Id, Key = "Moderation.RequireExpertApproval", DisplayName = "Uzman Onay Sistemi", Description = "Çözümlerin yayınlanmadan önce uzman onayından geçmesi.", InputType = "Boolean", DefaultValue = "false", OrderIndex = 1 },
+            new() { GroupId = moderation.Id, Key = "Moderation.RequireExpertApproval", DisplayName = "Uzman Onay Sistemi", Description = "Çözümlerin yayınlanmadan önce uzman onayından geçmesi.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 1 },
             new() { GroupId = moderation.Id, Key = "Moderation.EnableReportSystem", DisplayName = "Şikayet Mekanizması", Description = "Kullanıcıların içerikleri ve diğer kullanıcıları şikayet edebilmesi.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 3 },
 
             // --- Bildirim ve İletişim ---
             new() { GroupId = communication.Id, Key = "Communication.EnableSignalR", DisplayName = "Canlı Bildirimler (SignalR)", Description = "Anlık bildirim sistemi. Kapalıysa klasik sayfa yenilemeli mod.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 1 },
             new() { GroupId = communication.Id, Key = "Communication.EnableFeedbackInbox", DisplayName = "Geri Bildirim Kutusu", Description = "Kullanıcıların yönetime doğrudan mesaj atabilmesi.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 2 },
+            new() { GroupId = communication.Id, Key = "Communication.EnableChat", DisplayName = "Sohbet Sistemi", Description = "Kullanıcılar arası ve kurum içi gerçek zamanlı sohbet özelliği. Capability kontrollü; varsayılan KAPALI.", InputType = "Boolean", DefaultValue = "false", OrderIndex = 3 },
+            new() { GroupId = communication.Id, Key = "Communication.EnableSupportChat", DisplayName = "Destek Talebi Sistemi", Description = "Kullanıcıların yetkililere hiyerarşik destek talebi açabilmesi. Genel sohbet (EnableChat) bağımsız olarak kontrol edilir. Varsayılan KAPALI.", InputType = "Boolean", DefaultValue = "false", OrderIndex = 4 },
 
             // --- Güvenlik ve Denetim ---
-            new() { GroupId = security.Id, Key = "Identity.EnableIpWhitelist", DisplayName = "IP Beyaz Liste (Whitelist)", Description = "Sadece belirli IP aralıklarından erişime izin verme.", InputType = "Boolean", DefaultValue = "false", OrderIndex = 2, IsSystemLevel = true },
-            new() { GroupId = security.Id, Key = "Identity.EnableIpBlacklist", DisplayName = "IP Kara Liste (Blacklist)", Description = "Belirli IP adreslerinin sisteme erişimini engelleme.", InputType = "Boolean", DefaultValue = "false", OrderIndex = 3, IsSystemLevel = true },
+            // Scope = "Global": IP listesi platform düzeyinde işletilir, kurum başına ayrı liste desteklenmiyor
+            new() { GroupId = security.Id, Key = "Identity.EnableIpWhitelist", DisplayName = "IP Beyaz Liste (Whitelist)", Description = "Sadece belirli IP aralıklarından erişime izin verme.", InputType = "Boolean", DefaultValue = "false", OrderIndex = 2, IsSystemLevel = true, Scope = "Global" },
+            new() { GroupId = security.Id, Key = "Identity.EnableIpBlacklist", DisplayName = "IP Kara Liste (Blacklist)", Description = "Belirli IP adreslerinin sisteme erişimini engelleme.", InputType = "Boolean", DefaultValue = "false", OrderIndex = 3, IsSystemLevel = true, Scope = "Global" },
 
             // --- Performans ve UX ---
             new() { GroupId = ux.Id, Key = "UX.InfiniteScrollEnabled", DisplayName = "Sonsuz Kaydırma", Description = "Listelerde sayfalama yerine infinite scroll kullanımı. Kapalıysa klasik sayfalama kullanılır.", InputType = "Boolean", DefaultValue = "true", OrderIndex = 1 },
@@ -104,6 +114,42 @@ public static class FeatureSeeder
                 context.FeatureDefinitions.Add(def);
             }
         }
+        context.SaveChanges();
+
+        // Mevcut kayıtların Scope'unu idempotent güncelle (migration sonrası default "Institution" gelir)
+        var globalKeys = new[]
+        {
+            "Identity.AllowGoogleLogin",
+            "Identity.EnableCaptcha",
+            "Identity.EnableIpWhitelist",
+            "Identity.EnableIpBlacklist",
+        };
+        foreach (var key in globalKeys)
+        {
+            var existing = context.FeatureDefinitions.FirstOrDefault(d => d.Key == key);
+            if (existing != null && existing.Scope != "Global")
+                existing.Scope = "Global";
+        }
+        // AllowImpersonation kurum kararı — yanlışlıkla Global işaretlendiyse geri al
+        var impersonation = context.FeatureDefinitions.FirstOrDefault(d => d.Key == "Identity.AllowImpersonation");
+        if (impersonation != null && impersonation.Scope == "Global")
+            impersonation.Scope = "Institution";
+
+        // RequireExpertApproval DefaultValue "false"→"true" idempotent güncelle
+        var expertApprovalDef = context.FeatureDefinitions.FirstOrDefault(d => d.Key == "Moderation.RequireExpertApproval");
+        if (expertApprovalDef != null)
+        {
+            if (expertApprovalDef.DefaultValue == "false")
+                expertApprovalDef.DefaultValue = "true";
+
+            // Kurumların DB'de "false" olarak set edilmiş değerlerini de "true" yap
+            var falseValues = context.InstitutionFeatureValues
+                .Where(v => v.FeatureDefinitionId == expertApprovalDef.Id && v.Value == "false")
+                .ToList();
+            foreach (var fv in falseValues)
+                fv.Value = "true";
+        }
+
         context.SaveChanges();
     }
 }

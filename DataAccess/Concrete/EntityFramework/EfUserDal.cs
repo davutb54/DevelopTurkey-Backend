@@ -148,10 +148,27 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
         if (filter.InstitutionId.HasValue)
             query = query.Where(u => u.InstitutionId == filter.InstitutionId.Value);
 
+        if (filter.AllowedInstitutionIds != null && filter.AllowedInstitutionIds.Count > 0)
+            query = query.Where(u => filter.AllowedInstitutionIds.Contains(u.InstitutionId));
+
+        if (filter.IsReported.HasValue)
+            query = query.Where(u => u.IsReported == filter.IsReported.Value);
+
+        if (filter.RegisteredAfter.HasValue)
+            query = query.Where(u => u.RegisterDate >= filter.RegisteredAfter.Value);
+
+        // --- SIRALAMA ---
+        var orderedQuery = filter.SortBy switch
+        {
+            "registerDate_asc" => query.OrderBy(u => u.RegisterDate),
+            "name_asc"         => query.OrderBy(u => u.Name).ThenBy(u => u.Surname),
+            "id_desc"          => query.OrderByDescending(u => u.Id),
+            _                  => query.OrderByDescending(u => u.RegisterDate)
+        };
+
         // --- SAYFALAMA ---
         int totalCount = query.Count();
-        var items = query
-            .OrderByDescending(u => u.RegisterDate)
+        var items = orderedQuery
             .Skip((filter.Page - 1) * filter.PageSize)
             .Take(filter.PageSize)
             .ToList();

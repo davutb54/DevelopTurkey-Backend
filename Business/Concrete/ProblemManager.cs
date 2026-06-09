@@ -31,8 +31,12 @@ public class ProblemManager : IProblemService
     private readonly IMentionService _mentionService;
     private readonly IWorkflowEventBus _eventBus;
     private readonly ICapabilityResolver _capabilityResolver;
+    private readonly IUserTitleDal _userTitleDal;
+    private readonly IOfficialResponseDal _officialResponseDal;
+    private readonly IProblemUpvoteDal _problemUpvoteDal;
+    private readonly IUserDal _userDal;
 
-    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal, IClientContext clientContext, IMemoryCache cache, INotificationService notificationService, IProblemFollowService problemFollowService, ITopicFollowService topicFollowService, IUserService userService, ITopicFollowDal topicFollowDal, IInstitutionFeatureService featureService, IMentionService mentionService, IWorkflowEventBus eventBus, ICapabilityResolver capabilityResolver)
+    public ProblemManager(IProblemDal problemDal, ILogService logService, ISolutionDal solutionDal, ICommentDal commentDal, IProblemTopicDal problemTopicDal, IClientContext clientContext, IMemoryCache cache, INotificationService notificationService, IProblemFollowService problemFollowService, ITopicFollowService topicFollowService, IUserService userService, ITopicFollowDal topicFollowDal, IInstitutionFeatureService featureService, IMentionService mentionService, IWorkflowEventBus eventBus, ICapabilityResolver capabilityResolver, IUserTitleDal userTitleDal, IOfficialResponseDal officialResponseDal, IProblemUpvoteDal problemUpvoteDal, IUserDal userDal)
     {
         _problemDal = problemDal;
         _logService = logService;
@@ -50,6 +54,10 @@ public class ProblemManager : IProblemService
         _mentionService = mentionService;
         _eventBus = eventBus;
         _capabilityResolver = capabilityResolver;
+        _userTitleDal = userTitleDal;
+        _officialResponseDal = officialResponseDal;
+        _problemUpvoteDal = problemUpvoteDal;
+        _userDal = userDal;
     }
 
     public IDataResult<ProblemDetailDto> GetById(int id)
@@ -58,6 +66,12 @@ public class ProblemManager : IProblemService
         var problem = currentInstitutionId.HasValue
             ? _problemDal.GetProblemDetail(p => p.Id == id && p.InstitutionId == currentInstitutionId.Value)
             : _problemDal.GetProblemDetail(p => p.Id == id);
+
+        if (problem != null)
+        {
+            EnrichSingleBadge(problem);
+            problem.OfficialResponses = LoadOfficialResponses(problem.Id);
+        }
 
         return new SuccessDataResult<ProblemDetailDto>(problem);
     }
@@ -79,6 +93,7 @@ public class ProblemManager : IProblemService
             ? _problemDal.GetProblemsDetails(p => p.InstitutionId == currentInstitutionId.Value)
             : _problemDal.GetProblemsDetails();
         var filteredProblems = problems.Where(p => p.Topics != null && p.Topics.Any(t => t.Id == topicId)).ToList();
+        EnrichBadges(filteredProblems);
         return new SuccessDataResult<List<ProblemDetailDto>>(filteredProblems);
     }
 
@@ -88,7 +103,7 @@ public class ProblemManager : IProblemService
         var problems = currentInstitutionId.HasValue
             ? _problemDal.GetProblemsDetails(p => p.SenderId == senderId && p.InstitutionId == currentInstitutionId.Value)
             : _problemDal.GetProblemsDetails(p => p.SenderId == senderId);
-
+        EnrichBadges(problems);
         return new SuccessDataResult<List<ProblemDetailDto>>(problems);
     }
 
@@ -98,7 +113,7 @@ public class ProblemManager : IProblemService
         var problems = currentInstitutionId.HasValue
             ? _problemDal.GetProblemsDetails(p => p.IsHighlighted && p.InstitutionId == currentInstitutionId.Value)
             : _problemDal.GetProblemsDetails(p => p.IsHighlighted);
-
+        EnrichBadges(problems);
         return new SuccessDataResult<List<ProblemDetailDto>>(problems);
     }
 
@@ -323,6 +338,7 @@ public class ProblemManager : IProblemService
     {
         var problems = _problemDal.GetProblemsDetails(p =>
             (p.IsDeleted == false) &&
+            (p.IsHidden == false) &&
             (institutionId == 0 || p.InstitutionId == institutionId) &&
             (!filterDto.CityCode.HasValue || p.CityCode == filterDto.CityCode.Value) &&
             (!filterDto.CustomHierarchyId.HasValue || p.CustomHierarchyId == filterDto.CustomHierarchyId.Value) &&
@@ -388,10 +404,12 @@ public class ProblemManager : IProblemService
         return new SuccessDataResult<List<ProblemDetailDto>>(paginatedProblems, "Sorunlar listelendi.");
     }
 
-    public IDataResult<List<ProblemDetailDto>> GetReportedProblems()
+    public IDataResult<List<ProblemDetailDto>> GetReportedProblems(int? institutionId = null)
     {
         return new SuccessDataResult<List<ProblemDetailDto>>(
-            _problemDal.GetProblemsDetails(p => p.IsReported == true)
+            institutionId.HasValue
+                ? _problemDal.GetProblemsDetails(p => p.IsReported == true && p.InstitutionId == institutionId.Value)
+                : _problemDal.GetProblemsDetails(p => p.IsReported == true)
         );
     }
 
@@ -548,11 +566,17 @@ public class ProblemManager : IProblemService
         return new SuccessResult($"Problem (ID: {problem.Id}) çözüldü işaretlendi.");
     }
 
-    public IDataResult<List<ProblemDetailDto>> GetAllForAdmin()
+    public IDataResult<List<ProblemDetailDto>> GetAllForAdmin(int? institutionId = null)
     {
-        var problems = _problemDal.GetProblemsDetails(p => p.IsDeleted == false);
+        var problems = institutionId.HasValue
+            ? _problemDal.GetProblemsDetails(p => p.IsDeleted == false && p.InstitutionId == institutionId.Value)
+            : _problemDal.GetProblemsDetails(p => p.IsDeleted == false);
+        EnrichBadges(problems);
         return new SuccessDataResult<List<ProblemDetailDto>>(problems.OrderByDescending(p => p.SendDate).ToList());
     }
+
+    public int? GetProblemInstitution(int problemId)
+        => _problemDal.Get(p => p.Id == problemId)?.InstitutionId;
 
     public IResult RemoveTopicFromProblem(int problemId, int topicId)
     {
@@ -604,6 +628,57 @@ public class ProblemManager : IProblemService
         return new SuccessResult($"Problem (ID: {problemId}) kuruma atandı.");
     }
 
+    public IResult CloseProblem(int id, string? reason)
+    {
+        var problem = _problemDal.Get(p => p.Id == id && !p.IsDeleted);
+        if (problem is null) return new ErrorResult("Sorun bulunamadı.");
+        problem.IsClosed = true;
+        problem.ClosedAt = DateTime.Now;
+        problem.ClosedByUserId = (int?)_clientContext.GetUserId();
+        problem.CloseReason = reason;
+        _problemDal.Update(problem);
+        _logService.LogInfo("Moderation", "CloseProblem", $"Problem kapatıldı - ID: {id}, Sebep: {reason}");
+        _ = _eventBus.PublishAsync("problem.closed", new RuleContext
+        {
+            SystemUserId = (int)(_clientContext.GetUserId() ?? 0),
+            ProblemId = id,
+            TargetUserId = problem.SenderId,
+            NewValue = reason,
+            InstitutionId = problem.InstitutionId
+        });
+        return new SuccessResult("Sorun kapatıldı.");
+    }
+
+    public IResult ReopenProblem(int id)
+    {
+        var problem = _problemDal.Get(p => p.Id == id && !p.IsDeleted);
+        if (problem is null) return new ErrorResult("Sorun bulunamadı.");
+        problem.IsClosed = false;
+        problem.ClosedAt = null;
+        problem.ClosedByUserId = null;
+        problem.CloseReason = null;
+        _problemDal.Update(problem);
+        _logService.LogInfo("Moderation", "ReopenProblem", $"Problem yeniden açıldı - ID: {id}");
+        _ = _eventBus.PublishAsync("problem.reopened", new RuleContext
+        {
+            SystemUserId = (int)(_clientContext.GetUserId() ?? 0),
+            ProblemId = id,
+            TargetUserId = problem.SenderId,
+            InstitutionId = problem.InstitutionId
+        });
+        return new SuccessResult("Sorun yeniden açıldı.");
+    }
+
+    public IResult ToggleHide(int id)
+    {
+        var problem = _problemDal.Get(p => p.Id == id && !p.IsDeleted);
+        if (problem is null) return new ErrorResult("Sorun bulunamadı.");
+        problem.IsHidden = !problem.IsHidden;
+        _problemDal.Update(problem);
+        _logService.LogInfo("Moderation", "ToggleHide", $"Problem {(problem.IsHidden ? "gizlendi" : "gösterildi")} - ID: {id}");
+        return new SuccessResult($"Sorun {(problem.IsHidden ? "gizlendi" : "görünür yapıldı")}.");
+    }
+
     public IResult SetStatus(int problemId, string status, bool value)
     {
         var problem = _problemDal.Get(p => p.Id == problemId && !p.IsDeleted);
@@ -623,5 +698,110 @@ public class ProblemManager : IProblemService
         _logService.LogInfo("WorkflowAction", "SetStatus",
             $"Problem {problemId} durumu güncellendi: {status}={value}.");
         return new SuccessResult($"Problem (ID: {problemId}) {status} → {value}.");
+    }
+
+    private void EnrichSingleBadge(ProblemDetailDto problem)
+    {
+        var titles = _userTitleDal.GetAll(t => t.UserId == problem.SenderId && t.IsVisible);
+        problem.SenderIsExpert   = titles.Any(t => t.Kind == "expert");
+        problem.SenderIsOfficial = titles.Any(t => t.Kind == "official");
+        problem.SenderTitles = titles.Select(t => new UserTitleDto
+        {
+            Id = t.Id, UserId = t.UserId, Label = t.Label, Kind = t.Kind,
+            Color = t.Color, Icon = t.Icon, IsVisible = t.IsVisible, AssignedAt = t.AssignedAt
+        }).ToList();
+    }
+
+    private void EnrichBadges(List<ProblemDetailDto> problems)
+    {
+        if (problems.Count == 0) return;
+
+        var senderIds = problems.Select(p => p.SenderId).Distinct().ToList();
+
+        var allTitles = _userTitleDal.GetAll(t => senderIds.Contains(t.UserId) && t.IsVisible);
+        var titleMap = allTitles.GroupBy(t => t.UserId).ToDictionary(
+            g => g.Key,
+            g => g.ToList());
+
+        foreach (var p in problems)
+        {
+            var titles = titleMap.GetValueOrDefault(p.SenderId, new List<UserTitle>());
+            p.SenderIsExpert   = titles.Any(t => t.Kind == "expert");
+            p.SenderIsOfficial = titles.Any(t => t.Kind == "official");
+            p.SenderTitles = titles.Select(t => new UserTitleDto
+            {
+                Id = t.Id, UserId = t.UserId, Label = t.Label, Kind = t.Kind,
+                Color = t.Color, Icon = t.Icon, IsVisible = t.IsVisible, AssignedAt = t.AssignedAt
+            }).ToList();
+        }
+    }
+
+    private List<OfficialResponseDto> LoadOfficialResponses(int problemId)
+    {
+        var responses = _officialResponseDal.GetDetails(r => r.ProblemId == problemId);
+        if (responses.Count > 0)
+        {
+            var authorIds = responses.Select(r => r.AuthorUserId).Distinct().ToList();
+            var allTitles = _userTitleDal.GetAll(t => authorIds.Contains(t.UserId) && t.IsVisible);
+            var titleMap = allTitles.GroupBy(t => t.UserId).ToDictionary(
+                g => g.Key,
+                g => g.Select(t => new UserTitleDto
+                {
+                    Id = t.Id, UserId = t.UserId, Label = t.Label, Kind = t.Kind,
+                    Color = t.Color, Icon = t.Icon, IsVisible = t.IsVisible, AssignedAt = t.AssignedAt
+                }).ToList());
+
+            foreach (var r in responses)
+                r.AuthorTitles = titleMap.GetValueOrDefault(r.AuthorUserId, new List<UserTitleDto>());
+        }
+        return responses;
+    }
+
+    public IDataResult<List<ProblemParticipantDto>> GetParticipants(int problemId)
+    {
+        // Solution yazarları
+        var solutions = _solutionDal.GetAll(s => s.ProblemId == problemId && !s.IsDeleted);
+        var solutionSenderIds = solutions.Select(s => (UserId: s.SenderId, Role: "solution_author")).ToList();
+
+        // Yorum yazarları — çözümlere bağlı
+        var solutionIds = solutions.Select(s => s.Id).ToList();
+        var commentSenderIds = _commentDal
+            .GetAll(c => solutionIds.Contains(c.SolutionId) && !c.IsDeleted)
+            .Select(c => (UserId: c.SenderId, Role: "commenter"))
+            .ToList();
+
+        // Upvoterlar
+        var upvoterIds = _problemUpvoteDal
+            .GetAll(u => u.ProblemId == problemId)
+            .Select(u => (UserId: u.UserId, Role: "upvoter"))
+            .ToList();
+
+        // Birleştir, kullanıcı başına ilk rolü koru
+        var allParticipants = solutionSenderIds
+            .Concat(commentSenderIds)
+            .Concat(upvoterIds)
+            .GroupBy(x => x.UserId)
+            .Select(g => (UserId: g.Key, Role: g.First().Role))
+            .ToList();
+
+        if (!allParticipants.Any())
+            return new SuccessDataResult<List<ProblemParticipantDto>>(new List<ProblemParticipantDto>());
+
+        var userIds = allParticipants.Select(x => x.UserId).ToList();
+        var users = _userDal.GetAll(u => userIds.Contains(u.Id)).ToDictionary(u => u.Id);
+
+        var result = allParticipants.Select(p =>
+        {
+            users.TryGetValue(p.UserId, out var user);
+            return new ProblemParticipantDto
+            {
+                UserId = p.UserId,
+                Username = user?.UserName ?? "",
+                ProfileImageUrl = user?.ProfileImageUrl,
+                Role = p.Role
+            };
+        }).ToList();
+
+        return new SuccessDataResult<List<ProblemParticipantDto>>(result);
     }
 }

@@ -11,6 +11,7 @@ public class SolutionUpdateDto
     public string Description { get; set; }
     public string? ImageUrls { get; set; } // Mevcut resimlerin virgülle ayrılmış listesi
     public List<IFormFile>? Images { get; set; } // Yeni eklenecek resimler
+    public List<IFormFile>? Videos { get; set; } // Yeni eklenecek videolar
     public DateTime SendDate { get; set; }
     public bool IsHighlighted { get; set; }
     public bool IsReported { get; set; }

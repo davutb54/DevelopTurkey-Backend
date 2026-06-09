@@ -14,8 +14,10 @@ public class ProblemAddDto
     public int? CustomHierarchyId { get; set; }
     public List<int>? TopicIds { get; set; }
     public List<IFormFile>? Images { get; set; }
+    public List<IFormFile>? Videos { get; set; }
 
     public string? SolutionTitle { get; set; }
     public string? SolutionDescription { get; set; }
     public List<IFormFile>? SolutionImages { get; set; }
+    public List<IFormFile>? SolutionVideos { get; set; }
 }

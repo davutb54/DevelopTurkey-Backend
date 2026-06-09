@@ -42,4 +42,12 @@ public class UserCapabilitiesController : ControllerBase
         var result = await _userCapabilityService.RevokeAsync(userId, dto);
         return result.Success ? Ok(result) : BadRequest(result);
     }
+
+    [HttpPost("revoke-bulk")]
+    [RequireCapability("admin.capability_revoke")]
+    public async Task<IActionResult> RevokeBulk(int userId, [FromBody] RevokeBulkDto dto)
+    {
+        var result = await _userCapabilityService.RevokeBulkAsync(userId, dto);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
 }

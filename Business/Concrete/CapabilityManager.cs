@@ -49,12 +49,14 @@ public class CapabilityManager : ICapabilityService
 
     private static CapabilityDto ToDto(Entities.Concrete.Capability c) => new()
     {
-        Id = c.Id,
-        Code = c.Code,
+        Id          = c.Id,
+        Code        = c.Code,
         Description = c.Description,
-        Category = c.Category,
-        IsSystem = c.IsSystem,
-        IsActive = c.IsActive,
-        CreatedAt = c.CreatedAt,
+        Category    = c.Category,
+        GroupKey    = c.GroupKey,
+        PageScope   = c.PageScope,
+        IsSystem    = c.IsSystem,
+        IsActive    = c.IsActive,
+        CreatedAt   = c.CreatedAt,
     };
 }

@@ -1,8 +1,11 @@
 using Business.Abstract;
+using Core.Utilities.Authorization;
+using Core.Utilities.Context;
 using Entities.Concrete;
 using Entities.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using WebAPI.Filters;
 
 namespace WebAPI.Controllers
@@ -20,12 +23,65 @@ namespace WebAPI.Controllers
             _webHostEnvironment = webHostEnvironment;
         }
 
+        /// <summary>
+        /// Tüm kurumları listeler.
+        /// Global admin.institution_read → tümünü döner.
+        /// Scoped (kuruma bağlı) admin → yalnız kendi kurumunu döner.
+        /// </summary>
         [HttpGet("getall")]
-        [AllowAnonymous]
+        [RequireCapability("admin.institution_read")]
         public IActionResult GetAll()
         {
-            var result = _institutionService.GetAll();
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int currentUserId))
+                return Unauthorized();
+
+            var resolver      = HttpContext.RequestServices.GetRequiredService<ICapabilityResolver>();
+            var clientContext = HttpContext.RequestServices.GetRequiredService<IClientContext>();
+
+            // Global admin check (no InstitutionId scope = global)
+            if (resolver.Allows(currentUserId, "admin.institution_read", ctx: null))
+            {
+                var all = _institutionService.GetAll();
+                return all.Success ? Ok(all) : BadRequest(all);
+            }
+
+            // Scoped admin — return only their own institution
+            var institutionId = clientContext.GetInstitutionId();
+            if (!institutionId.HasValue)
+                return Forbid();
+
+            var own = _institutionService.GetById(institutionId.Value);
+            if (!own.Success || own.Data == null)
+                return BadRequest(own);
+
+            return Ok(new { success = true, data = new List<Institution> { own.Data } });
+        }
+
+        /// <summary>
+        /// Anonim erişim — yalnız branding bilgilerini döner.
+        /// </summary>
+        [HttpGet("getbydomain")]
+        [AllowAnonymous]
+        public IActionResult GetByDomain(string domain)
+        {
+            var result = _institutionService.GetPublicInfo(domain);
             return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        /// <summary>
+        /// Subdomain tabanlı kurum tespiti — anonim, yalnız branding bilgilerini döner.
+        /// Örnek: GET /api/institution/getbysubdomain?slug=kurum1
+        /// </summary>
+        [HttpGet("getbysubdomain")]
+        [AllowAnonymous]
+        public IActionResult GetBySubdomain(string slug)
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+                return BadRequest(new { success = false, message = "slug parametresi gereklidir." });
+
+            var result = _institutionService.GetPublicInfoBySubdomain(slug.Trim().ToLowerInvariant());
+            return result.Success ? Ok(result) : NotFound(result);
         }
 
         [HttpGet("getbyid")]
@@ -33,14 +89,6 @@ namespace WebAPI.Controllers
         public IActionResult GetById(int id)
         {
             var result = _institutionService.GetById(id);
-            return result.Success ? Ok(result) : BadRequest(result);
-        }
-
-        [HttpGet("getbydomain")]
-        [AllowAnonymous]
-        public IActionResult GetByDomain(string domain)
-        {
-            var result = _institutionService.GetByDomain(domain);
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
@@ -65,6 +113,7 @@ namespace WebAPI.Controllers
                 Name = dto.Name,
                 Subtitle = dto.Subtitle,
                 Domain = dto.Domain,
+                Subdomain = string.IsNullOrWhiteSpace(dto.Subdomain) ? null : dto.Subdomain.Trim().ToLowerInvariant(),
                 PrimaryColor = dto.PrimaryColor,
                 Status = dto.Status,
                 LogoUrl = logoUrl,
@@ -99,6 +148,7 @@ namespace WebAPI.Controllers
             existingInst.Name = dto.Name;
             existingInst.Subtitle = dto.Subtitle;
             existingInst.Domain = dto.Domain;
+            existingInst.Subdomain = string.IsNullOrWhiteSpace(dto.Subdomain) ? null : dto.Subdomain.Trim().ToLowerInvariant();
             existingInst.PrimaryColor = dto.PrimaryColor;
             existingInst.Status = dto.Status;
             existingInst.LogoUrl = logoUrl;

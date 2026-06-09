@@ -3,6 +3,7 @@ using Business.Models;
 using Core.Utilities.Results;
 using DataAccess.Abstract;
 using Entities.Concrete;
+using Entities.DTOs;
 
 namespace Business.Concrete;
 
@@ -12,13 +13,15 @@ public class ProblemUpvoteManager : IProblemUpvoteService
     private readonly IProblemDal _problemDal;
     private readonly IInstitutionFeatureService _featureService;
     private readonly IWorkflowEventBus _eventBus;
+    private readonly IUserDal _userDal;
 
-    public ProblemUpvoteManager(IProblemUpvoteDal problemUpvoteDal, IProblemDal problemDal, IInstitutionFeatureService featureService, IWorkflowEventBus eventBus)
+    public ProblemUpvoteManager(IProblemUpvoteDal problemUpvoteDal, IProblemDal problemDal, IInstitutionFeatureService featureService, IWorkflowEventBus eventBus, IUserDal userDal)
     {
         _problemUpvoteDal = problemUpvoteDal;
         _problemDal = problemDal;
         _featureService = featureService;
         _eventBus = eventBus;
+        _userDal = userDal;
     }
 
     public bool CheckUpvote(int problemId, int userId)
@@ -80,5 +83,30 @@ public class ProblemUpvoteManager : IProblemUpvoteService
 
             return new SuccessDataResult<bool>(true, "Destek eklendi");
         }
+    }
+
+    public IDataResult<List<ProblemUpvoterDto>> GetUpvoters(int problemId)
+    {
+        var upvotes = _problemUpvoteDal
+            .GetAll(u => u.ProblemId == problemId)
+            .OrderByDescending(u => u.CreatedAt)
+            .ToList();
+
+        var userIds = upvotes.Select(u => u.UserId).Distinct().ToList();
+        var users = _userDal.GetAll(u => userIds.Contains(u.Id)).ToDictionary(u => u.Id);
+
+        var result = upvotes.Select(u =>
+        {
+            users.TryGetValue(u.UserId, out var user);
+            return new ProblemUpvoterDto
+            {
+                UserId = u.UserId,
+                Username = user?.UserName ?? "",
+                ProfileImageUrl = user?.ProfileImageUrl,
+                CreatedAt = u.CreatedAt
+            };
+        }).ToList();
+
+        return new SuccessDataResult<List<ProblemUpvoterDto>>(result);
     }
 }

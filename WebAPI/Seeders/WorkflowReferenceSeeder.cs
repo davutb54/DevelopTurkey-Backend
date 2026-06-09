@@ -247,6 +247,11 @@ public static class WorkflowReferenceSeeder
             ("trigger_workflow", "Workflow Tetikle", "Sistem", "⚡",
              "Başka bir workflow definition'ı çalıştırır; maksimum 3 zincir derinliği.",
              """[{"key":"workflowDefinitionId","label":"Workflow Definition ID","type":"number","required":true,"defaultValue":""},{"key":"inheritContext","label":"Context'i Devral","type":"boolean","required":false,"defaultValue":"true"}]"""),
+
+            // ── Sohbet ──────────────────────────────────────────────────────────
+            ("send_chat_message", "Sohbet Mesajı Gönder", "Sohbet", "💬",
+             "Mevcut bir konuşmaya (conversation) otomatik mesaj gönderir.",
+             """[{"key":"conversationId","label":"Konuşma ID","type":"number","required":true,"defaultValue":""},{"key":"body","label":"Mesaj İçeriği","type":"text","required":true,"defaultValue":""},{"key":"senderType","label":"Gönderen Tipi","type":"select","options":["context_user","target_user","custom"],"required":false,"defaultValue":"context_user"},{"key":"customSenderId","label":"Kullanıcı ID (senderType=custom)","type":"text","required":false,"defaultValue":""}]"""),
         };
 
         // Upsert: her action'ı ActionCode'a göre bul; varsa güncelle, yoksa ekle

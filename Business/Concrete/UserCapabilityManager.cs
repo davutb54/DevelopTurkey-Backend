@@ -116,6 +116,29 @@ public class UserCapabilityManager : IUserCapabilityService
         return new SuccessResult(Messages.CapabilityGranted);
     }
 
+    public async Task<IResult> RevokeBulkAsync(int userId, RevokeBulkDto dto)
+    {
+        if (dto.CapabilityCodes == null || dto.CapabilityCodes.Count == 0)
+            return new ErrorResult("Silinecek yetki listesi boş.");
+
+        var revokedCount = 0;
+        var skippedCount = 0;
+
+        foreach (var code in dto.CapabilityCodes)
+        {
+            var result = await RevokeAsync(userId, new RevokeCapabilityDto
+            {
+                CapabilityCode = code,
+                InstitutionId  = dto.InstitutionId,
+                Reason         = dto.Reason,
+            });
+            if (result.Success) revokedCount++;
+            else skippedCount++;
+        }
+
+        return new SuccessResult($"{revokedCount} yetki kaldırıldı, {skippedCount} atlandı.");
+    }
+
     public async Task<IResult> RevokeAsync(int userId, RevokeCapabilityDto dto)
     {
         var cap = _capabilityDal.Get(c => c.Code == dto.CapabilityCode && c.IsActive);

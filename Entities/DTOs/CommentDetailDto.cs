@@ -11,4 +11,5 @@ public class CommentDetailDto
 	public bool SenderIsExpert { get; set; }
     public bool SenderIsOfficial { get; set; }
     public DateTime SendDate { get; set; }
+    public List<UserTitleDto> SenderTitles { get; set; } = new();
 }

@@ -45,6 +45,11 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                         InstitutionId = p.InstitutionId,
                         UpvoteCount = context.ProblemUpvotes.Count(u => u.ProblemId == p.Id),
                         FollowerCount = context.ProblemFollowers.Count(f => f.ProblemId == p.Id),
+                        IsClosed = p.IsClosed,
+                        ClosedAt = p.ClosedAt,
+                        ClosedByUserId = p.ClosedByUserId,
+                        CloseReason = p.CloseReason,
+                        IsHidden = p.IsHidden,
 
                         Topics = (from pt in context.ProblemTopics
                                   join t in context.Topics on pt.TopicId equals t.Id
@@ -93,6 +98,11 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                         InstitutionId = p.InstitutionId,
                         UpvoteCount = context.ProblemUpvotes.Count(u => u.ProblemId == p.Id),
                         FollowerCount = context.ProblemFollowers.Count(f => f.ProblemId == p.Id),
+                        IsClosed = p.IsClosed,
+                        ClosedAt = p.ClosedAt,
+                        ClosedByUserId = p.ClosedByUserId,
+                        CloseReason = p.CloseReason,
+                        IsHidden = p.IsHidden,
 
                         Topics = (from pt in context.ProblemTopics
                                   join t in context.Topics on pt.TopicId equals t.Id
@@ -156,6 +166,11 @@ public class EfProblemDal : EfEntityRepositoryBase<Problem, DevelopTurkeyContext
                 InstitutionId = x.p.InstitutionId,
                 UpvoteCount = context.ProblemUpvotes.Count(u => u.ProblemId == x.p.Id),
                 FollowerCount = context.ProblemFollowers.Count(f => f.ProblemId == x.p.Id),
+                IsClosed = x.p.IsClosed,
+                ClosedAt = x.p.ClosedAt,
+                ClosedByUserId = x.p.ClosedByUserId,
+                CloseReason = x.p.CloseReason,
+                IsHidden = x.p.IsHidden,
 
                 Topics = (from pt in context.ProblemTopics
                           join t in context.Topics on pt.TopicId equals t.Id

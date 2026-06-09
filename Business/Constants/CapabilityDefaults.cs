@@ -34,13 +34,16 @@ public static class CapabilityDefaults
         "user.account_delete",
         "user.notifications_manage",
         "user.feedback_send",
+        "chat.use",
+        "chat.support_request",
     ];
 
     public static readonly string[] BootstrapAdmin =
     [
-        // admin (52)
+        // admin
         "admin.system_access",
         "admin.system_monitor",
+        "admin.security_monitor",
         "admin.system_settings_read",
         "admin.system_settings_write",
         "admin.user_read",
@@ -49,7 +52,6 @@ public static class CapabilityDefaults
         "admin.user_delete",
         "admin.user_ban",
         "admin.user_unban",
-        "admin.user_role_change",
         "admin.user_impersonate",
         "admin.user_warning_read_all",
         "admin.institution_read",
@@ -91,12 +93,15 @@ public static class CapabilityDefaults
         "admin.metrics_user_view",
         "admin.metrics_system_health_view",
         "admin.metrics_export",
-        // moderation (20)
+        // moderation (23)
         "moderation.content_review",
         "moderation.problem_moderate",
         "moderation.problem_delete",
         "moderation.problem_highlight",
         "moderation.problem_resolve",
+        "moderation.problem_close",
+        "moderation.problem_reopen",
+        "moderation.problem_hide",
         "moderation.solution_moderate",
         "moderation.solution_delete",
         "moderation.solution_highlight",
@@ -121,7 +126,6 @@ public static class CapabilityDefaults
         "expert.content_highlight",
         "expert.badge_assign",
         "expert.badge_revoke",
-        "expert.workflow_test_run",
         "expert.csharp_execute",
         // user (30)
         ..NewUser,
@@ -153,6 +157,54 @@ public static class CapabilityDefaults
         "admin.announcement_read",
         "admin.announcement_create",
         "admin.announcement_delete",
+        // tenant isolation — global scope
+        "admin.cross_institution_read",
+        "admin.user_institution_change",
+        // titles
+        "admin.user_title_assign",
+        "admin.user_title_read",
+        // official
+        "official.response_create",
+        "official.response_update",
+        // page — tüm admin sayfaları (Süper Admin)
+        "page.admin.monitor",
+        "page.admin.overview",
+        "page.admin.problems",
+        "page.admin.solutions",
+        "page.admin.topics",
+        "page.admin.expert_approvals",
+        "page.admin.users",
+        "page.admin.institutions",
+        "page.admin.reports",
+        "page.admin.feedbacks",
+        "page.admin.security",
+        "page.admin.settings",
+        "page.admin.announcements",
+        "page.admin.logs",
+        "page.admin.activity_logs",
+        "page.admin.kill_switch",
+        "page.admin.agreements",
+        "page.admin.email_templates",
+        "page.admin.corporate",
+        "page.admin.features",
+        "page.admin.workflow",
+        "page.admin.capabilities",
+        "page.admin.capability_templates",
+        "page.admin.capability_audit",
+        "page.admin.metrics",
+        // chat
+        "chat.use",
+        "chat.institution_manage",
+        "chat.global_manage",
+        "chat.contact_admin",
+        "chat.official_channel",
+        "chat.support_request",
+        "chat.escalate",
+        "chat.contact_global_admin",
+        "chat.handle_support",
+        "chat.handle_escalations",
+        "page.admin.chat",
+        "workflow.action.send_chat_message",
     ];
 
     public static readonly string[] SystemUser =

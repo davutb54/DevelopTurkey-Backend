@@ -25,8 +25,9 @@ public class SolutionManager : ISolutionService
     private readonly IMentionService _mentionService;
     private readonly IWorkflowEventBus _eventBus;
     private readonly ICapabilityResolver _capabilityResolver;
+    private readonly IUserTitleDal _userTitleDal;
 
-    public SolutionManager(ISolutionDal solutionDal, ILogService logService, IProblemService problemService, ICommentDal commentDal, IClientContext clientContext, INotificationService notificationService, IProblemFollowService problemFollowService, IInstitutionFeatureService featureService, IMentionService mentionService, IWorkflowEventBus eventBus, ICapabilityResolver capabilityResolver)
+    public SolutionManager(ISolutionDal solutionDal, ILogService logService, IProblemService problemService, ICommentDal commentDal, IClientContext clientContext, INotificationService notificationService, IProblemFollowService problemFollowService, IInstitutionFeatureService featureService, IMentionService mentionService, IWorkflowEventBus eventBus, ICapabilityResolver capabilityResolver, IUserTitleDal userTitleDal)
     {
         _solutionDal = solutionDal;
         _logService = logService;
@@ -39,6 +40,7 @@ public class SolutionManager : ISolutionService
         _mentionService = mentionService;
         _eventBus = eventBus;
         _capabilityResolver = capabilityResolver;
+        _userTitleDal = userTitleDal;
     }
 
     public IDataResult<Solution?> GetById(int id)
@@ -54,11 +56,10 @@ public class SolutionManager : ISolutionService
     public IDataResult<List<SolutionDetailDto>> GetAll(int institutionId)
     {
         var currentInstitutionId = _clientContext.GetInstitutionId();
-        if (currentInstitutionId.HasValue)
-        {
-            institutionId = currentInstitutionId.Value;
-        }
-        return new SuccessDataResult<List<SolutionDetailDto>>(_solutionDal.GetSolutions(s => s.InstitutionId == institutionId));
+        if (currentInstitutionId.HasValue) institutionId = currentInstitutionId.Value;
+        var solutions = _solutionDal.GetSolutions(s => s.InstitutionId == institutionId);
+        EnrichBadges(solutions);
+        return new SuccessDataResult<List<SolutionDetailDto>>(solutions);
     }
 
     public IDataResult<List<SolutionDetailDto>> GetByProblem(int problemId)
@@ -67,7 +68,7 @@ public class SolutionManager : ISolutionService
         var solutions = currentInstitutionId.HasValue
             ? _solutionDal.GetSolutions(s => s.ProblemId == problemId && s.InstitutionId == currentInstitutionId.Value)
             : _solutionDal.GetSolutions(s => s.ProblemId == problemId);
-
+        EnrichBadges(solutions);
         return new SuccessDataResult<List<SolutionDetailDto>>(solutions);
     }
 
@@ -77,7 +78,7 @@ public class SolutionManager : ISolutionService
         var solutions = currentInstitutionId.HasValue
             ? _solutionDal.GetSolutions(s => s.SenderId == senderId && s.InstitutionId == currentInstitutionId.Value)
             : _solutionDal.GetSolutions(s => s.SenderId == senderId);
-
+        EnrichBadges(solutions);
         return new SuccessDataResult<List<SolutionDetailDto>>(solutions);
     }
 
@@ -87,7 +88,7 @@ public class SolutionManager : ISolutionService
         var solutions = currentInstitutionId.HasValue
             ? _solutionDal.GetSolutions(s => s.IsHighlighted && s.InstitutionId == currentInstitutionId.Value)
             : _solutionDal.GetSolutions(s => s.IsHighlighted);
-
+        EnrichBadges(solutions);
         return new SuccessDataResult<List<SolutionDetailDto>>(solutions);
     }
 
@@ -107,13 +108,18 @@ public class SolutionManager : ISolutionService
             return new ErrorResult("Bu kurumun sorununa çözüm ekleyemezsiniz.");
         }
 
+        if (problem.Data.IsClosed)
+        {
+            return new ErrorResult("Bu sorun kapatılmıştır, yeni çözüm eklenemiyor.");
+        }
+
         // Kurum bilgisi, hedef problemin kurumundan türetilir.
         solution.InstitutionId = problem.Data.InstitutionId;
         solution.SendDate = DateTime.Now;
 
-        if (!_featureService.IsFeatureEnabled(solution.InstitutionId, "Moderation.RequireExpertApproval"))
+        if (!_featureService.IsFeatureEnabled(solution.InstitutionId, "Moderation.RequireExpertApproval", defaultValue: true))
         {
-            solution.ExpertApprovalStatus = 1; // Otomatik Onay
+            solution.ExpertApprovalStatus = 1; // Otomatik Onay (özellik kapalıysa)
         }
 
         _solutionDal.Add(solution);
@@ -375,9 +381,14 @@ public class SolutionManager : ISolutionService
         return new SuccessResult($"Çözüm (ID: {solution.Id}) {action}.");
     }
 
-    public IDataResult<List<SolutionDetailDto>> GetPendingExpertSolutions()
+    public IDataResult<List<SolutionDetailDto>> GetPendingExpertSolutions(int? institutionId = null)
     {
-        return new SuccessDataResult<List<SolutionDetailDto>>(_solutionDal.GetSolutions(solution => solution.ExpertApprovalStatus == 0 && (solution.SenderIsExpert || solution.SenderIsOfficial)));
+        var all = institutionId.HasValue
+            ? _solutionDal.GetSolutions(s => s.ExpertApprovalStatus == 0 && s.InstitutionId == institutionId.Value)
+            : _solutionDal.GetSolutions(s => s.ExpertApprovalStatus == 0);
+        EnrichBadges(all);
+        return new SuccessDataResult<List<SolutionDetailDto>>(
+            all.Where(s => s.SenderIsExpert || s.SenderIsOfficial).ToList());
     }
 
     public IResult ApproveSolution(int id)
@@ -465,8 +476,39 @@ public class SolutionManager : ISolutionService
         return new SuccessResult($"Çözüm (ID: {solution.Id}) admin tarafından reddedildi.");
     }
 
-    public IDataResult<List<SolutionDetailDto>> GetAllForAdmin()
+    public IDataResult<List<SolutionDetailDto>> GetAllForAdmin(int? institutionId = null)
     {
-        return new SuccessDataResult<List<SolutionDetailDto>>(_solutionDal.GetSolutions());
+        var solutions = institutionId.HasValue
+            ? _solutionDal.GetSolutions(s => s.InstitutionId == institutionId.Value)
+            : _solutionDal.GetSolutions();
+        EnrichBadges(solutions);
+        return new SuccessDataResult<List<SolutionDetailDto>>(solutions);
+    }
+
+    public int? GetSolutionInstitution(int solutionId)
+        => _solutionDal.Get(s => s.Id == solutionId)?.InstitutionId;
+
+    private void EnrichBadges(List<SolutionDetailDto> solutions)
+    {
+        if (solutions.Count == 0) return;
+
+        var senderIds = solutions.Select(s => s.SenderId).Distinct().ToList();
+
+        var allTitles = _userTitleDal.GetAll(t => senderIds.Contains(t.UserId) && t.IsVisible);
+        var titleMap = allTitles.GroupBy(t => t.UserId).ToDictionary(
+            g => g.Key,
+            g => g.ToList());
+
+        foreach (var s in solutions)
+        {
+            var titles = titleMap.GetValueOrDefault(s.SenderId, new List<UserTitle>());
+            s.SenderIsExpert   = titles.Any(t => t.Kind == "expert");
+            s.SenderIsOfficial = titles.Any(t => t.Kind == "official");
+            s.SenderTitles = titles.Select(t => new UserTitleDto
+            {
+                Id = t.Id, UserId = t.UserId, Label = t.Label, Kind = t.Kind,
+                Color = t.Color, Icon = t.Icon, IsVisible = t.IsVisible, AssignedAt = t.AssignedAt
+            }).ToList();
+        }
     }
 }

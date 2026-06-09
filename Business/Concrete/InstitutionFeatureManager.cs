@@ -40,11 +40,11 @@ public class InstitutionFeatureManager : IInstitutionFeatureService
         // Önce tüm default değerleri yükle
         var result = allDefinitions.ToDictionary(d => d.Key, d => d.DefaultValue ?? "");
         
-        // Kuruma özel değerlerle override et
+        // Kuruma özel değerlerle override et (Global-scope feature'lar override edilemez)
         foreach (var val in institutionValues)
         {
             var def = allDefinitions.FirstOrDefault(d => d.Id == val.FeatureDefinitionId);
-            if (def != null)
+            if (def != null && def.Scope != "Global")
             {
                 result[def.Key] = val.Value;
             }
