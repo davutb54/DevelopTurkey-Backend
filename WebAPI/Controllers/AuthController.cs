@@ -103,8 +103,11 @@ namespace WebAPI.Controllers
                 return BadRequest(userToLogin.Message);
             }
 
-            var user = _userService.GetByUserName(userForLoginDto.UserName)
-                       ?? _userService.GetByEmail(userForLoginDto.UserName);
+            var user = _userService.GetByUserNameForAuth(userForLoginDto.UserName)
+                       ?? _userService.GetByEmailForAuth(userForLoginDto.UserName);
+
+            if (user == null)
+                return StatusCode(500, "Kullanıcı verisi alınamadı.");
 
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
 
@@ -206,7 +209,10 @@ namespace WebAPI.Controllers
 
             if (registerResult.Success)
             {
-                var user = _userService.GetByUserName(userForRegisterDto.UserName);
+                var user = _userService.GetByUserNameForAuth(userForRegisterDto.UserName);
+
+                if (user == null)
+                    return StatusCode(500, "Kayıt tamamlandı fakat kullanıcı verisi alınamadı.");
 
                 // Yeni kullanıcıya "Standart Kullanıcı" şablonunu uygula.
                 // Şablon bulunamazsa hardcoded listeye geri dön (fallback).
@@ -237,7 +243,7 @@ namespace WebAPI.Controllers
 
                 var tokenResult = _userService.CreateAccessToken(user);
 
-                var emailResult = _emailVerificationService.SendVerificationCode(user);
+                var emailResult = await _emailVerificationService.SendVerificationCode(user);
 
                 if (!emailResult.Success)
                 {
@@ -370,12 +376,12 @@ namespace WebAPI.Controllers
 
         [HttpPost("forgotpassword")]
         [EnableRateLimiting("AuthLimit")]
-        public IActionResult ForgotPassword([FromBody] string email)
+        public async Task<IActionResult> ForgotPassword([FromBody] string email)
         {
             var userDetail = _userService.GetByEmail(email);
             if (userDetail == null) return BadRequest("Bu e-posta adresiyle kayıtlı kullanıcı bulunamadı.");
 
-            var result = _emailVerificationService.SendPasswordResetCode(userDetail);
+            var result = await _emailVerificationService.SendPasswordResetCode(userDetail);
             if (result.Success) return Ok(result.Message);
 
             return BadRequest(result.Message);
@@ -413,13 +419,13 @@ namespace WebAPI.Controllers
 
         [HttpPost("resendverification")]
         [EnableRateLimiting("AuthLimit")]
-        public IActionResult ResendVerification([FromBody] string email)
+        public async Task<IActionResult> ResendVerification([FromBody] string email)
         {
             var userDetail = _userService.GetByEmail(email);
             if (userDetail == null) return BadRequest("Kullanıcı bulunamadı.");
             if (userDetail.IsEmailVerified) return BadRequest("Bu hesap zaten doğrulanmış.");
 
-            var result = _emailVerificationService.SendVerificationCode(userDetail);
+            var result = await _emailVerificationService.SendVerificationCode(userDetail);
             if (result.Success)
             {
                 _ = _eventBus.PublishAsync("auth.verification_resent", new RuleContext

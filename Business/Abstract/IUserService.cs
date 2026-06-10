@@ -23,6 +23,9 @@ public interface IUserService
     IResult CheckUserExists(CheckExistsDto checkExistsDto);
     IResult UpdateUserDetails(UserForUpdateDto userForUpdateDto);
     User GetByUserName(string userName);
+    // Tenant filter'ı atlar — login/register akışında kullanılmalı.
+    User? GetByUserNameForAuth(string userName);
+    User? GetByEmailForAuth(string email);
     IResult DeleteUser(int id);
     IResult Update(User user);
     IResult ResetPassword(int userId, string newPassword);

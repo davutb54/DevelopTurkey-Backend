@@ -1,11 +1,17 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Core.Entities.Concrete;
 
 public class User : IEntity
 {
     public int Id { get; set; }
+    [MaxLength(100)]
     public string UserName { get; set; }
+    [MaxLength(100)]
     public string Name { get; set; }
+    [MaxLength(100)]
     public string Surname { get; set; }
+    [MaxLength(320)]
     public string Email { get; set; }
     public string? ProfileImageUrl { get; set; }
 

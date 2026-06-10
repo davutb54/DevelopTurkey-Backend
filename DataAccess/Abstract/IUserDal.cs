@@ -11,4 +11,6 @@ public interface IUserDal : IEntityRepository<User>
 	UserDetailDto? GetUserDetail(Expression<Func<UserDetailDto,bool>> filter);
 	List<UserDetailDto> GetUserDetails(Expression<Func<UserDetailDto, bool>>? filter = null);
     (List<UserDetailDto> Items, int TotalCount) GetUserDetailsPaged(UserFilterDto filter);
+    // Tenant filter'ı atlar — sadece auth işlemlerinde (login/register) kullanılmalı.
+    User? GetForAuth(Expression<Func<User, bool>> filter);
 }

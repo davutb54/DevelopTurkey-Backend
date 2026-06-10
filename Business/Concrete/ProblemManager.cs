@@ -62,10 +62,8 @@ public class ProblemManager : IProblemService
 
     public IDataResult<ProblemDetailDto> GetById(int id)
     {
-        var currentInstitutionId = _clientContext.GetInstitutionId();
-        var problem = currentInstitutionId.HasValue
-            ? _problemDal.GetProblemDetail(p => p.Id == id && p.InstitutionId == currentInstitutionId.Value)
-            : _problemDal.GetProblemDetail(p => p.Id == id);
+        // Global query filter handles InstitutionId scoping automatically.
+        var problem = _problemDal.GetProblemDetail(id);
 
         if (problem != null)
         {

@@ -568,7 +568,6 @@ using (var scope = app.Services.CreateScope())
     WebAPI.Seeders.CapabilityTemplateSeeder.Seed(context);
     WebAPI.Seeders.BootstrapAdminSeeder.Seed(context, config);
     WebAPI.Seeders.SystemUserSeeder.Seed(context, config);
-    WebAPI.Seeders.TestDataSeeder.Seed(context, config);   // dev ortamı test verisi
 }
 
 app.Run();

@@ -94,6 +94,10 @@ public class DevelopTurkeyContext : DbContext
             .HasIndex(l => l.InstitutionId).HasDatabaseName("IX_WorkflowLogs_InstitutionId");
         modelBuilder.Entity<User>()
             .HasIndex(u => u.InstitutionId).HasDatabaseName("IX_Users_InstitutionId");
+        modelBuilder.Entity<User>()
+            .HasIndex(u => u.Email).IsUnique().HasDatabaseName("IX_Users_Email_Unique");
+        modelBuilder.Entity<User>()
+            .HasIndex(u => u.UserName).IsUnique().HasDatabaseName("IX_Users_UserName_Unique");
         modelBuilder.Entity<InstitutionFeatureValue>()
             .HasIndex(v => v.InstitutionId).HasDatabaseName("IX_InstitutionFeatureValues_InstitutionId");
         // Sohbet index'leri

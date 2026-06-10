@@ -117,7 +117,7 @@ public static class CapabilityDefaults
         "moderation.topic_delete",
         "moderation.bulk_notification_send",
         "moderation.audit_view_institution",
-        // expert (10)
+        // expert (11)
         "expert.solution_approve",
         "expert.solution_reject",
         "expert.solution_quality_score",
@@ -126,7 +126,10 @@ public static class CapabilityDefaults
         "expert.content_highlight",
         "expert.badge_assign",
         "expert.badge_revoke",
+        "expert.workflow_test_run",
         "expert.csharp_execute",
+        // admin — ek (rol değişikliği)
+        "admin.user_role_change",
         // user (30)
         ..NewUser,
         // workflow.action (23)

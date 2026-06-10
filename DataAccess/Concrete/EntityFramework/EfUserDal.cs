@@ -5,6 +5,7 @@ using Core.Entities.Constants;
 using DataAccess.Abstract;
 using Entities.DTOs;
 using Entities.DTOs.User;
+using Microsoft.EntityFrameworkCore;
 
 namespace DataAccess.Concrete.EntityFramework;
 
@@ -81,6 +82,12 @@ public class EfUserDal : EfEntityRepositoryBase<User, DevelopTurkeyContext>, IUs
 					 };
 		return filter == null ? result.ToList() : result.Where(filter).ToList();
 	}
+
+    public User? GetForAuth(Expression<Func<User, bool>> filter)
+    {
+        using var context = new DevelopTurkeyContext();
+        return context.Users.IgnoreQueryFilters().Where(filter).SingleOrDefault();
+    }
 
     public (List<UserDetailDto> Items, int TotalCount) GetUserDetailsPaged(UserFilterDto filter)
     {

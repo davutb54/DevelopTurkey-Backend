@@ -37,26 +37,25 @@ public class SendEmailActionHandler : IWorkflowActionHandler
         return errors;
     }
 
-    public Task<IDataResult<object?>> ExecuteAsync(Dictionary<string, string> parameters, RuleContext context)
+    public async Task<IDataResult<object?>> ExecuteAsync(Dictionary<string, string> parameters, RuleContext context)
     {
         var to = ResolveEmailAddress(parameters, context);
         if (string.IsNullOrWhiteSpace(to))
-            return Task.FromResult<IDataResult<object?>>(
-                new ErrorDataResult<object?>(null, "send_email: alıcı e-posta adresi çözülemedi."));
+            return new ErrorDataResult<object?>(null, "send_email: alıcı e-posta adresi çözülemedi.");
 
         var (subject, body) = ResolveEmailContent(parameters, context);
-        var result = _emailHelper.Send(to, subject, body);
+        var result = await _emailHelper.SendAsync(to, subject, body);
 
         var cc = WorkflowParameterResolver.Resolve(parameters.GetValueOrDefault("cc"), context);
         if (result.Success && !string.IsNullOrWhiteSpace(cc))
         {
             foreach (var addr in cc.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                _emailHelper.Send(addr, subject, body);
+                await _emailHelper.SendAsync(addr, subject, body);
         }
 
-        return Task.FromResult<IDataResult<object?>>(result.Success
+        return result.Success
             ? new SuccessDataResult<object?>(new { to, subject }, "E-posta gönderildi.")
-            : new ErrorDataResult<object?>(null, $"E-posta gönderilemedi: {result.Message}"));
+            : new ErrorDataResult<object?>(null, $"E-posta gönderilemedi: {result.Message}");
     }
 
     // ── Yardımcılar ────────────────────────────────────────────────────────────

@@ -130,8 +130,8 @@ public class UserManager : IUserService
     }
     public IResult Login(UserForLoginDto userForLoginDto)
     {
-        // Username veya e-posta ile giriş desteklenir
-        var user = _userDal.Get(u => u.UserName == userForLoginDto.UserName || u.Email == userForLoginDto.UserName);
+        // Tenant filter atlanır — kullanıcı hangi kuruma ait olursa olsun bulunabilmeli.
+        var user = _userDal.GetForAuth(u => u.UserName == userForLoginDto.UserName || u.Email == userForLoginDto.UserName);
 
         if (user == null || user.IsDeleted)
         {
@@ -232,7 +232,7 @@ public class UserManager : IUserService
             return new ErrorDataResult<AccessToken>(null, "Google yetkilendirmesi geçersiz veya bu uygulama için üretilmemiş.");
         }
 
-        var user = _userDal.Get(u => u.Email == payload.Email);
+        var user = _userDal.GetForAuth(u => u.Email == payload.Email);
 
         if (user == null)
         {
@@ -246,7 +246,7 @@ public class UserManager : IUserService
             string baseUsername = payload.Email.Split('@')[0];
             string uniqueUsername = baseUsername;
             int counter = 1;
-            while (_userDal.Get(u => u.UserName == uniqueUsername) != null) {
+            while (_userDal.GetForAuth(u => u.UserName == uniqueUsername) != null) {
                 uniqueUsername = $"{baseUsername}{counter++}";
             }
 
@@ -410,8 +410,9 @@ public class UserManager : IUserService
 
     public IResult CheckUserExists(CheckExistsDto checkExistsDto)
     {
-        var emailUser = _userDal.Get(u => u.Email == checkExistsDto.Email);
-        var usernameUser = _userDal.Get(u => u.UserName == checkExistsDto.Username);
+        // Tüm kurumlar içinde benzersizlik kontrolü yapılmalı (tenant filter atlanır).
+        var emailUser = _userDal.GetForAuth(u => u.Email == checkExistsDto.Email);
+        var usernameUser = _userDal.GetForAuth(u => u.UserName == checkExistsDto.Username);
 
         if (emailUser != null)
         {
@@ -454,7 +455,7 @@ public class UserManager : IUserService
         {
             user.IsEmailVerified = false;
             _userDal.Update(user);
-            _emailVerificationService.SendVerificationCode(user);
+            _ = _emailVerificationService.SendVerificationCode(user);
             _logService.LogWarning("Auth", "UpdateDetails", $"E-posta değiştirildi, doğrulama sıfırlandı - ID: {user.Id}, Yeni E-posta: {user.Email}");
         }
         else
@@ -505,6 +506,16 @@ public class UserManager : IUserService
     public User GetByUserName(string userName)
     {
         return _userDal.Get(u => u.UserName == userName);
+    }
+
+    public User? GetByUserNameForAuth(string userName)
+    {
+        return _userDal.GetForAuth(u => u.UserName == userName);
+    }
+
+    public User? GetByEmailForAuth(string email)
+    {
+        return _userDal.GetForAuth(u => u.Email == email);
     }
 
     public IResult Update(User user)

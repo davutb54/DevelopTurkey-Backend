@@ -33,7 +33,7 @@ public class EmailVerificationManager : IEmailVerificationService
         _eventBus = eventBus;
     }
 
-    public IResult SendVerificationCode(User user)
+    public async Task<IResult> SendVerificationCode(User user)
     {
         Random random = new Random();
         int code = random.Next(100000, 999999);
@@ -72,7 +72,7 @@ public class EmailVerificationManager : IEmailVerificationService
             }
         }
 
-        var sendResult = _emailHelper.Send(user.Email, subject, body);
+        var sendResult = await _emailHelper.SendAsync(user.Email, subject, body);
 
         if (!sendResult.Success)
         {
@@ -184,7 +184,7 @@ public class EmailVerificationManager : IEmailVerificationService
         return new SuccessResult("Email başarıyla doğrulandı!");
     }
 
-    public IResult SendPasswordResetCode(User user)
+    public async Task<IResult> SendPasswordResetCode(User user)
     {
         Random random = new Random();
         int code = random.Next(100000, 999999);
@@ -223,7 +223,7 @@ public class EmailVerificationManager : IEmailVerificationService
             }
         }
 
-        var sendResult = _emailHelper.Send(user.Email, subject, body);
+        var sendResult = await _emailHelper.SendAsync(user.Email, subject, body);
         if (!sendResult.Success)
         {
             _logService.LogError("Auth", "SendPasswordReset", $"Email gönderme hatası - UserID: {user.Id}, Email: {user.Email}", sendResult.Message);

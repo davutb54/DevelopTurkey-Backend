@@ -17,28 +17,29 @@ public class SmtpEmailHelper : IEmailHelper
     }
 
     public IResult Send(string to, string subject, string body)
+        => SendAsync(to, subject, body).GetAwaiter().GetResult();
+
+    public async Task<IResult> SendAsync(string to, string subject, string body)
     {
         try
         {
             ServicePointManager.ServerCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true;
 
-            using (var client = new SmtpClient(_emailOptions.SmtpServer, _emailOptions.SmtpPort))
+            using var client = new SmtpClient(_emailOptions.SmtpServer, _emailOptions.SmtpPort);
+            client.EnableSsl = true;
+            client.UseDefaultCredentials = false;
+            client.Credentials = new NetworkCredential(_emailOptions.SenderEmail, _emailOptions.SenderPassword);
+
+            var mailMessage = new MailMessage
             {
-                client.EnableSsl = true;
-                client.UseDefaultCredentials = false;
-                client.Credentials = new NetworkCredential(_emailOptions.SenderEmail, _emailOptions.SenderPassword);
+                From = new MailAddress(_emailOptions.SenderEmail, _emailOptions.SenderName),
+                Subject = subject,
+                Body = body,
+                IsBodyHtml = true
+            };
+            mailMessage.To.Add(to);
 
-                var mailMessage = new MailMessage
-                {
-                    From = new MailAddress(_emailOptions.SenderEmail, _emailOptions.SenderName),
-                    Subject = subject,
-                    Body = body,
-                    IsBodyHtml = true 
-                };
-
-                mailMessage.To.Add(to);
-                client.Send(mailMessage);
-            }
+            await client.SendMailAsync(mailMessage);
             return new SuccessResult("E-posta başarıyla gönderildi.");
         }
         catch (Exception ex)
