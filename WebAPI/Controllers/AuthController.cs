@@ -243,12 +243,19 @@ namespace WebAPI.Controllers
 
                 var tokenResult = _userService.CreateAccessToken(user);
 
-                var emailResult = await _emailVerificationService.SendVerificationCode(user);
+                // Kurumun email doğrulama zorunluluğu kapalıysa doğrulama kodu gönderme
+                bool requireEmailVerification = _institutionFeatureService.IsFeatureEnabled(
+                    user.InstitutionId, "Identity.RequireEmailVerification", true);
 
-                if (!emailResult.Success)
+                if (requireEmailVerification)
                 {
-                    _logService.LogWarning("Auth", "Register_Email_Failed", $"Kayıt başarılı ancak e-posta gönderilemedi. User: {user.UserName}");
-                    return Ok(tokenResult.Data);
+                    var emailResult = await _emailVerificationService.SendVerificationCode(user);
+
+                    if (!emailResult.Success)
+                    {
+                        _logService.LogWarning("Auth", "Register_Email_Failed", $"Kayıt başarılı ancak e-posta gönderilemedi. User: {user.UserName}");
+                        return Ok(tokenResult.Data);
+                    }
                 }
 
                 if (tokenResult.Success)
@@ -266,7 +273,7 @@ namespace WebAPI.Controllers
                     Response.Cookies.Append("token", tokenResult.Data.Token, cookieOptions);
                     Response.Cookies.Append("userId", tokenResult.Data.UserId.ToString(), cookieOptions);
 
-                    return Ok(new { success = true, message = "Kayıt başarılı." });
+                    return Ok(new { success = true, message = "Kayıt başarılı.", requireEmailVerification });
                 }
 
                 return Ok(registerResult.Message);

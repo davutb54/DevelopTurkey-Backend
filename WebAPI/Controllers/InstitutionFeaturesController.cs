@@ -21,26 +21,12 @@ public class InstitutionFeaturesController : ControllerBase
     }
 
     /// <summary>
-    /// Bir kurumun tüm feature değerlerini getirir (key -> value map)
+    /// Bir kurumun tüm feature değerlerini getirir (key -> value map).
+    /// Feature konfigürasyonu hassas veri değildir; herkes okuyabilir.
     /// </summary>
     [HttpGet("getall/{institutionId}")]
     public IActionResult GetAll(int institutionId)
     {
-        var currentUserId = _clientContext.GetUserId();
-        var currentInstitutionId = _clientContext.GetInstitutionId() ?? 1;
-
-        if (currentUserId.HasValue)
-        {
-            var resolver = HttpContext.RequestServices.GetRequiredService<ICapabilityResolver>();
-            var isGlobal = resolver.Allows(currentUserId.Value, "admin.institution_feature_write", ctx: null);
-            if (!isGlobal && institutionId != currentInstitutionId)
-                return Forbid();
-        }
-        else if (institutionId != currentInstitutionId)
-        {
-            return Forbid();
-        }
-
         var result = _institutionFeatureService.GetAllForInstitution(institutionId);
         return result.Success ? Ok(result) : BadRequest(result);
     }

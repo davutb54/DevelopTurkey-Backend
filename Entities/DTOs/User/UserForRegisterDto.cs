@@ -12,4 +12,5 @@ public class UserForRegisterDto
 	public bool EmailNotificationPermission { get; set; }
 	public string? CaptchaToken { get; set; }
 	public bool AgreementAccepted { get; set; } = false;
+	public int? InstitutionId { get; set; }
 }

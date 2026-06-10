@@ -325,7 +325,7 @@ public class UserManager : IUserService
 
         int assignedInstitutionId = (institutionResult.Success && institutionResult.Data != null)
             ? institutionResult.Data.Id
-            : 1;
+            : (userForRegisterDto.InstitutionId ?? 1);
 
         if (institutionResult.Success && institutionResult.Data != null)
         {
